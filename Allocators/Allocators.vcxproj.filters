@@ -26,5 +26,8 @@
     <ClInclude Include="Linear.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Pool.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
