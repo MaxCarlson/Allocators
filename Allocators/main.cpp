@@ -10,6 +10,7 @@
 int main()
 {
 	std::allocator<int> a;
+	a.allocate(5);
 	alloc::FixedBlock<int, 4> fb;
 
 
