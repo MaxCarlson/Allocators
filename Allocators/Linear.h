@@ -1,14 +1,11 @@
 #pragma once
-#include <memory>
-#include <stdexcept>
+#include "AllocHelpers.h"
 
 namespace alloc
 {
 	template<size_t bytes>
 	struct LStorage
 	{
-		using byte = unsigned char;
-
 		inline static bool init = 1;
 		inline static byte* MyBegin;
 		inline static size_t MyLast;
@@ -47,6 +44,11 @@ namespace alloc
 		}
 	};
 
+	// A very basic allocator that allocates linearly 
+	// from a set @ compile time number of bytes
+	//
+	// Doesn't allow for freeing of memory in pieces
+	// but rather requires all memory to be freed at once
 	template<class Type, size_t bytes>
 	class Linear
 	{

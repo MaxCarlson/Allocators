@@ -29,5 +29,8 @@
     <ClInclude Include="Pool.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="AllocHelpers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
