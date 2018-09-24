@@ -18,8 +18,7 @@ namespace alloc
 			if (init)
 			{
 				MyBegin = reinterpret_cast<byte*>(operator new (bytes));
-				MyLast	= 0;
-				init	= 0;
+				MyLast	= init = 0;
 			}
 		}
 
@@ -33,7 +32,7 @@ namespace alloc
 				throw std::runtime_error("Allocator not instantiated!");
 
 			byte* begin = MyBegin + MyLast;
-			MyLast += count;
+			MyLast += count * sizeof(T);
 			
 			return reinterpret_cast<T*>(begin);
 		}
@@ -41,9 +40,10 @@ namespace alloc
 		void reset()
 		{
 			delete MyBegin;
+			MyBegin = nullptr;
 
-			init = true;
-			MyLast = bytes = 0;
+			MyLast	= 0;
+			init	= true;
 		}
 	};
 
@@ -55,15 +55,13 @@ namespace alloc
 		using reference		= Type&;
 		using size_type		= size_t;
 
-		static_assert(bytes > 0, "Linear allocators memory size cannot be < 0");
+		static_assert(bytes > 0, "Linear allocators memory size cannot be < 1 byte");
 
 		LStorage<bytes> storage;
 
 	public:
 
-		Linear()
-		{
-		}
+		Linear() = default;
 
 		pointer allocate(size_type count)
 		{

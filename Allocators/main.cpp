@@ -12,17 +12,12 @@ int main()
 {
 	std::allocator<int> a;
 
-	alloc::Linear<int, 256> l;
+	alloc::Linear<int, sizeof(int) * 4> l;
 
 	auto* data = l.allocate(2);
 
 	data[0] = 1;
-	data[1] = 2;
 
-	auto* data1 = l.allocate(2);
-
-	data1[0] = 3;
-	data1[1] = 4;
 
 
 	//alloc::FixedBlock<int, 4> fb;
