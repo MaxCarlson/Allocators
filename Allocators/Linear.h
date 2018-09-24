@@ -94,7 +94,7 @@ namespace alloc
 		template<class Other>
 		bool operator!=(const Other& other)
 		{
-			return !(other == *this);
+			return other.size != bytes;
 		}
 	};
 }

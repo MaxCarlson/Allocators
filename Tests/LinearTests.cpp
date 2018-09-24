@@ -75,13 +75,13 @@ namespace Tests
 			bool sizesUnequal = ai4 == ai8;
 
 			Assert::AreEqual(sizeTypeEqulity, true);
-			Assert::AreEqual(sizesUnequal, true);
+			Assert::AreEqual(sizesUnequal, false);
 
 			sizeTypeEqulity = ai4 != ac4;
 			sizesUnequal = ai4 != ai8;
 
 			Assert::AreEqual(sizeTypeEqulity, false);
-			Assert::AreEqual(sizesUnequal, false);
+			Assert::AreEqual(sizesUnequal, true);
 		}
 	};
 }
