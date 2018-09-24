@@ -57,7 +57,10 @@ namespace alloc
 
 		static_assert(bytes > 0, "Linear allocators memory size cannot be < 1 byte");
 
+		size_type size = bytes;
 		LStorage<bytes> storage;
+
+		friend class Linear;
 
 	public:
 
@@ -82,5 +85,16 @@ namespace alloc
 		template<class U>
 		struct rebind { using other = Linear<U, bytes>; };
 
+		template<class Other>
+		bool operator==(const Other& other)
+		{
+			return other.size == bytes;
+		}
+
+		template<class Other>
+		bool operator!=(const Other& other)
+		{
+			return !(other == *this);
+		}
 	};
 }

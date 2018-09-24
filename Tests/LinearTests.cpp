@@ -64,5 +64,24 @@ namespace Tests
 			for (int i = 1; i < 5; ++i)
 				Assert::AreNotEqual(data[i-1], i);
 		}
+
+		TEST_METHOD(Operators)
+		{
+			alloc::Linear<int, sizeof(int) * 4> ai4;
+			alloc::Linear<char, sizeof(int) * 4> ac4;
+			alloc::Linear<int, sizeof(int) * 8> ai8;
+
+			bool sizeTypeEqulity = ai4 == ac4;
+			bool sizesUnequal = ai4 == ai8;
+
+			Assert::AreEqual(sizeTypeEqulity, true);
+			Assert::AreEqual(sizesUnequal, true);
+
+			sizeTypeEqulity = ai4 != ac4;
+			sizesUnequal = ai4 != ai8;
+
+			Assert::AreEqual(sizeTypeEqulity, false);
+			Assert::AreEqual(sizesUnequal, false);
+		}
 	};
 }
