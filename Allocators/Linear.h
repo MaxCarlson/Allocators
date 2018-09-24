@@ -1,10 +1,53 @@
 #pragma once
 #include <memory>
-
+#include <stdexcept>
 
 namespace alloc
 {
-	template<class Type, size_t bytes = 0>
+	template<size_t bytes>
+	struct LStorage
+	{
+		using byte = unsigned char;
+
+		inline static bool init = 1;
+		inline static byte* MyBegin;
+		inline static size_t MyLast;
+
+		LStorage()
+		{
+			if (init)
+			{
+				MyBegin = reinterpret_cast<byte*>(operator new (bytes));
+				MyLast	= 0;
+				init	= 0;
+			}
+		}
+
+		template<class T>
+		T* allocate(size_t count)
+		{
+			// If we have static storage size set, make sure we don't exceed it
+			if (count * sizeof(T) + MyLast > bytes)
+				throw std::bad_alloc();
+			if (init)
+				throw std::runtime_error("Allocator not instantiated!");
+
+			byte* begin = MyBegin + MyLast;
+			MyLast += count;
+			
+			return reinterpret_cast<T*>(begin);
+		}
+
+		void reset()
+		{
+			delete MyBegin;
+
+			init = true;
+			MyLast = bytes = 0;
+		}
+	};
+
+	template<class Type, size_t bytes>
 	class Linear
 	{
 		using value_type	= Type;
@@ -12,31 +55,30 @@ namespace alloc
 		using reference		= Type&;
 		using size_type		= size_t;
 
-		static char* MyBegin;
-		
-		static size_type MyLast;
-		static size_type MySize;
+		static_assert(bytes > 0, "Linear allocators memory size cannot be < 0");
+
+		LStorage<bytes> storage;
 
 	public:
 
 		Linear()
 		{
-			if constexpr (bytes)
-			{
-				MySize	= bytes;
-				MyBegin = operator new (bytes)
-			}
-			else
-				MySize	= 0;
 		}
 
 		pointer allocate(size_type count)
 		{
-			// If we have static storage size set, make sure we don't exceed it
-			if (bytes && count * sizeof(type) + MyLast > MySize)
-				throw std::bad_alloc;
+			return storage.allocate<Type>(count);
+		}
 
+		void deallocate(Type* t)
+		{
+			throw std::runtime_error("Cannot deallocate specific memory in Linear allocator, use reset to deallocate all memory "
+				"(and render any instatiated Linear allocator of the same bytes size useless until constructed again)");
+		}
 
+		void reset()
+		{
+			storage.reset();
 		}
 
 		template<class U>

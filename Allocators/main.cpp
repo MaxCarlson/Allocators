@@ -1,4 +1,5 @@
 #include <memory>
+#include "Linear.h"
 #include "FixedBlock.h"
 
 
@@ -10,11 +11,22 @@
 int main()
 {
 	std::allocator<int> a;
-	a.allocate(5);
-	alloc::FixedBlock<int, 4> fb;
+
+	alloc::Linear<int, 256> l;
+
+	auto* data = l.allocate(2);
+
+	data[0] = 1;
+	data[1] = 2;
+
+	auto* data1 = l.allocate(2);
+
+	data1[0] = 3;
+	data1[1] = 4;
 
 
-	alloc::FixedBlock<int, 4>::rebind<char>::other aa;
+	//alloc::FixedBlock<int, 4> fb;
+	//alloc::FixedBlock<int, 4>::rebind<char>::other aa;
 	
 
 	return 0;
