@@ -122,6 +122,7 @@
   <ItemGroup>
     <ClInclude Include="AllocHelpers.h" />
     <ClInclude Include="FixedBlock.h" />
+    <ClInclude Include="FreeList.h" />
     <ClInclude Include="Linear.h" />
     <ClInclude Include="Pool.h" />
   </ItemGroup>

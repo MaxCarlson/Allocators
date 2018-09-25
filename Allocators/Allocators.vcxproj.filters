@@ -32,5 +32,8 @@
     <ClInclude Include="AllocHelpers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="FreeList.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
