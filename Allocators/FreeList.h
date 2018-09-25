@@ -1,10 +1,15 @@
 #pragma once
 #include <list>
-#include <map>
 #include "AllocHelpers.h"
 
 namespace alloc
 {
+
+	template<size_t bytes>
+	struct TreePolicy
+	{
+
+	};
 
 	enum AlSearch : byte
 	{
@@ -13,78 +18,91 @@ namespace alloc
 	};
 
 	template<size_t bytes>
-	struct TreePolicy
+	struct ListPolicy
 	{
-		static byte* MyBegin;
-		static std::map<size_t, byte*> availible;
+		inline static byte* MyBegin;
+		inline static size_t MyLast;
+		inline static std::list<std::pair<byte*, size_t>> availible;
 
-		inline static bool init = 1;
-		inline static AlSearch search = BEST_FIT;
+		inline static bool init			= 1;
+		inline static AlSearch search	= FIRST_FIT;
 
-		TestPolicy()
+		ListPolicy()
 		{
 			if (init)
 			{
+				init	= false;
+				MyLast	= 0;
 				MyBegin = reinterpret_cast<byte*>(operator new (bytes));
-				availible.emplace({ bytes, MyBegin });
-				init = false;
+
+				addToList(MyBegin, bytes);
 			}
 		}
 
 		byte* bestFit(const size_t byteCount)
 		{
-
+			return nullptr;
 		}
 
-		byte* firstFit(const size_t byteCount)
+		void addToList(byte* start, size_t size)
 		{
-			byte* found = nullptr;
+			if (availible.empty())
+			{
+				availible.emplace_back(start, size);
+				return;
+			}
+
 			for (auto it = std::begin(availible);
 				it != std::end(availible); ++it)
 			{
+				if (it->second > size)
+					availible.insert(it, std::pair{ start, size });
+			}
+		}
+
+		void firstFit(const size_t byteCount, byte*& found)
+		{
+			for (auto it = std::begin(availible); 
+					 it != std::end(availible); ++it)
+			{
 				// Found a section of memory large enough to hold
 				// what we want to allocate
-				if (n.second >= byteCount)
+				if (it->second >= byteCount)
 				{
-					found = it.first;
+					found = it->first;
+					auto itBytes = std::move(it->second);
+					availible.erase(it);
+
 
 					// If memory section is larger than what we want
-					// add a new list entry the reflects the 
-					if (it->second > byteCount)
-					{
-
-					}
-
-					availible.erase(it);
+					// add a new list entry the reflects the remaining memory
+					if (itBytes > byteCount)
+						addToList(found + byteCount, itBytes - byteCount);
+					
 					break;
 				}
 			}
-
-			return found;
 		}
 
 		template<class T>
 		T* allocate(size_t count)
 		{
-			bool found = false;
-			T* mem;
+			byte* mem;
 
 			const size_t byteCount = sizeof(T) * count;
 
 			if (search == FIRST_FIT)
-				mem = firstFit<T>(byteCount);
+				firstFit(byteCount, mem);
 			else
-				mem = bestFit<T>(byteCount);
+				mem = bestFit(byteCount);
 
-			if (!found)
+			if (!mem || count * sizeof(T) + MyLast > bytes)
 				throw std::bad_alloc();
+
+			MyLast += byteCount;
+
+			return reinterpret_cast<T*>(mem);
 		}
-	};
-
-	template<size_t bytes>
-	struct ListPolicy
-	{
-
 	};
 
 	template<class Type, size_t bytes = 0, template<size_t> class Policy = ListPolicy>
@@ -97,7 +115,10 @@ namespace alloc
 
 		FreeList() = default;
 
-
+		Type* allocate(size_t count)
+		{
+			return storage.allocate<Type>(count);
+		}
 
 	};
 }
