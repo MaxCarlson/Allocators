@@ -27,6 +27,14 @@ namespace alloc
 		inline static bool init			= 1;
 		inline static AlSearch search	= FIRST_FIT;
 
+		struct Header
+		{
+			size_t size;
+			byte padding;
+		};
+
+		inline static constexpr size_t headerSize = sizeof(Header);
+
 		ListPolicy()
 		{
 			if (init)
@@ -44,7 +52,7 @@ namespace alloc
 			return nullptr;
 		}
 
-		void addToList(byte const* start, size_t size)
+		void addToList(byte* start, size_t size)
 		{
 			if (availible.empty())
 			{
@@ -60,7 +68,7 @@ namespace alloc
 			}
 		}
 
-		void firstFit(const size_t byteCount, byte*& found)
+		byte* firstFit(size_t byteCount)
 		{
 			for (auto it = std::begin(availible); 
 					 it != std::end(availible); ++it)
@@ -69,7 +77,7 @@ namespace alloc
 				// what we want to allocate
 				if (it->second >= byteCount)
 				{
-					found = it->first;
+					auto* mem = it->first;
 					auto itBytes = std::move(it->second);
 					availible.erase(it);
 
@@ -78,23 +86,33 @@ namespace alloc
 					if (itBytes > byteCount)
 						addToList(found + byteCount, itBytes - byteCount);
 					
-					break;
+					return writeHeader(mem);
 				}
 			}
+			return nullptr;
+		}
+
+		// Writes the header and adjusts the pointer
+		// to the memory right after header 
+		byte* writeHeader(byte* start)
+		{
+			
+
+			return start + headerSize;
 		}
 
 		template<class T>
 		T* allocate(size_t count)
 		{
 			byte* mem = nullptr;
-			const size_t byteCount = sizeof(T) * count;
+			const size_t byteCount = sizeof(T) * count + headerSize;
 
 			if (search == FIRST_FIT)
-				firstFit(byteCount, mem);
+				mem = firstFit(byteCount);
 			else
 				mem = bestFit(byteCount);
 
-			if (!mem || count * sizeof(T) + MyLast > bytes)
+			if (!mem) //  || count * sizeof(T) + MyLast > bytes ||| We don't need commented out code here right? It's implicit?
 				throw std::bad_alloc();
 
 			MyLast += byteCount;
