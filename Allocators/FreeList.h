@@ -5,7 +5,7 @@
 namespace alloc
 {
 
-	template<size_t bytes>
+	template<size_t bytes, class pred = std::less<size_t>>
 	struct TreePolicy
 	{
 
@@ -17,7 +17,7 @@ namespace alloc
 		FIRST_FIT
 	};
 
-	template<size_t bytes>
+	template<size_t bytes, class pred = std::less<size_t>>
 	struct ListPolicy
 	{
 		inline static byte* MyBegin;
@@ -31,6 +31,8 @@ namespace alloc
 		{
 			size_t size;
 		};
+
+
 
 		inline static constexpr size_t headerSize = sizeof(Header);
 
@@ -63,7 +65,7 @@ namespace alloc
 				it != std::end(availible); ++it)
 			{
 				if (it->second > size)
-					availible.insert(it, std::pair{ start, size });
+					availible.emplace(it, std::pair{ start, size });
 			}
 		}
 
@@ -119,21 +121,38 @@ namespace alloc
 			return reinterpret_cast<T*>(mem);
 		}
 
-		// BUG: Issue here. Not keeping track of allocated block length
-		// don't know how much to free
+		// TODO: Do we keep the smallest or largest chunks of memory first?
+		// In first fit smallest is probably best? Opposite in best fit
 		//
-		// TODO: To fix add a header to all allocations ( be sure to include header offsets in all ops )
+		// TODO: In order to perform coalescence do we need to keep memory blocks in
+		// physical address order??
 		template<class T>
-		void deallocate(T const* ptr)
+		void deallocate(T* ptr)
 		{
-			//addToList(ptr, )
+			Header* header = reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) - headerSize);
+
+			if (availible.empty())
+			{
+				availible.emplace_back(reinterpret_cast<byte*>(header), header->size);
+				return;
+			}
+
+			for (auto it = std::begin(availible);
+				it != std::end(availible); ++it)
+			{
+				if (pred()(header->size, it->second))
+				{
+					availible.emplace(it, reinterpret_cast<byte*>(header), header->size);
+					return;
+				}
+			}
 		}
 	};
 
-	template<class Type, size_t bytes = 0, template<size_t> class Policy = ListPolicy>
+	template<class Type, size_t bytes = 0, template<size_t, class> class Policy = ListPolicy, class pred = std::less<size_t>>
 	class FreeList
 	{
-		Policy<bytes> storage;
+		Policy<bytes, pred> storage;
 
 	public:
 
@@ -145,7 +164,7 @@ namespace alloc
 			return storage.allocate<Type>(count);
 		}
 
-		void deallocate(Type const* ptr)
+		void deallocate(Type* ptr)
 		{
 			storage.deallocate(ptr);
 		}

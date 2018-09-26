@@ -20,8 +20,11 @@ int main()
 	m[0] = 1;
 	m[1] = 2;
 	auto* m1 = fl.allocate(2);
-	m[2] = 3;
-	m[3] = 4;
+	m1[0] = 3;
+	m1[1] = 4;
+
+	fl.deallocate(m1);
+	fl.deallocate(m);
 
 
 	return 0;
