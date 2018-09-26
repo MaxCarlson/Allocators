@@ -2,6 +2,8 @@
 #include <list>
 #include "AllocHelpers.h"
 
+
+
 namespace alloc
 {
 
@@ -20,21 +22,20 @@ namespace alloc
 	template<size_t bytes, class pred = std::less<size_t>>
 	struct ListPolicy
 	{
+		struct Header
+		{
+			size_t size;
+		};
+
 		inline static byte* MyBegin;
 		inline static size_t MyLast;
 		inline static std::list<std::pair<byte*, size_t>> availible; // TODO: These list nodes should be contained in memory before allocated blocks?
 
 		inline static bool init			= 1;
 		inline static AlSearch search	= FIRST_FIT;
-
-		struct Header
-		{
-			size_t size;
-		};
-
-
-
 		inline static constexpr size_t headerSize = sizeof(Header);
+
+		static_assert(bytes > headerSize, "Allocator size is smaller than minimum required.");
 
 		ListPolicy()
 		{
@@ -126,6 +127,8 @@ namespace alloc
 		//
 		// TODO: In order to perform coalescence do we need to keep memory blocks in
 		// physical address order??
+		// Should we keep a list in pred ordering and add a footer to allocations
+		// denoting block's status/size so we can deallocate/merge in O(1) and still allocate O(N)
 		template<class T>
 		void deallocate(T* ptr)
 		{
