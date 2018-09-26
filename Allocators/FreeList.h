@@ -30,7 +30,6 @@ namespace alloc
 		struct Header
 		{
 			size_t size;
-			byte padding;
 		};
 
 		inline static constexpr size_t headerSize = sizeof(Header);
@@ -84,9 +83,9 @@ namespace alloc
 					// If memory section is larger than what we want
 					// add a new list entry the reflects the remaining memory
 					if (itBytes > byteCount)
-						addToList(found + byteCount, itBytes - byteCount);
+						addToList(mem + byteCount, itBytes - byteCount);
 					
-					return writeHeader(mem);
+					return writeHeader(mem, byteCount - headerSize);
 				}
 			}
 			return nullptr;
@@ -94,11 +93,12 @@ namespace alloc
 
 		// Writes the header and adjusts the pointer
 		// to the memory right after header 
-		byte* writeHeader(byte* start)
+		byte* writeHeader(byte* start, size_t size)
 		{
-			
+			auto* header = reinterpret_cast<Header*>(start);
+			*header = Header{ size };
 
-			return start + headerSize;
+			return start + (headerSize);
 		}
 
 		template<class T>
