@@ -22,9 +22,12 @@ namespace alloc
 	template<size_t bytes, class pred = std::less<size_t>>
 	struct ListPolicy
 	{
+		using size_type = size_t;
+
 		struct Header
 		{
-			size_t size;
+			size_type size : (sizeof(size_type) * 8) - 1; 
+			size_type free : 1;
 		};
 
 		inline static byte* MyBegin;
@@ -34,8 +37,9 @@ namespace alloc
 		inline static bool init			= 1;
 		inline static AlSearch search	= FIRST_FIT;
 		inline static constexpr size_t headerSize = sizeof(Header);
+		inline static constexpr size_t headerSize2 = headerSize * 2;
 
-		static_assert(bytes > headerSize, "Allocator size is smaller than minimum required.");
+		static_assert(bytes > headerSize * 2, "Allocator size is smaller than minimum required.");
 
 		ListPolicy()
 		{
@@ -94,21 +98,31 @@ namespace alloc
 			return nullptr;
 		}
 
-		// Writes the header and adjusts the pointer
-		// to the memory right after header 
-		byte* writeHeader(byte* start, size_t size)
+		// Writes the header and adjusts the returned 
+		// pointer to user memory
+		byte* writeHeader(byte* start, size_type size)
 		{
+			// TODO: Does the construction of another header make it less effeciant
+			// than replacing variables? Look at assembly/test once finalized
+			//*reinterpret_cast<Header*>(start) = Header{ size, false };
 			auto* header = reinterpret_cast<Header*>(start);
-			*header = Header{ size };
+			*header = Header{ size, false };
 
-			return start + (headerSize);
+
+			start += headerSize;
+
+			//*reinterpret_cast<Header*>(start + size) = Header{ size, false };
+			auto* footer = reinterpret_cast<Header*>(start + size);
+			footer = Header{ size, false };
+
+			return start;
 		}
 
 		template<class T>
 		T* allocate(size_t count)
 		{
 			byte* mem = nullptr;
-			const size_t byteCount = sizeof(T) * count + headerSize;
+			const size_t byteCount = sizeof(T) * count + headerSize2;
 
 			if (search == FIRST_FIT)
 				mem = firstFit(byteCount);
@@ -136,7 +150,7 @@ namespace alloc
 
 			if (availible.empty())
 			{
-				availible.emplace_back(reinterpret_cast<byte*>(header), header->size);
+				availible.emplace_back(reinterpret_cast<byte*>(header), static_cast<size_type>(header->size));
 				return;
 			}
 
@@ -145,17 +159,19 @@ namespace alloc
 			{
 				if (pred()(header->size, it->second))
 				{
-					availible.emplace(it, reinterpret_cast<byte*>(header), header->size);
+					availible.emplace(it, reinterpret_cast<byte*>(header), static_cast<size_type>(header->size));
 					return;
 				}
 			}
 		}
 	};
 
-	template<class Type, size_t bytes = 0, template<size_t, class> class Policy = ListPolicy, class pred = std::less<size_t>>
+	template<class Type, size_t bytes = 0, 
+		template<size_t, class> class Policy = ListPolicy, 
+		template<class> class pred = std::less>
 	class FreeList
 	{
-		Policy<bytes, pred> storage;
+		Policy<bytes, pred<size_t>> storage;
 
 	public:
 
@@ -172,4 +188,5 @@ namespace alloc
 			storage.deallocate(ptr);
 		}
 	};
+	
 }

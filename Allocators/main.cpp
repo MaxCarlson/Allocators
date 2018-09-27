@@ -1,4 +1,5 @@
 #include <memory>
+#include <iostream>
 #include "Linear.h"
 #include "FixedBlock.h"
 #include "Pool.h"
@@ -22,6 +23,12 @@ int main()
 	auto* m1 = fl.allocate(2);
 	m1[0] = 3;
 	m1[1] = 4;
+
+	std::cout << &m[0] << '\n';
+	std::cout << &m[1] << '\n';
+	std::cout << &m1[0] << '\n';
+	std::cout << &m1[1] << '\n';
+
 
 	fl.deallocate(m1);
 	fl.deallocate(m);
