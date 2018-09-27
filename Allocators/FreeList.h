@@ -133,6 +133,37 @@ namespace alloc
 			return reinterpret_cast<T*>(mem);
 		}
 
+		byte* joinChunks(Header* header, Header* footer)
+		{
+
+		}
+
+		void coalescence(Header*& header, Header* footer)
+		{
+			byte* byteHeader = reinterpret_cast<byte*>(header);
+
+			// Look backwards
+			if (byteHeader - headerSize > MyBegin)
+			{
+				auto* prevFoot = reinterpret_cast<Header*>(byteHeader - headerSize);
+				if (prevFoot->free)
+				{
+					Header* newHeader = prevFoot - (prevFoot->size + headerSize);
+					*newHeader = Header{ prevFoot->size + header->size + headerSize * 4, true };
+				}
+					byteHeader = joinChunks(prevFoot, header);
+			}
+
+			// WRONG
+			// Look forwards
+			if (byteHeader + header->size <= bytes)
+			{
+				auto* nextHeader = reinterpret_cast<Header*>(byteHeader + header->size);
+				if (nextHeader->free)
+					joinChunks(header, nextHeader);
+			}
+		}
+
 		// TODO: Do we keep the smallest or largest chunks of memory first?
 		// In first fit smallest is probably best? Opposite in best fit
 		//
@@ -143,6 +174,10 @@ namespace alloc
 		{
 			Header* header = reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) - headerSize);
 			Header* footer = reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) + header->size);
+
+			// Coalesce ajacent blocks
+			// Adjust header size and pointer if we joined blocks
+			coalescence(header, footer);
 
 			if (availible.empty())
 			{
