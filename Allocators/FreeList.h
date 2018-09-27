@@ -31,7 +31,6 @@ namespace alloc
 		};
 
 		inline static byte* MyBegin;
-		inline static size_t MyLast;
 		inline static std::list<std::pair<byte*, size_t>> availible; // TODO: These list nodes should be contained in memory before allocated blocks?
 
 		inline static bool init			= 1;
@@ -46,7 +45,6 @@ namespace alloc
 			if (init)
 			{
 				init	= false;
-				MyLast	= 0;
 				MyBegin = reinterpret_cast<byte*>(operator new (bytes));
 
 				addToList(MyBegin, bytes);
@@ -74,25 +72,25 @@ namespace alloc
 			}
 		}
 
-		byte* firstFit(size_t byteCount)
+		byte* firstFit(size_t reqBytes)
 		{
 			for (auto it = std::begin(availible); 
 					 it != std::end(availible); ++it)
 			{
 				// Found a section of memory large enough to hold
 				// what we want to allocate
-				if (it->second >= byteCount)
+				if (it->second >= reqBytes)
 				{
 					auto* mem = it->first;
-					auto itBytes = std::move(it->second);
+					auto chunkBytes = std::move(it->second);
 					availible.erase(it);
 
 					// If memory section is larger than what we want
 					// add a new list entry the reflects the remaining memory
-					if (itBytes > byteCount)
-						addToList(mem + byteCount, itBytes - byteCount);
+					if (chunkBytes > reqBytes)
+						addToList(mem + reqBytes, chunkBytes - reqBytes);
 					
-					return writeHeader(mem, byteCount - headerSize);
+					return writeHeader(mem, reqBytes - headerSize2);
 				}
 			}
 			return nullptr;
@@ -104,14 +102,14 @@ namespace alloc
 		{
 			// TODO: Does the construction of another header make it less effeciant
 			// than replacing variables? Look at assembly/test once finalized
+			//
 			//*reinterpret_cast<Header*>(start) = Header{ size, false };
 			auto* header = reinterpret_cast<Header*>(start);
 			*header = Header{ size, false };
 
-
 			start += headerSize;
 
-			//*reinterpret_cast<Header*>(start + size) = Header{ size, false };
+			//*reinterpret_cast<Header*>(start + (size - headerSize)) = Header{ size, false };
 			auto* footer = reinterpret_cast<Header*>(start + size);
 			*footer = Header{ size, false };
 
@@ -132,21 +130,19 @@ namespace alloc
 			if (!mem) //  || count * sizeof(T) + MyLast > bytes ||| We don't need commented out code here right? It's implicit?
 				throw std::bad_alloc();
 
-			MyLast += byteCount;
 			return reinterpret_cast<T*>(mem);
 		}
 
 		// TODO: Do we keep the smallest or largest chunks of memory first?
 		// In first fit smallest is probably best? Opposite in best fit
 		//
-		// TODO: In order to perform coalescence do we need to keep memory blocks in
-		// physical address order??
 		// Should we keep a list in pred ordering and add a footer to allocations
 		// denoting block's status/size so we can deallocate/merge in O(1) and still allocate O(N)
 		template<class T>
 		void deallocate(T* ptr)
 		{
 			Header* header = reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) - headerSize);
+			Header* footer = reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) + header->size);
 
 			if (availible.empty())
 			{

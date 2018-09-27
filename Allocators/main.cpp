@@ -15,11 +15,18 @@
 //
 int main()
 {
-	alloc::FreeList<int, 512> fl;
+	alloc::FreeList<size_t, 512> fl;
 
 	auto* m = fl.allocate(2);
 	m[0] = 1;
 	m[1] = 2;
+
+	using header = alloc::ListPolicy<512>::Header;
+
+	auto* h = reinterpret_cast<header*>(&m[-1]);
+	auto* j = reinterpret_cast<header*>(&m[2]);
+
+
 	auto* m1 = fl.allocate(2);
 	m1[0] = 3;
 	m1[1] = 4;
