@@ -113,7 +113,7 @@ namespace alloc
 
 			//*reinterpret_cast<Header*>(start + size) = Header{ size, false };
 			auto* footer = reinterpret_cast<Header*>(start + size);
-			footer = Header{ size, false };
+			*footer = Header{ size, false };
 
 			return start;
 		}
