@@ -31,6 +31,8 @@ int main()
 	m1[0] = 3;
 	m1[1] = 4;
 
+	auto* m2 = fl.allocate(2);
+
 	std::cout << &m[0] << '\n';
 	std::cout << &m[1] << '\n';
 	std::cout << &m1[0] << '\n';
@@ -39,7 +41,7 @@ int main()
 
 	fl.deallocate(m1);
 	fl.deallocate(m);
-
+	fl.deallocate(m2);
 
 	return 0;
 }

@@ -31,6 +31,7 @@ namespace alloc
 		};
 
 		inline static byte* MyBegin;
+		inline static byte* MyEnd;
 		inline static std::list<std::pair<byte*, size_t>> availible; // TODO: These list nodes should be contained in memory before allocated blocks?
 
 		inline static bool init			= 1;
@@ -46,6 +47,7 @@ namespace alloc
 			{
 				init	= false;
 				MyBegin = reinterpret_cast<byte*>(operator new (bytes));
+				MyEnd	= MyBegin + bytes;
 
 				addToList(MyBegin, bytes);
 			}
@@ -133,12 +135,7 @@ namespace alloc
 			return reinterpret_cast<T*>(mem);
 		}
 
-		byte* joinChunks(Header* header, Header* footer)
-		{
-
-		}
-
-		void coalescence(Header*& header, Header* footer)
+		void coalescence(Header*& header)
 		{
 			byte* byteHeader = reinterpret_cast<byte*>(header);
 
@@ -148,19 +145,19 @@ namespace alloc
 				auto* prevFoot = reinterpret_cast<Header*>(byteHeader - headerSize);
 				if (prevFoot->free)
 				{
-					Header* newHeader = prevFoot - (prevFoot->size + headerSize);
-					*newHeader = Header{ prevFoot->size + header->size + headerSize * 4, true };
+					auto newSize	= prevFoot->size + header->size + headerSize2; // TODO: I think this is correct? Check!
+					header			= prevFoot - (prevFoot->size + headerSize);
+					header->size	= newSize;
+					byteHeader		= reinterpret_cast<byte*>(header); // TODO: This is needed right?
 				}
-					byteHeader = joinChunks(prevFoot, header);
 			}
 
-			// WRONG
 			// Look forwards
-			if (byteHeader + header->size <= bytes)
+			if (byteHeader + header->size <= MyEnd)
 			{
-				auto* nextHeader = reinterpret_cast<Header*>(byteHeader + header->size);
+				auto* nextHeader = reinterpret_cast<Header*>(byteHeader + header->size + headerSize);
 				if (nextHeader->free)
-					joinChunks(header, nextHeader);
+					header->size = nextHeader->size + header->size + headerSize2;
 			}
 		}
 
@@ -177,7 +174,9 @@ namespace alloc
 
 			// Coalesce ajacent blocks
 			// Adjust header size and pointer if we joined blocks
-			coalescence(header, footer);
+			coalescence(header);
+
+			header->free = footer->free = true;
 
 			if (availible.empty())
 			{
