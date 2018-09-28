@@ -17,11 +17,15 @@ int main()
 {
 	alloc::FreeList<size_t, 512> fl;
 
+	using size_type = alloc::FindSizeT<512, 1>::size_type;
+
 	auto* m = fl.allocate(2);
 	m[0] = 1;
 	m[1] = 2;
 
 	using header = alloc::ListPolicy<512>::Header;
+
+	auto sz = sizeof(header);
 
 	auto* h = reinterpret_cast<header*>(&m[-1]);
 	auto* j = reinterpret_cast<header*>(&m[2]);
@@ -39,9 +43,9 @@ int main()
 	std::cout << &m1[1] << '\n';
 
 
-	fl.deallocate(m1);
 	fl.deallocate(m);
 	fl.deallocate(m2);
+	fl.deallocate(m1);
 
 	return 0;
 }

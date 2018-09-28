@@ -159,7 +159,15 @@ namespace alloc
 			return reinterpret_cast<T*>(mem);
 		}
 
-		void coalescence(Header*& header)
+		// Shift by bytes // I see issues with S unsinged types and attempting to shift down
+		// TODO: Fix?
+		//template<class T, class S>
+		//T* shByte(T* t, const S b)
+		//{
+		//	return reinterpret_cast<T*>(reinterpret_cast<byte*>(t + b));
+		//}
+
+		void coalesce(Header*& header)
 		{
 			byte* byteHeader = reinterpret_cast<byte*>(header);
 
@@ -170,7 +178,7 @@ namespace alloc
 				if (prevFoot->free)
 				{
 					auto newSize	= prevFoot->size + header->size + headerSize2; // TODO: I think this is correct? Check!
-					header			= prevFoot - (prevFoot->size + headerSize);
+					header			= reinterpret_cast<Header*>(reinterpret_cast<byte*>(prevFoot) - (prevFoot->size + headerSize));
 					header->size	= newSize;
 					byteHeader		= reinterpret_cast<byte*>(header); // TODO: This is needed right?
 				}
@@ -198,7 +206,7 @@ namespace alloc
 
 			// Coalesce ajacent blocks
 			// Adjust header size and pointer if we joined blocks
-			coalescence(header);
+			coalesce(header);
 
 			header->free = footer->free = true;
 
