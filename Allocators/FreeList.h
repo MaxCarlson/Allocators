@@ -19,9 +19,29 @@ namespace alloc
 		FIRST_FIT
 	};
 
-	template<size_t bytes, class pred = std::less<size_t>>
+	template<size_t bytes>
+	struct RequiredBits
+	{
+		enum // Note: Instead of using 0xFF (8bits) we use 0x7F (7bits) as we're takin
+			 // a bit away to store other info and need to take that into account
+		{
+			NumBits =	bytes <= 0x7f		? 8  :
+						bytes <= 0x7fff		? 16 :
+						bytes <= 0x7fffffff	? 32 :
+											  64
+		};
+
+		static_assert(NumBits <= 64, "Too much memory assigned!");
+	};
+
+	template<size_t bytes, 
+		class pred = std::less<size_t>>
 	struct ListPolicy
 	{
+
+		// Detect the minimum size type we can use
+		// (based on max number of bytes) and use that as the
+		// size_type to keep overhead as low as possible
 		using size_type = size_t;
 
 		struct Header
@@ -32,14 +52,14 @@ namespace alloc
 
 		inline static byte* MyBegin;
 		inline static byte* MyEnd;
-		inline static std::list<std::pair<byte*, size_t>> availible; // TODO: These list nodes should be contained in memory before allocated blocks?
+		inline static std::list<std::pair<byte*, size_type>> availible; // TODO: These list nodes should be contained in memory before allocated blocks?
 
 		inline static bool init			= 1;
 		inline static AlSearch search	= FIRST_FIT;
 		inline static constexpr size_t headerSize = sizeof(Header);
 		inline static constexpr size_t headerSize2 = headerSize * 2;
 
-		static_assert(bytes > headerSize * 2, "Allocator size is smaller than minimum required.");
+		static_assert(bytes > headerSize2, "Allocator size is smaller than minimum required.");
 
 		ListPolicy()
 		{
@@ -139,7 +159,7 @@ namespace alloc
 		{
 			byte* byteHeader = reinterpret_cast<byte*>(header);
 
-			// Look backwards
+			// Look backward
 			if (byteHeader - headerSize > MyBegin)
 			{
 				auto* prevFoot = reinterpret_cast<Header*>(byteHeader - headerSize);
@@ -152,7 +172,7 @@ namespace alloc
 				}
 			}
 
-			// Look forwards
+			// Look forward
 			if (byteHeader + header->size <= MyEnd)
 			{
 				auto* nextHeader = reinterpret_cast<Header*>(byteHeader + header->size + headerSize);
