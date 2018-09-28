@@ -171,6 +171,10 @@ namespace alloc
 		{
 			byte* byteHeader = reinterpret_cast<byte*>(header);
 
+			// TODO: After merging ajacent blocks we need to scan through list to find them still, oops...!
+			// Still have O(N) time if we don't keep list in memory sorted order :(
+			// TODO: Decide what to do!
+
 			// Look backward
 			if (byteHeader - headerSize > MyBegin)
 			{
