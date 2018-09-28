@@ -19,19 +19,16 @@ namespace alloc
 		FIRST_FIT
 	};
 
-	template<size_t bytes>
+	template<size_t bytes, size_t takenBits>
 	struct RequiredBits
 	{
-		enum // Note: Instead of using 0xFF (8bits) we use 0x7F (7bits) as we're takin
-			 // a bit away to store other info and need to take that into account
+		enum 
 		{
-			NumBits =	bytes <= 0x7f		? 8  :
-						bytes <= 0x7fff		? 16 :
-						bytes <= 0x7fffffff	? 32 :
-											  64
+			NumBits =	bytes <= 0xff		>> takenBits ? 8  :
+						bytes <= 0xffff		>> takenBits ? 16 :
+						bytes <= 0xffffffff	>> takenBits ? 32 :
+														   64
 		};
-
-		static_assert(NumBits <= 64, "Too much memory assigned!");
 	};
 
 	template<size_t bytes, 
