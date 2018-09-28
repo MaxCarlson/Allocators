@@ -7,12 +7,6 @@
 namespace alloc
 {
 
-	template<size_t bytes, class pred = std::less<size_t>>
-	struct TreePolicy
-	{
-
-	};
-
 	enum AlSearch : byte
 	{
 		BEST_FIT,
@@ -20,15 +14,28 @@ namespace alloc
 	};
 
 	template<size_t bytes, size_t takenBits>
-	struct RequiredBits
+	struct FindSizeT
 	{
+		// This finds the smallest number of bits
+		// required (within the constraints of the types availible)
+		// TODO: ? This can be condensed into just conditionals if we want
 		enum 
 		{
-			NumBits =	bytes <= 0xff		>> takenBits ? 8  :
+			bits =		bytes <= 0xff		>> takenBits ? 8  :
 						bytes <= 0xffff		>> takenBits ? 16 :
 						bytes <= 0xffffffff	>> takenBits ? 32 :
 														   64
 		};
+		using size_type =	std::conditional_t<bits == 8,	uint8_t, 
+							std::conditional_t<bits == 16,	uint16_t, 
+							std::conditional_t<bits == 32,	uint32_t, 
+															uint64_t >>>;
+	};
+
+	template<size_t bytes, class pred = std::less<size_t>>
+	struct TreePolicy
+	{
+
 	};
 
 	template<size_t bytes, 
@@ -39,7 +46,7 @@ namespace alloc
 		// Detect the minimum size type we can use
 		// (based on max number of bytes) and use that as the
 		// size_type to keep overhead as low as possible
-		using size_type = size_t;
+		using size_type = typename FindSizeT<bytes, 1>::size_type;
 
 		struct Header
 		{

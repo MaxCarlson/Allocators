@@ -15,12 +15,6 @@
 //
 int main()
 {
-	auto b = alloc::RequiredBits<128>::NumBits;
-	auto b1 = alloc::RequiredBits<65000>::NumBits;
-	auto b2 = alloc::RequiredBits<9999999>::NumBits;
-
-
-
 	alloc::FreeList<size_t, 512> fl;
 
 	auto* m = fl.allocate(2);
