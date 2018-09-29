@@ -52,16 +52,31 @@ namespace alloc
 	{
 		inline static std::list<std::pair<byte*, size_type>> availible; // TODO: These list nodes should be contained in memory before allocated blocks?
 
-		using It	= typename std::list<std::pair<byte*, size_type>>::iterator;
-		//using cIt	= typename std::list<std::pair<byte*, size_type>>::const_iterator;
-		using Ib	= std::pair<It, bool>;
+		using It		= typename std::list<std::pair<byte*, size_type>>::iterator;
+		using Ib		= std::pair<It, bool>;
+		using BytePair	= std::pair<byte*, byte*>;
 
-		void add(byte* start, size_type size)
+		void add(byte* start, size_type size, BytePair bpair = { nullptr, nullptr })
 		{
 			if (availible.empty())
 			{
 				availible.emplace_back(start, size);
 				return;
+			}
+
+			int mask = 0;
+			if (!bpair.first)
+				mask |= 2;
+			if (!bpair.second)
+				mask |= 4;
+
+			auto processPair = [&mask](byte*& b, It& it, int flag)
+			{
+				if (b && b == it->first)
+				{
+					it = availible.erase(it);
+					mask |= flag;
+				}
 			}
 
 			for (auto it = std::begin(availible);
@@ -70,8 +85,14 @@ namespace alloc
 				if (pred()(size, it->second))
 				{
 					availible.emplace(it, std::pair{ start, size });
-					return;
+					mask |= 1;
 				}
+
+				processPair(bpair.first,  it, 2);
+				processPair(bpair.second, it, 4);
+
+				if (!(mask ^ 7))
+					return;
 			}
 		}
 
@@ -112,6 +133,7 @@ namespace alloc
 		using OurPolicy = Policy<bytes, size_type, pred<size_type>>;
 		using It		= typename OurPolicy::It;
 		using Ib		= typename OurPolicy::Ib;
+		using BytePair	= typename OurPolicy::BytePair;
 		
 		// Handles how we store, find, 
 		// and emplace free memory information
@@ -168,7 +190,14 @@ namespace alloc
 			// If memory section is larger than what we want
 			// add a new list entry the reflects the remaining memory
 			if (chunkBytes > reqBytes)
+			{
 				policy.add(mem + reqBytes, chunkBytes - reqBytes);
+
+				// Zero out the area where we might look for a 
+				// header later if this block is freed
+				if (chunkBytes > reqBytes + headerSize)
+					zeroBlock(mem + reqBytes, headerSize);
+			}
 
 			return writeHeader(mem, reqBytes - headerSize2);
 		}
@@ -210,8 +239,9 @@ namespace alloc
 			return reinterpret_cast<T*>(mem);
 		}
 
-		void coalesce(Header*& header)
+		BytePair coalesce(Header*& header)
 		{
+			BytePair blocks = { nullptr, nullptr };
 			byte* byteHeader = reinterpret_cast<byte*>(header);
 
 			// Look backward
@@ -223,7 +253,8 @@ namespace alloc
 					auto newSize	= prevFoot->size + header->size + headerSize2; // TODO: I think this is correct? Check!
 					header			= reinterpret_cast<Header*>(reinterpret_cast<byte*>(prevFoot) - (prevFoot->size + headerSize));
 					header->size	= newSize;
-					byteHeader		= reinterpret_cast<byte*>(header); // TODO: This is needed right?
+					byteHeader		= reinterpret_cast<byte*>(header);
+					blocks.first	= byteHeader;
 				}
 			}
 
@@ -233,23 +264,32 @@ namespace alloc
 			{
 				auto* nextHeader = reinterpret_cast<Header*>(nextHeaderB);
 				if (nextHeader->free)
-					header->size = nextHeader->size + header->size + headerSize2;
+				{
+					blocks.second	= reinterpret_cast<byte*>(nextHeader);
+					header->size	= nextHeader->size + header->size + headerSize2;
+				}
 			}
+
+			return blocks;
 		}
 
 		template<class T>
 		void deallocate(T* ptr)
 		{
-			Header* header = reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) - headerSize);
-			Header* footer = reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) + header->size);
+			Header* header		= reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) - headerSize);
+			Header* footer		= reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) + header->size);
+			Header* oldHeader	= header;
 
 			// Coalesce ajacent blocks
 			// Adjust header size and pointer if we joined blocks
-			coalesce(header);
+			std::pair<byte*, byte*> bpair = coalesce(header);
+
+			if (header != oldHeader)
+				zeroBlock(oldHeader, headerSize);
 
 			header->free = footer->free = true;
 
-			policy.add(reinterpret_cast<byte*>(header), static_cast<size_type>(header->size));
+			policy.add(reinterpret_cast<byte*>(header), static_cast<size_type>(header->size), bpair);
 		}
 	};
 
