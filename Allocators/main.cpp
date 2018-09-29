@@ -10,9 +10,9 @@
 //
 // General TODO's:
 // Thread Safety with allocators
-//
-//
-//
+// Slab Allocation
+// Buddy Allocation
+// Mix Slab Allocation with existing allocators
 int main()
 {
 	alloc::FreeList<size_t, 512> fl;
@@ -23,12 +23,6 @@ int main()
 	m[0] = 1;
 	m[1] = 2;
 
-	using header = alloc::ListPolicy<512>::Header;
-
-	auto sz = sizeof(header);
-
-	auto* h = reinterpret_cast<header*>(&m[-1]);
-	auto* j = reinterpret_cast<header*>(&m[2]);
 
 
 	auto* m1 = fl.allocate(2);
