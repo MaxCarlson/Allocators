@@ -76,20 +76,21 @@ namespace alloc
 				{
 					it = availible.erase(it);
 					mask |= flag;
+					b = nullptr;
 				}
-			}
+			};
 
 			for (auto it = std::begin(availible);
 				it != std::end(availible); ++it)
 			{
+				processPair(bpair.first,  it, 2);
+				processPair(bpair.second, it, 4);
+
 				if (pred()(size, it->second))
 				{
 					availible.emplace(it, std::pair{ start, size });
 					mask |= 1;
 				}
-
-				processPair(bpair.first,  it, 2);
-				processPair(bpair.second, it, 4);
 
 				if (!(mask ^ 7))
 					return;
@@ -206,16 +207,15 @@ namespace alloc
 		// pointer to user memory
 		byte* writeHeader(byte* start, size_type size)
 		{
-			// TODO: Does the construction of another header make it less efficiant
-			// than replacing variables? Look at assembly/test once finalized
-			//
-			//*reinterpret_cast<Header*>(start) = Header{ size, false };
+			// TODO: Does the construction of another header (variable) make it less efficiant
+			// than doing it like below?
+			// like this ->  *reinterpret_cast<Header*>(start) = Header{ size, false };
+			
 			auto* header = reinterpret_cast<Header*>(start);
 			*header = Header{ size, false };
 
 			start += headerSize;
 
-			//*reinterpret_cast<Header*>(start + (size - headerSize)) = Header{ size, false };
 			auto* footer = reinterpret_cast<Header*>(start + size);
 			*footer = Header{ size, false };
 
@@ -282,10 +282,7 @@ namespace alloc
 
 			// Coalesce ajacent blocks
 			// Adjust header size and pointer if we joined blocks
-			std::pair<byte*, byte*> bpair = coalesce(header);
-
-			if (header != oldHeader)
-				zeroBlock(oldHeader, headerSize);
+			BytePair bpair = coalesce(header);
 
 			header->free = footer->free = true;
 
