@@ -65,8 +65,7 @@ namespace alloc
 	};
 
 	template<size_t bytes, class size_type,
-		class Header,
-		class pred>
+		class Header>
 	struct ListPolicy
 	{
 		inline static std::list<std::pair<byte*, size_type>> availible; 
@@ -74,7 +73,7 @@ namespace alloc
 		using It		= typename std::list<std::pair<byte*, size_type>>::iterator;
 		using Ib		= std::pair<It, bool>;
 
-		void add(byte* start, size_type size, BytePair bpair = {})
+		void add(byte* start, size_type size)
 		{
 			if (availible.empty())
 			{
@@ -82,31 +81,14 @@ namespace alloc
 				return;
 			}
 
-			int count			= 2 - bpair.count;
+			//int count = 2 - bpair.count;
 
-			//if (!bpair.first)
-			//	++count;
-			//if (!bpair.second)
-			//	++count;
-
-			// Make sure we erase any previously added
-			// blocks that have already been joined
-			auto processPair = [&count](byte*& b, It& it)
+			// Add to linked list in memory
+			// sorted order
+			It it = std::begin(availible);
+			for (it; it != std::end(availible); ++it)
 			{
-				if (b && b == it->first)
-				{
-					++count;
-					b	= nullptr;
-					it	= availible.erase(it);
-				}
-			};
-
-			for (auto it = std::begin(availible);
-				it != std::end(availible); ++it)
-			{
-				//processPair(bpair.first,  it, 2);
-				//processPair(bpair.second, it, 4);
-
+				/*
 				for (int i = 0; i < bpair.count; ++i)
 				{
 					if (bpair.ptrs[i] == it->first)
@@ -132,6 +114,30 @@ namespace alloc
 
 				if (count == 3)
 					return;
+				*/
+
+				if (it->first > start)
+				{
+					it = availible.emplace(it, start, size);
+					break;
+				}
+			}
+
+			// Perform coalescence of adjacent blocks
+			It next = it, prev = it;
+			++next;
+
+			if (next != std::end(availible) && 
+				it->first + it->second == next->first)
+			{
+				it->second += next->second;
+				availible.erase(next);
+			}
+			if (prev != std::begin(availible) &&
+				(--prev)->first + prev->second == it->first)
+			{
+				prev->second += it->second;
+				availible.erase(it);
 			}
 		}
 
@@ -154,8 +160,8 @@ namespace alloc
 		}
 	};
 
-	template<size_t bytes, template<class> class pred,
-		template<size_t, class, class, class> class Policy>
+	template<size_t bytes,
+		template<size_t, class, class> class Policy>
 	struct PolicyInterface
 	{
 		// Detect the minimum size type we can use
@@ -169,7 +175,7 @@ namespace alloc
 			size_type free : 1;
 		};
 
-		using OurPolicy = Policy<bytes, size_type, Header, pred<size_type>>;
+		using OurPolicy = Policy<bytes, size_type, Header>;
 		using It		= typename OurPolicy::It;
 		using Ib		= typename OurPolicy::Ib;
 		
@@ -242,8 +248,8 @@ namespace alloc
 
 			start += headerSize;
 
-			auto* footer = reinterpret_cast<Header*>(start + size);
-			*footer = Header{ size, false };
+			//auto* footer = reinterpret_cast<Header*>(start + size);
+			//*footer = Header{ size, false };
 
 			return start;
 		}
@@ -252,7 +258,7 @@ namespace alloc
 		T* allocate(size_type count)
 		{
 			byte* mem = nullptr;
-			size_type byteCount = sizeof(T) * count + headerSize2;
+			size_type byteCount = sizeof(T) * count + headerSize;
 
 			if (search == FIRST_FIT)
 				mem = firstFit(byteCount);
@@ -302,11 +308,6 @@ namespace alloc
 			if (reinterpret_cast<byte*>(prevFoot) > MyBegin && prevFoot->free)
 			{
 				blocks.add(reinterpret_cast<byte*>(prevFoot) - (prevFoot->size + headerSize));
-
-				// Calculate new block size
-				//auto newSize	= prevFoot->size + header->size + headerSize2; 
-				//header			= reinterpret_cast<Header*>(reinterpret_cast<byte*>(prevFoot) - (prevFoot->size + headerSize));
-				//header->size	= newSize;
 			}
 
 			auto* nextHeader = reinterpret_cast<Header*>(byteHeader + (header->size + headerSize2));
@@ -322,24 +323,23 @@ namespace alloc
 		void deallocate(T* ptr)
 		{
 			Header* header		= reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) - headerSize);
-			Header* footer		= reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) + header->size);
+			//Header* footer		= reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) + header->size);
 
 			// Coalesce ajacent blocks
 			// Adjust header size and pointer if we joined blocks
-			BytePair btrip = coalesce(header);
+			//BytePair btrip = coalesce(header);
 
 			header->free = footer->free = true;
 
-			policy.add(reinterpret_cast<byte*>(header), static_cast<size_type>(header->size), btrip);
+			policy.add(reinterpret_cast<byte*>(header), static_cast<size_type>(header->size));
 		}
 	};
 
 	template<class Type, size_t bytes = 0, 
-		template<size_t, class, class, class> class Policy = ListPolicy, 
-		template<class> class pred = std::less>
+		template<size_t, class, class> class Policy = ListPolicy>
 	class FreeList
 	{
-		using OurPolicy = PolicyInterface<bytes, pred, Policy>;
+		using OurPolicy = PolicyInterface<bytes, Policy>;
 		using size_type = typename OurPolicy::size_type;
 		OurPolicy storage;
 
