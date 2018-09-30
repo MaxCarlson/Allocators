@@ -157,12 +157,12 @@ namespace alloc
 		inline static byte* MyBegin;
 		inline static byte* MyEnd;
 
-		inline static bool init = 1;
-		inline static AlSearch search = FIRST_FIT;
-		inline static constexpr size_t headerSize = sizeof(Header);
-		inline static constexpr size_t headerSize2 = headerSize * 2;
+		inline static bool init						= 1;
+		inline static AlSearch search				= FIRST_FIT;
+		inline static size_type bytesFree;
+		inline static constexpr size_t headerSize	= sizeof(Header);
 
-		static_assert(bytes > headerSize2 + 1, "Allocator size is smaller than minimum required.");
+		static_assert(bytes > headerSize + 1, "Allocator size is smaller than minimum required.");
 
 		PolicyInterface()
 		{
@@ -170,10 +170,10 @@ namespace alloc
 			{
 				// TODO: Should we just make this class use an  
 				// array since it's size is compile time determined?
-				init	= false;
-				MyBegin = reinterpret_cast<byte*>(operator new (bytes));
-				MyEnd	= MyBegin + bytes;
-
+				init		= false;
+				MyBegin		= reinterpret_cast<byte*>(operator new (bytes));
+				MyEnd		= MyBegin + bytes;
+				bytesFree	= bytes;
 				policy.add(MyBegin, bytes);
 			}
 		}
@@ -198,6 +198,8 @@ namespace alloc
 			if (chunkBytes > reqBytes)
 				policy.add(mem + reqBytes, chunkBytes - reqBytes);
 
+			bytesFree -= reqBytes;
+
 			return writeHeader(mem, reqBytes - headerSize);
 		}
 
@@ -214,7 +216,7 @@ namespace alloc
 		template<class T>
 		T* allocate(size_type count)
 		{
-			byte* mem = nullptr;
+			byte* mem			= nullptr;
 			size_type byteCount = sizeof(T) * count + headerSize;
 
 			if (search == FIRST_FIT)
@@ -228,58 +230,12 @@ namespace alloc
 			return reinterpret_cast<T*>(mem);
 		}
 
-		BytePair coalesce(Header*& header)
-		{
-			BytePair blocks;
-			byte* byteHeader = reinterpret_cast<byte*>(header);
-
-			/*
-			// Look backward
-			if (byteHeader - headerSize > MyBegin)
-			{
-				auto* prevFoot = reinterpret_cast<Header*>(byteHeader - headerSize);
-				if (prevFoot->free)
-				{
-					auto newSize	= prevFoot->size + header->size + headerSize2; // TODO: I think this is correct? Check!
-					header			= reinterpret_cast<Header*>(reinterpret_cast<byte*>(prevFoot) - (prevFoot->size + headerSize));
-					header->size	= newSize;
-					byteHeader		= reinterpret_cast<byte*>(header);
-					blocks.first	= byteHeader;
-				}
-			}
-
-			// Look forward
-			byte* nextHeaderB = byteHeader + (header->size + headerSize2);
-			if (nextHeaderB <= MyEnd)
-			{
-				auto* nextHeader = reinterpret_cast<Header*>(nextHeaderB);
-				if (nextHeader->free)
-				{
-					blocks.second	= reinterpret_cast<byte*>(nextHeader);
-					header->size	= nextHeader->size + header->size + headerSize2;
-				}
-			}
-			*/
-
-			auto* prevFoot = reinterpret_cast<Header*>(byteHeader - headerSize);
-			if (reinterpret_cast<byte*>(prevFoot) > MyBegin && prevFoot->free)
-			{
-				blocks.add(reinterpret_cast<byte*>(prevFoot) - (prevFoot->size + headerSize));
-			}
-
-			auto* nextHeader = reinterpret_cast<Header*>(byteHeader + (header->size + headerSize2));
-			if (reinterpret_cast<byte*>(nextHeader) <= MyEnd)
-			{
-				blocks.add(reinterpret_cast<byte*>(nextHeader));
-			}
-
-			return blocks;
-		}
-
 		template<class T>
 		void deallocate(T* ptr)
 		{
 			Header* header = reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) - headerSize);
+			bytesFree += header->size + headerSize;
+
 			policy.add(reinterpret_cast<byte*>(header), header->size);
 		}
 	};
@@ -288,13 +244,17 @@ namespace alloc
 		template<size_t, class, class> class Policy = ListPolicy>
 	class FreeList
 	{
+	public:
 		using OurPolicy = PolicyInterface<bytes, Policy>;
 		using size_type = typename OurPolicy::size_type;
-		OurPolicy storage;
 
+	private:
+		OurPolicy storage;
 
 	public:
 
+		template<class U>
+		struct rebind { using other = FreeList<U, bytes, Policy>; };
 
 		FreeList() = default;
 
