@@ -65,13 +65,14 @@ namespace alloc
 	};
 
 	template<size_t bytes, class size_type,
-		class Header>
+		class Interface>
 	struct ListPolicy
 	{
 		inline static std::list<std::pair<byte*, size_type>> availible; 
 
 		using It		= typename std::list<std::pair<byte*, size_type>>::iterator;
 		using Ib		= std::pair<It, bool>;
+		using Header	= typename Interface::Header;
 
 		void add(byte* start, size_type size)
 		{
@@ -81,47 +82,15 @@ namespace alloc
 				return;
 			}
 
-			//int count = 2 - bpair.count;
-
 			// Add to linked list in memory
 			// sorted order
 			It it = std::begin(availible);
 			for (it; it != std::end(availible); ++it)
-			{
-				/*
-				for (int i = 0; i < bpair.count; ++i)
-				{
-					if (bpair.ptrs[i] == it->first)
-					{
-						++count;
-
-						// Add the merged blocks size to our running total
-						// and adjust the pointer if this block was lower in memory
-						size += it->second;
-						if (it->first < start)
-							start = it->first;
-
-						bpair.remove(i);
-						it = availible.erase(it);
-					}
-				}
-
-				if (it == std::end(availible) || (!bpair.count && pred()(size, it->second)))
-				{
-					availible.emplace(it, std::pair{ start, size });
-					++count;
-				}
-
-				if (count == 3)
-					return;
-				*/
-
 				if (it->first > start)
 				{
-					it = availible.emplace(it, start, size);
+					it = availible.emplace(it, start, size + Interface::headerSize);
 					break;
 				}
-			}
 
 			// Perform coalescence of adjacent blocks
 			It next = it, prev = it;
@@ -167,15 +136,17 @@ namespace alloc
 		// Detect the minimum size type we can use
 		// (based on max number of bytes) and use that as the
 		// size_type to keep overhead as low as possible
-		using size_type = typename FindSizeT<bytes, 1>::size_type;
+		using size_type = typename FindSizeT<bytes, 0>::size_type;
 
 		struct Header
 		{
-			size_type size : (sizeof(size_type) * 8) - 1;
-			size_type free : 1;
+			size_type size;
+			//size_type size : (sizeof(size_type) * 8) - 1;
+			//size_type free : 1;
 		};
 
-		using OurPolicy = Policy<bytes, size_type, Header>;
+		using OurType	= PolicyInterface<bytes, Policy>;
+		using OurPolicy = Policy<bytes, size_type, OurType>;
 		using It		= typename OurPolicy::It;
 		using Ib		= typename OurPolicy::Ib;
 		
@@ -203,17 +174,8 @@ namespace alloc
 				MyBegin = reinterpret_cast<byte*>(operator new (bytes));
 				MyEnd	= MyBegin + bytes;
 
-				// Zero on init. In the future we'll only need to zero 
-				// headers
-				zeroBlock(MyBegin, bytes);
 				policy.add(MyBegin, bytes);
 			}
-		}
-
-		template<class T>
-		void zeroBlock(T* start, size_type size)
-		{
-			std::memset(start, 0, size);
 		}
 
 		byte* bestFit(const size_t byteCount)
@@ -236,22 +198,17 @@ namespace alloc
 			if (chunkBytes > reqBytes)
 				policy.add(mem + reqBytes, chunkBytes - reqBytes);
 
-			return writeHeader(mem, reqBytes - headerSize2);
+			return writeHeader(mem, reqBytes - headerSize);
 		}
 
 		// Writes the header and adjusts the returned 
 		// pointer to user memory
 		byte* writeHeader(byte* start, size_type size)
 		{
-			auto* header = reinterpret_cast<Header*>(start);
-			*header = Header{ size, false };
+			//auto* header = reinterpret_cast<Header*>(start);
+			*reinterpret_cast<Header*>(start) = Header{ size };
 
-			start += headerSize;
-
-			//auto* footer = reinterpret_cast<Header*>(start + size);
-			//*footer = Header{ size, false };
-
-			return start;
+			return start + headerSize;
 		}
 
 		template<class T>
@@ -322,16 +279,8 @@ namespace alloc
 		template<class T>
 		void deallocate(T* ptr)
 		{
-			Header* header		= reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) - headerSize);
-			//Header* footer		= reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) + header->size);
-
-			// Coalesce ajacent blocks
-			// Adjust header size and pointer if we joined blocks
-			//BytePair btrip = coalesce(header);
-
-			header->free = footer->free = true;
-
-			policy.add(reinterpret_cast<byte*>(header), static_cast<size_type>(header->size));
+			Header* header = reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) - headerSize);
+			policy.add(reinterpret_cast<byte*>(header), header->size);
 		}
 	};
 
