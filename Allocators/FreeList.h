@@ -46,7 +46,7 @@ namespace alloc
 
 	};
 
-	struct ByteTrip
+	struct BytePair
 	{
 		int count = 0;
 		byte* ptrs[2];
@@ -65,6 +65,7 @@ namespace alloc
 	};
 
 	template<size_t bytes, class size_type,
+		class Header,
 		class pred>
 	struct ListPolicy
 	{
@@ -72,9 +73,8 @@ namespace alloc
 
 		using It		= typename std::list<std::pair<byte*, size_type>>::iterator;
 		using Ib		= std::pair<It, bool>;
-		using BytePair	= std::pair<byte*, byte*>;
 
-		void add(byte* start, size_type size, ByteTrip bpair = {})
+		void add(byte* start, size_type size, BytePair bpair = {})
 		{
 			if (availible.empty())
 			{
@@ -82,7 +82,8 @@ namespace alloc
 				return;
 			}
 
-			int count = 2 - bpair.count;
+			int count			= 2 - bpair.count;
+
 			//if (!bpair.first)
 			//	++count;
 			//if (!bpair.second)
@@ -106,18 +107,24 @@ namespace alloc
 				//processPair(bpair.first,  it, 2);
 				//processPair(bpair.second, it, 4);
 
-				// TODO: Need to keep track of which blocks/memory size!!
 				for (int i = 0; i < bpair.count; ++i)
 				{
 					if (bpair.ptrs[i] == it->first)
 					{
 						++count;
+
+						// Add the merged blocks size to our running total
+						// and adjust the pointer if this block was lower in memory
+						size += it->second;
+						if (it->first < start)
+							start = it->first;
+
 						bpair.remove(i);
 						it = availible.erase(it);
 					}
 				}
 
-				if (pred()(size, it->second))
+				if (it == std::end(availible) || (!bpair.count && pred()(size, it->second)))
 				{
 					availible.emplace(it, std::pair{ start, size });
 					++count;
@@ -148,7 +155,7 @@ namespace alloc
 	};
 
 	template<size_t bytes, template<class> class pred,
-		template<size_t, class, class> class Policy>
+		template<size_t, class, class, class> class Policy>
 	struct PolicyInterface
 	{
 		// Detect the minimum size type we can use
@@ -162,10 +169,9 @@ namespace alloc
 			size_type free : 1;
 		};
 
-		using OurPolicy = Policy<bytes, size_type, pred<size_type>>;
+		using OurPolicy = Policy<bytes, size_type, Header, pred<size_type>>;
 		using It		= typename OurPolicy::It;
 		using Ib		= typename OurPolicy::Ib;
-		using BytePair	= typename OurPolicy::BytePair;
 		
 		// Handles how we store, find, 
 		// and emplace free memory information
@@ -259,9 +265,9 @@ namespace alloc
 			return reinterpret_cast<T*>(mem);
 		}
 
-		ByteTrip coalesce(Header*& header)
+		BytePair coalesce(Header*& header)
 		{
-			ByteTrip blocks;
+			BytePair blocks;
 			byte* byteHeader = reinterpret_cast<byte*>(header);
 
 			/*
@@ -296,6 +302,11 @@ namespace alloc
 			if (reinterpret_cast<byte*>(prevFoot) > MyBegin && prevFoot->free)
 			{
 				blocks.add(reinterpret_cast<byte*>(prevFoot) - (prevFoot->size + headerSize));
+
+				// Calculate new block size
+				//auto newSize	= prevFoot->size + header->size + headerSize2; 
+				//header			= reinterpret_cast<Header*>(reinterpret_cast<byte*>(prevFoot) - (prevFoot->size + headerSize));
+				//header->size	= newSize;
 			}
 
 			auto* nextHeader = reinterpret_cast<Header*>(byteHeader + (header->size + headerSize2));
@@ -315,7 +326,7 @@ namespace alloc
 
 			// Coalesce ajacent blocks
 			// Adjust header size and pointer if we joined blocks
-			ByteTrip btrip = coalesce(header);
+			BytePair btrip = coalesce(header);
 
 			header->free = footer->free = true;
 
@@ -324,7 +335,7 @@ namespace alloc
 	};
 
 	template<class Type, size_t bytes = 0, 
-		template<size_t, class, class> class Policy = ListPolicy, 
+		template<size_t, class, class, class> class Policy = ListPolicy, 
 		template<class> class pred = std::less>
 	class FreeList
 	{
