@@ -46,17 +46,35 @@ namespace alloc
 
 	};
 
+	struct ByteTrip
+	{
+		int count = 0;
+		byte* ptrs[2];
+
+		void add(byte* p)
+		{
+			ptrs[count++] = p;
+		}
+
+		void remove(int idx)
+		{
+			if (idx == 0)
+				ptrs[0] = ptrs[1];
+			--count;
+		}
+	};
+
 	template<size_t bytes, class size_type,
 		class pred>
 	struct ListPolicy
 	{
-		inline static std::list<std::pair<byte*, size_type>> availible; // TODO: These list nodes should be contained in memory before allocated blocks?
+		inline static std::list<std::pair<byte*, size_type>> availible; 
 
 		using It		= typename std::list<std::pair<byte*, size_type>>::iterator;
 		using Ib		= std::pair<It, bool>;
 		using BytePair	= std::pair<byte*, byte*>;
 
-		void add(byte* start, size_type size, BytePair bpair = { nullptr, nullptr })
+		void add(byte* start, size_type size, ByteTrip bpair = {})
 		{
 			if (availible.empty())
 			{
@@ -64,35 +82,48 @@ namespace alloc
 				return;
 			}
 
-			int mask = 0;
-			if (!bpair.first)
-				mask |= 2;
-			if (!bpair.second)
-				mask |= 4;
+			int count = 2 - bpair.count;
+			//if (!bpair.first)
+			//	++count;
+			//if (!bpair.second)
+			//	++count;
 
-			auto processPair = [&mask](byte*& b, It& it, int flag)
+			// Make sure we erase any previously added
+			// blocks that have already been joined
+			auto processPair = [&count](byte*& b, It& it)
 			{
 				if (b && b == it->first)
 				{
-					it = availible.erase(it);
-					mask |= flag;
-					b = nullptr;
+					++count;
+					b	= nullptr;
+					it	= availible.erase(it);
 				}
 			};
 
 			for (auto it = std::begin(availible);
 				it != std::end(availible); ++it)
 			{
-				processPair(bpair.first,  it, 2);
-				processPair(bpair.second, it, 4);
+				//processPair(bpair.first,  it, 2);
+				//processPair(bpair.second, it, 4);
+
+				// TODO: Need to keep track of which blocks/memory size!!
+				for (int i = 0; i < bpair.count; ++i)
+				{
+					if (bpair.ptrs[i] == it->first)
+					{
+						++count;
+						bpair.remove(i);
+						it = availible.erase(it);
+					}
+				}
 
 				if (pred()(size, it->second))
 				{
 					availible.emplace(it, std::pair{ start, size });
-					mask |= 1;
+					++count;
 				}
 
-				if (!(mask ^ 7))
+				if (count == 3)
 					return;
 			}
 		}
@@ -105,7 +136,7 @@ namespace alloc
 		Ib firstFit(size_t reqBytes)
 		{
 			for (It it = std::begin(availible);
-				it != std::end(availible); ++it)
+					it != std::end(availible); ++it)
 			{
 				// Found a section of memory large enough to hold
 				// what we want to allocate
@@ -189,16 +220,9 @@ namespace alloc
 			policy.erase(it);
 
 			// If memory section is larger than what we want
-			// add a new list entry the reflects the remaining memory
+			// add a new list entry that reflects the remaining memory
 			if (chunkBytes > reqBytes)
-			{
 				policy.add(mem + reqBytes, chunkBytes - reqBytes);
-
-				// Zero out the area where we might look for a 
-				// header later if this block is freed
-				if (chunkBytes > reqBytes + headerSize)
-					zeroBlock(mem + reqBytes, headerSize);
-			}
 
 			return writeHeader(mem, reqBytes - headerSize2);
 		}
@@ -207,10 +231,6 @@ namespace alloc
 		// pointer to user memory
 		byte* writeHeader(byte* start, size_type size)
 		{
-			// TODO: Does the construction of another header (variable) make it less efficiant
-			// than doing it like below?
-			// like this ->  *reinterpret_cast<Header*>(start) = Header{ size, false };
-			
 			auto* header = reinterpret_cast<Header*>(start);
 			*header = Header{ size, false };
 
@@ -233,17 +253,18 @@ namespace alloc
 			else
 				mem = bestFit(byteCount);
 
-			if (!mem) //  || count * sizeof(T) + MyLast > bytes ||| We don't need commented out code here right? It's implicit?
+			if (!mem)
 				throw std::bad_alloc();
 
 			return reinterpret_cast<T*>(mem);
 		}
 
-		BytePair coalesce(Header*& header)
+		ByteTrip coalesce(Header*& header)
 		{
-			BytePair blocks = { nullptr, nullptr };
+			ByteTrip blocks;
 			byte* byteHeader = reinterpret_cast<byte*>(header);
 
+			/*
 			// Look backward
 			if (byteHeader - headerSize > MyBegin)
 			{
@@ -259,7 +280,7 @@ namespace alloc
 			}
 
 			// Look forward
-			byte* nextHeaderB = byteHeader + (headerSize + header->size + headerSize);
+			byte* nextHeaderB = byteHeader + (header->size + headerSize2);
 			if (nextHeaderB <= MyEnd)
 			{
 				auto* nextHeader = reinterpret_cast<Header*>(nextHeaderB);
@@ -268,6 +289,19 @@ namespace alloc
 					blocks.second	= reinterpret_cast<byte*>(nextHeader);
 					header->size	= nextHeader->size + header->size + headerSize2;
 				}
+			}
+			*/
+
+			auto* prevFoot = reinterpret_cast<Header*>(byteHeader - headerSize);
+			if (reinterpret_cast<byte*>(prevFoot) > MyBegin && prevFoot->free)
+			{
+				blocks.add(reinterpret_cast<byte*>(prevFoot) - (prevFoot->size + headerSize));
+			}
+
+			auto* nextHeader = reinterpret_cast<Header*>(byteHeader + (header->size + headerSize2));
+			if (reinterpret_cast<byte*>(nextHeader) <= MyEnd)
+			{
+				blocks.add(reinterpret_cast<byte*>(nextHeader));
 			}
 
 			return blocks;
@@ -278,15 +312,14 @@ namespace alloc
 		{
 			Header* header		= reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) - headerSize);
 			Header* footer		= reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) + header->size);
-			Header* oldHeader	= header;
 
 			// Coalesce ajacent blocks
 			// Adjust header size and pointer if we joined blocks
-			BytePair bpair = coalesce(header);
+			ByteTrip btrip = coalesce(header);
 
 			header->free = footer->free = true;
 
-			policy.add(reinterpret_cast<byte*>(header), static_cast<size_type>(header->size), bpair);
+			policy.add(reinterpret_cast<byte*>(header), static_cast<size_type>(header->size), btrip);
 		}
 	};
 
