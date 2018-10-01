@@ -9,8 +9,12 @@ namespace Tests
 	TEST_CLASS(FreeListTest)
 	{
 	public:
-		using type1 = int;
-		using Allocator = alloc::FreeList<int, 512, alloc::ListPolicy>;
+
+
+		using lType		= int;
+		static const lType alSize = 512;
+
+		using Allocator = alloc::FreeList<int, alSize, alloc::ListPolicy>;
 		Allocator allist;
 
 		// Policy is similar to an allocator in that
@@ -22,14 +26,43 @@ namespace Tests
 
 		TEST_METHOD(Allocation)
 		{
-			// Allocate 2 bytes (+ sizeof(header))
-			constexpr int count = 10;
-			type1* ptrs[count];
+			// Should be able to allocate full size, 
+			// we need to store header info
+			bool failed = false;
+			try
+			{
+				lType* p = allist.allocate(alSize);
+			}
+			catch (std::bad_alloc b)
+			{
+				failed = true;
+			}
 
+			Assert::AreEqual(static_cast<lType>(policy.bytesFree), alSize);
+			Assert::AreEqual(failed, true);
+
+			// Allocate close to the total amount possible
+			constexpr lType perAl = 2;
+			constexpr lType count = alSize / (sizeof(lType) + sizeof(Header)) / perAl;
+			lType* ptrs[count];
+			
 			for (int i = 0; i < count; ++i)
 			{
-
+				ptrs[i] = allist.allocate(perAl);
+				for (int j = 0; j < perAl; ++j)
+					ptrs[i][j] = j;
 			}
+			
+			// Remaining bytes equal to what was allocated
+			Assert::AreEqual(static_cast<lType>(policy.bytesFree),
+				alSize - static_cast<lType>(count * (sizeof(Header) + sizeof(lType) * perAl)));
+
+			// And test to make sure nothing is overwritten
+			for (int i = 0; i < count; ++i)
+				for (int j = 0; j < perAl; ++j)
+				{
+					Assert::AreEqual(ptrs[i][j], j);
+				}
 		}
 
 		TEST_METHOD(Deallocation)

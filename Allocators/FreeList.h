@@ -198,7 +198,6 @@ namespace alloc
 			if (chunkBytes > reqBytes)
 				policy.add(mem + reqBytes, chunkBytes - reqBytes);
 
-			bytesFree -= reqBytes;
 
 			return writeHeader(mem, reqBytes - headerSize);
 		}
@@ -217,15 +216,17 @@ namespace alloc
 		T* allocate(size_type count)
 		{
 			byte* mem			= nullptr;
-			size_type byteCount = sizeof(T) * count + headerSize;
+			size_type reqBytes = sizeof(T) * count + headerSize;
 
 			if (search == FIRST_FIT)
-				mem = firstFit(byteCount);
+				mem = firstFit(reqBytes);
 			else
-				mem = bestFit(byteCount);
+				mem = bestFit(reqBytes);
 
 			if (!mem)
 				throw std::bad_alloc();
+
+			bytesFree -= reqBytes;
 
 			return reinterpret_cast<T*>(mem);
 		}
