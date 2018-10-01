@@ -1,5 +1,6 @@
 #pragma once
 #include <list>
+#include <array>
 #include "AllocHelpers.h"
 
 
@@ -32,47 +33,44 @@ namespace alloc
 															uint64_t >>>;
 	};
 
-	template<size_t bytes, 
-		class pred = std::less<size_t>>
+	template<size_t bytes, class size_type,
+		class Interface>
 	struct TreePolicy
 	{
+		using It = typename std::list<std::pair<byte*, size_type>>::iterator; // A placeholder until one exists
+		using Ib = std::pair<It, bool>;
+		using Header = typename Interface::Header;
 
+		void add(byte* start, size_type size)
+		{}
 	};
 
-	template<size_t bytes,
-		class pred = std::less<size_t>>
+	template<size_t bytes, class size_type,
+		class Interface>
 	struct FlatPolicy
 	{
+		using Storage	= std::array<std::pair<byte*, size_type>, bytes>;
+		using It		= typename Storage::iterator; 
+		using Ib		= std::pair<It, bool>;
+		using Header	= typename Interface::Header;
 
-	};
+		Storage availible;
 
-	struct BytePair
-	{
-		int count = 0;
-		byte* ptrs[2];
-
-		void add(byte* p)
-		{
-			ptrs[count++] = p;
-		}
-
-		void remove(int idx)
-		{
-			if (idx == 0)
-				ptrs[0] = ptrs[1];
-			--count;
-		}
+		void add(byte* start, size_type size)
+		{}
 	};
 
 	template<size_t bytes, class size_type,
 		class Interface>
 	struct ListPolicy
 	{
-		inline static std::list<std::pair<byte*, size_type>> availible; 
-
-		using It		= typename std::list<std::pair<byte*, size_type>>::iterator;
+		using Storage	= std::list<std::pair<byte*, size_type>>;
+		using It		= typename Storage::iterator;
 		using Ib		= std::pair<It, bool>;
 		using Header	= typename Interface::Header;
+
+		inline static Storage availible;
+
 
 		void add(byte* start, size_type size)
 		{
@@ -262,11 +260,24 @@ namespace alloc
 		using size_type = typename OurPolicy::size_type;
 
 	private:
-		OurPolicy storage;
+		inline static OurPolicy storage;
+		static constexpr size_t size = bytes;
 
 	public:
 
 		FreeList() = default;
+
+		template<class U>
+		bool operator==(const FreeList<U, bytes, Policy>& other)
+		{
+			return true;
+		}
+
+		template<class U>
+		bool operator!=(const FreeList<U, bytes, Policy>& other)
+		{
+			return false;
+		}
 
 		template<class U>
 		struct rebind { using other = FreeList<U, bytes, Policy>; };

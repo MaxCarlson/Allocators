@@ -15,7 +15,11 @@
 // Mix Slab Allocation with existing allocators
 int main()
 {
+	alloc::FreeList<int, 513, alloc::TreePolicy> fl1;
+
 	alloc::FreeList<size_t, 512> fl;
+
+	//bool t = fl == fl1;
 
 	using size_type = alloc::FindSizeT<512, 1>::size_type;
 

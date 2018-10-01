@@ -11,7 +11,7 @@ namespace Tests
 	public:
 
 
-		using lType		= int;
+		using lType	= int;
 		static const lType alSize = 512;
 
 		using Allocator = alloc::FreeList<int, alSize, alloc::ListPolicy>;
@@ -21,6 +21,10 @@ namespace Tests
 		// it has all statically defined variables (so this is identical to
 		// the policy inside our above allocator)
 		Allocator::OurPolicy policy;
+
+		using ListPol = typename Allocator::OurPolicy::OurPolicy;
+		ListPol listPol;
+
 
 		using Header = typename Allocator::OurPolicy::Header;
 
@@ -54,19 +58,25 @@ namespace Tests
 			}
 			
 			// Remaining bytes equal to what was allocated
-			Assert::AreEqual(static_cast<lType>(policy.bytesFree),
-				alSize - static_cast<lType>(count * (sizeof(Header) + sizeof(lType) * perAl)));
+			const lType remainingBytes = alSize - static_cast<lType>(count * (sizeof(Header) + sizeof(lType) * perAl));
+
+			// Check byte count is correct
+			Assert::AreEqual(static_cast<lType>(policy.bytesFree), remainingBytes);
+			// Check counter in only list item is matching
+			Assert::AreEqual(static_cast<lType>(listPol.availible.front().second), remainingBytes);
 
 			// And test to make sure nothing is overwritten
 			for (int i = 0; i < count; ++i)
 				for (int j = 0; j < perAl; ++j)
-				{
 					Assert::AreEqual(ptrs[i][j], j);
-				}
+
+			allist.freeAll();
 		}
 
 		TEST_METHOD(Deallocation)
 		{
+			Assert::AreEqual(static_cast<lType>(policy.bytesFree), alSize);
+
 		}
 	};
 
