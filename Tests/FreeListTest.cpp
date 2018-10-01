@@ -2,6 +2,9 @@
 #include "CppUnitTest.h"
 #include "../Allocators/FreeList.h"
 
+#include <vector>
+#include <random>
+
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace Tests
 {
@@ -10,25 +13,22 @@ namespace Tests
 	{
 	public:
 
+		using lType					= int; // Allocator allocation type for list pol
+		static const lType alSize	= 512;
+		using Allocator				= alloc::FreeList<int, alSize, alloc::ListPolicy>;
+		using lsType				= Allocator::size_type; // Allocator size type for list pol
+		using ListPol				= typename Allocator::OurPolicy::OurPolicy;
+		using Header				= typename Allocator::OurPolicy::Header;
 
-		using lType	= int;
-		static const lType alSize = 512;
-
-		using Allocator = alloc::FreeList<int, alSize, alloc::ListPolicy>;
 		Allocator allist;
-
-		// Policy is similar to an allocator in that
-		// it has all statically defined variables (so this is identical to
-		// the policy inside our above allocator)
-		Allocator::OurPolicy policy;
-
-		using ListPol = typename Allocator::OurPolicy::OurPolicy;
+		// This is the policy interface that interfaces with
+		// different allocator policies
+		Allocator::OurPolicy listItf;
+		// A particular allocator policy. From here we can access
+		// the list of free mem blocks, etc
 		ListPol listPol;
 
-
-		using Header = typename Allocator::OurPolicy::Header;
-
-		TEST_METHOD(Allocation)
+		TEST_METHOD(AllocationList)
 		{
 			// Should be able to allocate full size, 
 			// we need to store header info
@@ -42,8 +42,8 @@ namespace Tests
 				failed = true;
 			}
 
-			Assert::AreEqual(static_cast<lType>(policy.bytesFree), alSize);
-			Assert::AreEqual(failed, true);
+			Assert::IsTrue(static_cast<lType>(listItf.bytesFree) == alSize);
+			Assert::IsTrue(failed);
 
 			// Allocate close to the total amount possible
 			constexpr lType perAl = 2;
@@ -57,26 +57,54 @@ namespace Tests
 					ptrs[i][j] = j;
 			}
 			
-			// Remaining bytes equal to what was allocated
-			const lType remainingBytes = alSize - static_cast<lType>(count * (sizeof(Header) + sizeof(lType) * perAl));
+			// Remaining bytes(what it should be) equal to what was allocated
+			const lsType remainingBytes = alSize - static_cast<lsType>(count * (sizeof(Header) + sizeof(lType) * perAl));
 
 			// Check byte count is correct
-			Assert::AreEqual(static_cast<lType>(policy.bytesFree), remainingBytes);
-			// Check counter in only list item is matching
-			Assert::AreEqual(static_cast<lType>(listPol.availible.front().second), remainingBytes);
+			Assert::IsTrue(listItf.bytesFree == remainingBytes);
+			// Check remaining chunk mem size is matching our count
+			Assert::IsTrue(listPol.availible.front().second == remainingBytes);
 
 			// And test to make sure nothing is overwritten
 			for (int i = 0; i < count; ++i)
 				for (int j = 0; j < perAl; ++j)
-					Assert::AreEqual(ptrs[i][j], j);
+					Assert::IsTrue(ptrs[i][j] == j);
 
 			allist.freeAll();
 		}
 
-		TEST_METHOD(Deallocation)
+		TEST_METHOD(DeallocationList)
 		{
-			Assert::AreEqual(static_cast<lType>(policy.bytesFree), alSize);
+			//Assert::IsTrue(static_cast<lType>(listItf.bytesFree), alSize);
 
+			// Allocate close to the total amount possible
+			constexpr lType perAl = 2;
+			constexpr lType count = alSize / (sizeof(lType) + sizeof(Header)) / perAl;
+			lType* ptrs[count];
+
+			std::vector<int> idxs;
+			for (int i = 0; i < count; ++i)
+			{
+				idxs.emplace_back(i);
+				ptrs[i] = allist.allocate(perAl);
+				for (int j = 0; j < perAl; ++j)
+					ptrs[i][j] = j;
+			}
+
+			// Let's deallocate in a random order
+			std::shuffle(std::begin(idxs), std::end(idxs), std::default_random_engine(1));
+
+			for (const auto it : idxs)
+				allist.deallocate(ptrs[it]);
+
+			// Check byte count is correct
+			Assert::IsTrue(listItf.bytesFree == static_cast<lsType>(alSize));
+
+			// Should only be one large block
+			Assert::IsTrue(listPol.availible.size() == 1);
+
+			// Check remaining chunk mem size is matching our count
+			Assert::IsTrue(listPol.availible.front().second == static_cast<lsType>(alSize));
 		}
 	};
 
