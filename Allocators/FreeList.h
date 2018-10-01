@@ -110,15 +110,10 @@ namespace alloc
 			}
 		}
 
-		void erase(It it)
-		{
-			availible.erase(it);
-		}
-
 		Ib firstFit(size_t reqBytes)
 		{
 			for (It it = std::begin(availible);
-					it != std::end(availible); ++it)
+				it != std::end(availible); ++it)
 			{
 				// Found a section of memory large enough to hold
 				// what we want to allocate
@@ -126,6 +121,17 @@ namespace alloc
 					return { it, true };
 			}
 			return { It{}, false };
+		}
+
+		void erase(It it)
+		{
+			availible.erase(it);
+		}
+
+		void freeAll(byte* MyBegin)
+		{
+			availible.clear();
+			availible.emplace_front(MyBegin, bytes);
 		}
 	};
 
@@ -239,6 +245,12 @@ namespace alloc
 
 			policy.add(reinterpret_cast<byte*>(header), header->size);
 		}
+
+		void freeAll()
+		{
+			policy.freeAll(MyBegin);
+			bytesFree = bytes;
+		}
 	};
 
 	template<class Type, size_t bytes = 0, 
@@ -254,10 +266,10 @@ namespace alloc
 
 	public:
 
+		FreeList() = default;
+
 		template<class U>
 		struct rebind { using other = FreeList<U, bytes, Policy>; };
-
-		FreeList() = default;
 
 		Type* allocate(size_type count)
 		{
@@ -267,6 +279,11 @@ namespace alloc
 		void deallocate(Type* ptr)
 		{
 			storage.deallocate(ptr);
+		}
+
+		void freeAll()
+		{
+			storage.freeAll();
 		}
 	};
 	
