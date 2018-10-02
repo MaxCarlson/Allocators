@@ -19,6 +19,7 @@ namespace alloc
 	{
 	private:
 		byte* mem;
+		byte* end;
 		std::vector<uint16_t> availible;
 		
 	public:
@@ -27,6 +28,7 @@ namespace alloc
 		SmallSlab(size_t objSize, size_t count)
 		{
 			mem = reinterpret_cast<byte*>(operator new(objSize * count));
+			end = mem + count;
 			availible.resize(count);
 			for (auto i = 0; i < count; ++i)
 				availible[i] = i;
@@ -36,20 +38,25 @@ namespace alloc
 
 		bool full() const noexcept { return availible.empty(); }
 
-		byte* allocate()
+		std::pair<byte*, bool> allocate()
 		{
 			if (availible.empty()) // TODO: This should never happen?
-				return nullptr;
+				return { nullptr, false };
 
 			auto idx = availible.back();
 			availible.pop_back();
-			return mem + idx;
+			return { mem + idx, availible.empty() };
 		}
 
 		void deallocate(byte* ptr)
 		{
 			auto idx = static_cast<size_t>(ptr - mem);
 			availible.emplace_back(idx);
+		}
+
+		bool containsMem(byte* ptr) const noexcept
+		{
+			return (ptr >= mem && ptr < end);
 		}
 	};
 
@@ -92,10 +99,45 @@ namespace alloc
 
 		}
 
+		template<class T>
+		T* allocate()
+		{
+			auto [mem, full] = slabsFree.back().allocate();
+
+			if (full)
+			{
+				slabsFull.emplace_back(slabsFree.back());
+				slabsFree.pop_back(); // TODO: This is an issue, it calls destructor and deletes mem which we don't want
+			}
+		}
+
+		template<class T>
+		void deallocate(T* ptr)
+		{
+			// Search slabs for one that holds the memory
+			// ptr points to
+			// Look backwards, where the likely most recent items are
+			auto searchSS = [&ptr](SlabStore& store) -> SmallSlab*
+			{
+				for (auto it =  std::rbegin(store); 
+						  it != std::rend(store); ++it)
+					if (it->containsMem(ptr))
+						return &(*it);
+				return nullptr;
+			};
+
+			auto* ssb = searchSS(slabsFull);
+			if (!ssb)
+				ssb = searchSS(slabsFree);
+			if (!ssb)
+				throw std::bad_alloc(); // TODO: Is this the right exception?
+
+			ssb->deallocate(ptr);
+		}
 	};
 
 
-	struct SlabInterface
+	struct SlabMemInterface
 	{
 		using size_type		= size_t;
 		using SmallStore	= std::vector<SmallCache>;
@@ -103,7 +145,7 @@ namespace alloc
 
 		inline static SmallStore caches;
 
-		void addMemCache(size_type objSize, size_type count)
+		void addCache(size_type objSize, size_type count)
 		{
 			SmallCache ch{ objSize, count };
 			if (caches.empty())
@@ -121,19 +163,26 @@ namespace alloc
 		}
 
 		template<class T>
-		void addObjCache(size_type count)
+		T* allocate()
 		{
 
 		}
 
 		template<class T>
-		T* allocateMem()
+		void deallocate(T* ptr)
 		{
 
 		}
+	};
+
+	struct SlabObjInterface
+	{
+		using size_type		= size_t;
+		//using SmallStore	= std::vector<SmallCache>;
+		//using It			= typename SmallStore::iterator;
 
 		template<class T>
-		void deallocateMem(T* ptr)
+		void addCache(size_type count)
 		{
 
 		}
@@ -143,7 +192,8 @@ namespace alloc
 	class Slab
 	{
 
-		inline static SlabInterface storage;
+		inline static SlabMemInterface memStore;
+		inline static SlabObjInterface objStore;
 
 	public:
 
@@ -155,30 +205,30 @@ namespace alloc
 		template<class T = Type>
 		T* allocateMem()
 		{
-			return storage.allocate<T>();
+			return memStore.allocate<T>();
 		}
 
 		template<class T = Type>
 		void deallocateMem(T* ptr)
 		{
-			storage.deallocate(ptr);
-		}
-
-		template<class T = Type>
-		void addObjCache(size_type count)
-		{
-			storage.addObjCache<T>(count);
+			memStore.deallocate(ptr);
 		}
 
 		void addMemCache(size_type objSize, size_type count)
 		{
-			storage.addMemCache(objSize, count);
+			memStore.addCache(objSize, count);
 		}
 
 		template<class T = Type>
 		void addMemCache(size_type count)
 		{
 			addCache(sizeof(T), count);
+		}
+
+		template<class T = Type>
+		void addObjCache(size_type count)
+		{
+			objStore.addCache<T>(count);
 		}
 	};
 }
