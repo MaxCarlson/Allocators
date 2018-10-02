@@ -75,7 +75,7 @@ namespace Tests
 
 		TEST_METHOD(DeallocationList)
 		{
-			//Assert::IsTrue(static_cast<lType>(listItf.bytesFree), alSize);
+			Assert::IsTrue(static_cast<lType>(listItf.bytesFree) == alSize);
 
 			// Allocate close to the total amount possible
 			constexpr lType perAl = 2;
@@ -106,6 +106,21 @@ namespace Tests
 			// Check remaining chunk mem size is matching our count
 			Assert::IsTrue(listPol.availible.front().second == static_cast<lsType>(alSize));
 		}
+
+		TEST_METHOD(FreeAllList)
+		{
+			constexpr lType perAl = 2;
+			constexpr lType count = alSize / (sizeof(lType) + sizeof(Header)) / perAl;
+			for (int i = 0; i < count; ++i)
+				allist.allocate(perAl);
+
+			allist.freeAll();
+
+			Assert::IsTrue(listItf.bytesFree == alSize);
+			Assert::IsTrue(listPol.availible.size() == 1);
+			Assert::IsTrue(listPol.availible.front().second == alSize);
+		}
+
 	};
 
 }

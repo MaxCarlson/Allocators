@@ -20,9 +20,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="FixedBlock.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Linear.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -33,6 +30,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="FreeList.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Slab.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

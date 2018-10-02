@@ -1,9 +1,13 @@
-#include <memory>
-#include <iostream>
 #include "Linear.h"
-#include "FixedBlock.h"
 #include "Pool.h"
 #include "FreeList.h"
+#include "Slab.h"
+
+#include <memory>
+#include <chrono>
+#include <iostream>
+
+using Clock = std::chrono::high_resolution_clock;
 
 // Just a temporary main to test allocators from
 // Should be removed in any actual use case

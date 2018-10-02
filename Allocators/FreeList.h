@@ -7,7 +7,6 @@
 
 namespace alloc
 {
-
 	enum AlSearch : byte
 	{
 		BEST_FIT,
@@ -251,7 +250,7 @@ namespace alloc
 		}
 	};
 
-	template<class Type, size_t bytes = 0, 
+	template<class Type, size_t bytes, 
 		template<size_t, class, class> class Policy = ListPolicy>
 	class FreeList
 	{
@@ -268,13 +267,13 @@ namespace alloc
 		FreeList() = default;
 
 		template<class U>
-		bool operator==(const FreeList<U, bytes, Policy>& other)
+		bool operator==(const FreeList<U, bytes, Policy>& other) const noexcept
 		{
 			return true;
 		}
 
 		template<class U>
-		bool operator!=(const FreeList<U, bytes, Policy>& other)
+		bool operator!=(const FreeList<U, bytes, Policy>& other) const noexcept
 		{
 			return false;
 		}
