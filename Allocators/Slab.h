@@ -6,6 +6,10 @@
 namespace alloc
 {
 
+	// TODO: Use this a stateless (except
+	// static vars) cache of objects so we can have
+	// caches deduced by type
+	template<class T>
 	struct ObjCache
 	{
 
@@ -13,9 +17,13 @@ namespace alloc
 
 	struct SmallSlab
 	{
+	private:
 		byte* mem;
 		std::vector<uint16_t> availible;
+		
+	public:
 
+		SmallSlab() = default;
 		SmallSlab(size_t objSize, size_t count)
 		{
 			mem = reinterpret_cast<byte*>(operator new(objSize * count));
@@ -24,8 +32,15 @@ namespace alloc
 				availible[i] = i;
 		}
 
+		~SmallSlab(){ delete mem; }
+
+		bool full() const noexcept { return availible.empty(); }
+
 		byte* allocate()
 		{
+			if (availible.empty()) // TODO: This should never happen?
+				return nullptr;
+
 			auto idx = availible.back();
 			availible.pop_back();
 			return mem + idx;
@@ -33,7 +48,8 @@ namespace alloc
 
 		void deallocate(byte* ptr)
 		{
-
+			auto idx = static_cast<size_t>(ptr - mem);
+			availible.emplace_back(idx);
 		}
 	};
 
@@ -52,7 +68,6 @@ namespace alloc
 		size_type objSize;
 		size_type count;
 		SlabStore slabsFree;
-		SlabStore slabsPart;
 		SlabStore slabsFull;
 
 
@@ -69,7 +84,7 @@ namespace alloc
 
 		void newSlab(size_type objSize, size_type count)
 		{
-			slabsFree.emplace_back();
+			slabsFree.emplace_back(SmallSlab{ objSize, count });
 		}
 
 		void freeEmpty()
@@ -79,6 +94,7 @@ namespace alloc
 
 	};
 
+
 	struct SlabInterface
 	{
 		using size_type		= size_t;
@@ -87,9 +103,7 @@ namespace alloc
 
 		inline static SmallStore caches;
 
-		// TODO: Should these return a Cache* so that
-		// they can be easily removed by a seperate function?
-		void addCache(size_type objSize, size_type count)
+		void addMemCache(size_type objSize, size_type count)
 		{
 			SmallCache ch{ objSize, count };
 			if (caches.empty())
@@ -107,13 +121,19 @@ namespace alloc
 		}
 
 		template<class T>
-		T* allocate()
+		void addObjCache(size_type count)
 		{
 
 		}
 
 		template<class T>
-		void deallocate(T* ptr)
+		T* allocateMem()
+		{
+
+		}
+
+		template<class T>
+		void deallocateMem(T* ptr)
 		{
 
 		}
@@ -130,27 +150,33 @@ namespace alloc
 		using size_type = size_t;
 
 
-		// TODO: Should this be a <template T> ?
-		//
 		// Does not take a count argument because 
-		// we can only allocate one object at once
-		Type* allocate()
+		// we can only allocate one object at a time
+		template<class T = Type>
+		T* allocateMem()
 		{
-			return storage.allocate<Type>();
+			return storage.allocate<T>();
 		}
 
-		void deallocate(Type* ptr)
+		template<class T = Type>
+		void deallocateMem(T* ptr)
 		{
 			storage.deallocate(ptr);
 		}
 
-		void addCache(size_type objSize, size_type count)
+		template<class T = Type>
+		void addObjCache(size_type count)
 		{
-			storage.addCache(objSize, count);
+			storage.addObjCache<T>(count);
 		}
 
-		template<class T>
-		void addCache(size_type count)
+		void addMemCache(size_type objSize, size_type count)
+		{
+			storage.addMemCache(objSize, count);
+		}
+
+		template<class T = Type>
+		void addMemCache(size_type count)
 		{
 			addCache(sizeof(T), count);
 		}
