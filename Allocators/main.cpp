@@ -21,7 +21,13 @@ int main()
 {
 	alloc::Slab<int> slal;
 
+	struct ListTest
+	{
+		int a;
+	};
 
+	List<ListTest> ll;
+	ll.emplace_back(ListTest{ 1 });
 
 	return 0;
 }

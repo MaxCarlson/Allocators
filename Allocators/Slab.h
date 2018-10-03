@@ -3,8 +3,52 @@
 #include <vector>
 #include <array>
 
+// A custom linked list class with a couple
+// extra operations
+template<class T>
+class List
+{
+	struct Node
+	{
+		T		data;
+		Node*	next = nullptr;
+		Node*	prev = nullptr;
+	};
+
+	struct iterator
+	{
+
+	};
+
+	Node* head;
+	Node* tail;
+
+	template<class... Args>
+	Node* constructNode(Args&& ...args)
+	{
+		Node* n = new Node;
+		new (&n->data) T(std::forward<Args>(args)...);
+		return n;
+	}
+
+public:
+
+	template<class... Args>
+	iterator emplace_back(Args&& ...args)
+	{
+		Node* n = constructNode(std::forward<Args>(args)...);
+		//std::allocator<int>::construct()
+		return iterator{};
+	}
+};
+
 namespace alloc
 {
+	template<class T>
+	struct ObjSlab
+	{
+
+	};
 
 	// TODO: Use this a stateless (except
 	// static vars) cache of objects so we can have
@@ -12,6 +56,10 @@ namespace alloc
 	template<class T>
 	struct ObjCache
 	{
+		using Storage = std::list<ObjSlab<T>>;
+
+		inline static Storage full;
+		inline static Storage free;
 
 	};
 
@@ -34,7 +82,8 @@ namespace alloc
 				availible[i] = i;
 		}
 
-		~SmallSlab(){ delete mem; }
+		//~SmallSlab(){ delete mem; }
+		// TODO: Need a manual destroy func if using vec and moving between vecs?
 
 		bool full() const noexcept { return availible.empty(); }
 
@@ -70,11 +119,12 @@ namespace alloc
 		// TODO: Page alignemnt/Page Sizes for slabs? (possible on windows?)
 		
 		using size_type = size_t;
-		using SlabStore = std::vector<SmallSlab>;
+		using SlabStore = std::list<SmallSlab>;
 
 		size_type objSize;
 		size_type count;
 		SlabStore slabsFree;
+		SlabStore slabsPart;
 		SlabStore slabsFull;
 
 
