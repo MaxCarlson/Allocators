@@ -66,17 +66,19 @@ namespace alloc
 	struct SmallSlab
 	{
 	private:
+		using size_type = size_t;
+
 		byte* mem;
-		byte* end;
+		size_type objSize;
+		size_type count;
 		std::vector<uint16_t> availible;
 		
 	public:
 
 		SmallSlab() = default;
-		SmallSlab(size_t objSize, size_t count)
+		SmallSlab(size_t objSize, size_t count) : objSize(objSize), count(count)
 		{
 			mem = reinterpret_cast<byte*>(operator new(objSize * count));
-			end = mem + count;
 			availible.resize(count);
 			for (auto i = 0; i < count; ++i)
 				availible[i] = i;
@@ -94,7 +96,7 @@ namespace alloc
 
 			auto idx = availible.back();
 			availible.pop_back();
-			return { mem + idx, availible.empty() };
+			return { mem + (idx * objSize), availible.empty() };
 		}
 
 		void deallocate(byte* ptr)
@@ -105,7 +107,7 @@ namespace alloc
 
 		bool containsMem(byte* ptr) const noexcept
 		{
-			return (ptr >= mem && ptr < end);
+			return (ptr >= mem && ptr < (mem + (objSize * count)));
 		}
 	};
 
@@ -159,6 +161,8 @@ namespace alloc
 				slabsFull.emplace_back(slabsFree.back());
 				slabsFree.pop_back(); // TODO: This is an issue, it calls destructor and deletes mem which we don't want
 			}
+
+			return reinterpret_cast<T*>(mem);
 		}
 
 		template<class T>
@@ -215,7 +219,16 @@ namespace alloc
 		template<class T>
 		T* allocate()
 		{
-
+			T* mem = nullptr;
+			for (It it = std::begin(caches); it != std::end(caches); ++it)
+				if (sizeof(T) < it->objSize)
+				{
+					mem = it->allocate<T>();
+					return mem;
+				}
+			
+			throw std::bad_alloc();
+			return nullptr;
 		}
 
 		template<class T>

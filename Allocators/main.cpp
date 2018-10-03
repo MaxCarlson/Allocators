@@ -21,6 +21,9 @@ int main()
 {
 	alloc::Slab<int> slal;
 
+	slal.addMemCache(1 << 6, 64);
+	slal.allocateMem();
+
 	struct ListTest
 	{
 		int a;
