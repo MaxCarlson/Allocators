@@ -8,17 +8,50 @@
 template<class T>
 class List
 {
+public:
+
 	struct Node
 	{
+		Node() = default;
+
+		template<class... Args>
+		Node(Args&&... args) : data(std::forward<Args>(args)...) {}
+
 		T		data;
 		Node*	next = nullptr;
-		Node*	prev = nullptr;
 	};
 
 	struct iterator
 	{
+		iterator(Node* ptr = nullptr) : ptr(ptr) {}
 
+		T& operator*()
+		{
+			return ptr->data;
+		}
+
+		T* operator->()
+		{
+			return &ptr->data;
+		}
+
+		iterator& operator++()
+		{
+			if (ptr->next)
+				ptr = ptr->next;
+		}
+
+		iterator operator++(int)
+		{
+			iterator tmp = *this;
+			++*this;
+			return tmp;
+		}
+
+		Node* ptr;
 	};
+
+private:
 
 	Node* head;
 	Node* tail;
@@ -26,10 +59,11 @@ class List
 	template<class... Args>
 	Node* constructNode(Args&& ...args)
 	{
-		Node* n = new Node;
-		new (&n->data) T(std::forward<Args>(args)...);
+		Node* n = new Node{ std::forward<Args>(args)... };
 		return n;
 	}
+
+
 
 public:
 
@@ -38,7 +72,14 @@ public:
 	{
 		Node* n = constructNode(std::forward<Args>(args)...);
 		//std::allocator<int>::construct()
-		return iterator{};
+
+		if (!head)
+			head = n;
+
+		tail->next = n;
+		tail = n;
+
+		return iterator{ n };
 	}
 };
 
