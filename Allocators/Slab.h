@@ -19,6 +19,7 @@ public:
 
 		T		data;
 		Node*	next = nullptr;
+		Node*	prev = nullptr;
 	};
 
 	struct iterator
@@ -51,10 +52,19 @@ public:
 		Node* ptr;
 	};
 
+	List()
+	{
+		MyHead.prev = MyHead.next = nullptr;
+		MyHead.next = MyEnd;
+		MyEnd.prev	= MyHead;
+		MySize		= 0;
+	}
+
 private:
 
-	Node* head;
-	Node* tail;
+	Node MyEnd;
+	Node MyHead;
+	size_t MySize;
 
 	template<class... Args>
 	Node* constructNode(Args&& ...args)
@@ -64,21 +74,45 @@ private:
 	}
 
 
-
 public:
+
+	iterator begin() { return iterator{ MyHead->next }; }
+	iterator end() { return iterator{ &MyEnd }; }
+	size_t size() const noexcept { return MySize; }
+	bool empty() const noexcept { return MySize; }
+
+	// Give another list our node
+	void giveNode(iterator& ourNode, iterator pos)
+	{
+		--MySize;
+		Node* n = &ourNode.ptr;
+	}
 
 	template<class... Args>
 	iterator emplace_back(Args&& ...args)
 	{
 		Node* n = constructNode(std::forward<Args>(args)...);
-		//std::allocator<int>::construct()
 
-		if (!head)
-			head = n;
+		Node* prev	= &MyEnd.prev;
+		prev->next	= n;
+		n->next		= &MyEnd;
+		n->prev		= prev;
 
-		tail->next = n;
-		tail = n;
+		++MySize;
+		return iterator{ n };
+	}
 
+	template<class... Args>
+	iterator emplace(iterator it, Args&& ...args)
+	{
+		Node* n = constructNode(std::forward<Args>(args)...);
+
+		Node* prev	= &it.prev;
+		prev->next	= n;
+		n->next		= *it;
+		n->prev		= prev;
+
+		++MySize;
 		return iterator{ n };
 	}
 };
@@ -129,6 +163,7 @@ namespace alloc
 		// TODO: Need a manual destroy func if using vec and moving between vecs?
 
 		bool full() const noexcept { return availible.empty(); }
+		size_type size() const noexcept { return count - availible.size(); }
 
 		std::pair<byte*, bool> allocate()
 		{
@@ -162,7 +197,9 @@ namespace alloc
 		// TODO: Page alignemnt/Page Sizes for slabs? (possible on windows?)
 		
 		using size_type = size_t;
-		using SlabStore = std::list<SmallSlab>;
+		using Slab		= SmallSlab;
+		using SlabStore = List<Slab>;
+		using It		= SlabStore::iterator;
 
 		size_type objSize;
 		size_type count;
@@ -184,7 +221,7 @@ namespace alloc
 
 		void newSlab(size_type objSize, size_type count)
 		{
-			slabsFree.emplace_back(SmallSlab{ objSize, count });
+			slabsFree.emplace_back(objSize, count);
 		}
 
 		void freeEmpty()
@@ -192,15 +229,39 @@ namespace alloc
 
 		}
 
+		std::pair<SlabStore*, It> findFreeSlab() 
+		{
+			It slabIt;
+			SlabStore* store = nullptr;
+			if (slabsPart.size())
+			{
+				slabIt = std::begin(slabsPart);
+				store = &slabsPart;
+			}
+			else 
+			{
+				// No empty slabs, need to create one! (TODO: If allowed to create?)
+				if (slabsFree.empty())
+					newSlab(objSize, count);
+
+				slabIt = std::begin(slabsFree);
+				store = &slabsFree;
+			}
+
+			return { store, slabIt };
+		}
+
 		template<class T>
 		T* allocate()
 		{
-			auto [mem, full] = slabsFree.back().allocate();
-
+			auto [store, it] = findFreeSlab();
+			auto [mem, full] = it->allocate();
+			
+			// Give the slab storage to the 
+			// full list if it has no more room
 			if (full)
 			{
-				slabsFull.emplace_back(slabsFree.back());
-				slabsFree.pop_back(); // TODO: This is an issue, it calls destructor and deletes mem which we don't want
+				store->giveNode(it, std::begin(slabsFull));
 			}
 
 			return reinterpret_cast<T*>(mem);
@@ -212,7 +273,7 @@ namespace alloc
 			// Search slabs for one that holds the memory
 			// ptr points to
 			// Look backwards, where the likely most recent items are
-			auto searchSS = [&ptr](SlabStore& store) -> SmallSlab*
+			auto searchSS = [&ptr](SlabStore& store) -> Slab*
 			{
 				for (auto it =  std::rbegin(store); 
 						  it != std::rend(store); ++it)
