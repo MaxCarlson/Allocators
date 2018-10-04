@@ -233,10 +233,10 @@ namespace alloc
 		{
 			It slabIt;
 			SlabStore* store = nullptr;
-			if (slabsPart.size())
+			if (!slabsPart.empty())
 			{
-				slabIt = std::begin(slabsPart);
-				store = &slabsPart;
+				slabIt	= std::begin(slabsPart);
+				store	= &slabsPart;
 			}
 			else 
 			{
@@ -244,8 +244,8 @@ namespace alloc
 				if (slabsFree.empty())
 					newSlab();
 
-				slabIt = std::begin(slabsFree);
-				store = &slabsFree;
+				slabIt	= std::begin(slabsFree);
+				store	= &slabsFree;
 			}
 
 			return { store, slabIt };
@@ -272,20 +272,29 @@ namespace alloc
 		{
 			// Search slabs for one that holds the memory
 			// ptr points to
-			// Look backwards, where the likely most recent items are
-			auto searchSS = [&ptr](SlabStore& store) -> Slab*
+			//
+			// TODO: We should implement a coloring offset scheme
+			// so that some Slabs store objects at address of address % 8 == 0
+			// and others at addresses % 12 == 0 so we can search faster for the proper Slab
+			auto searchSS = [&ptr](SlabStore& store) -> It
 			{
-				for (auto it =  std::rbegin(store); 
-						  it != std::rend(store); ++it)
+				for (auto it =  std::begin(store); 
+						  it != std::end(store); ++it)
 					if (it->containsMem(ptr))
-						return &(*it);
-				return nullptr;
+						return it;
+				return store.end();
 			};
 
-			auto* ssb = searchSS(slabsFull);
-			if (!ssb)
-				ssb = searchSS(slabsFree);
-			if (!ssb)
+			It it = searchSS(slabsFull);
+			// Need to move slab back into partials
+			if (it != slabsFull.end())
+			{
+				slabsFull.giveNode(it, slabsPart.begin());
+			}
+			else
+				it = searchSS(slabsPart);
+
+			if (it == slabsPart.end())
 				throw std::bad_alloc(); // TODO: Is this the right exception?
 
 			ssb->deallocate(ptr);

@@ -21,8 +21,17 @@ int main()
 {
 	alloc::Slab<int> slal;
 
+
 	slal.addMemCache(1 << 6, 64);
-	slal.allocateMem();
+
+	int* ptrs[64];
+	for (int i = 0; i < 64; ++i)
+	{
+		ptrs[i] = slal.allocateMem();
+	}
+
+	for (int i = 0; i < 64; ++i)
+		slal.deallocateMem(ptrs[i]);
 
 	struct ListTest
 	{
