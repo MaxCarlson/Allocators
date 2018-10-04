@@ -81,11 +81,19 @@ public:
 	size_t size() const noexcept { return MySize; }
 	bool empty() const noexcept { return !MySize; }
 
-	// Give another list our node
-	void giveNode(iterator& ourNode, iterator pos)
+	// Give another list our node and insert it
+	// before pos
+	void giveNode(iterator& ourNode, List& other, iterator pos)
 	{
 		--MySize;
 		Node* n = ourNode.ptr;
+		ourNode.prev->next = ourNode.next;
+		ourNode.next->prev = ourNode.prev;
+
+		++other.MySize;
+		n = pos.ptr;
+		n->prev = pos->prev;
+		// TODO: Incomplete and not working
 	}
 
 	template<class... Args>
@@ -276,28 +284,32 @@ namespace alloc
 			// TODO: We should implement a coloring offset scheme
 			// so that some Slabs store objects at address of address % 8 == 0
 			// and others at addresses % 12 == 0 so we can search faster for the proper Slab
-			auto searchSS = [&ptr](SlabStore& store) -> It
+			auto searchSS = [&ptr](SlabStore& store) -> std::pair<SlabStore*, It>
 			{
 				for (auto it =  std::begin(store); 
 						  it != std::end(store); ++it)
 					if (it->containsMem(ptr))
 						return it;
-				return store.end();
+				return { &store, store.end() };
 			};
 
-			It it = searchSS(slabsFull);
+			auto [store, it] = searchSS(slabsFull);
 			// Need to move slab back into partials
 			if (it != slabsFull.end())
 			{
 				slabsFull.giveNode(it, slabsPart.begin());
 			}
 			else
-				it = searchSS(slabsPart);
+				auto [store, it] = searchSS(slabsPart);
 
 			if (it == slabsPart.end())
 				throw std::bad_alloc(); // TODO: Is this the right exception?
 
-			ssb->deallocate(ptr);
+			it->deallocate(ptr);
+			
+			// Return slab to free list if it's empty
+			if (it->empty())
+				store->giveNode(it, std::begin(slabsFree));
 		}
 	};
 
