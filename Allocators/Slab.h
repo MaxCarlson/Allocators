@@ -38,7 +38,7 @@ public:
 
 		iterator& operator++()
 		{
-			if (ptr->next)
+			if (ptr != MyEnd)
 				ptr = ptr->next;
 		}
 
@@ -73,6 +73,16 @@ private:
 		return n;
 	}
 
+	iterator insertAt(Node* n, iterator it)
+	{
+		Node* prev	= &it.prev;
+		prev->next	= n;
+		n->next		= *it;
+		n->prev		= prev;
+
+		++MySize;
+		return iterator{ n };
+	}
 
 public:
 
@@ -82,46 +92,42 @@ public:
 	bool empty() const noexcept { return !MySize; }
 
 	// Give another list our node and insert it
-	// before pos
+	// before pos. Don't deallocate the memory,
+	// just pass it to another list to handle
 	void giveNode(iterator& ourNode, List& other, iterator pos)
 	{
 		--MySize;
-		Node* n = ourNode.ptr;
-		ourNode.prev->next = ourNode.next;
-		ourNode.next->prev = ourNode.prev;
+		Node* n				= ourNode.ptr;
+		ourNode.prev->next	= ourNode.next;
+		ourNode.next->prev	= ourNode.prev;
 
-		++other.MySize;
-		n = pos.ptr;
-		n->prev = pos->prev;
-		// TODO: Incomplete and not working
+		other.insertAt(ourNode.ptr, pos);
 	}
 
 	template<class... Args>
-	iterator emplace_back(Args&& ...args)
+	decltype(auto) emplace_back(Args&& ...args)
 	{
-		Node* n = constructNode(std::forward<Args>(args)...);
-
-		Node* prev	= MyEnd.prev;
-		prev->next	= n;
-		n->next		= &MyEnd;
-		n->prev		= prev;
-
-		++MySize;
-		return iterator{ n };
+		Node* n		= constructNode(std::forward<Args>(args)...);
+		iterator it = insertAt(n, end());
+		return *it;
 	}
 
 	template<class... Args>
 	iterator emplace(iterator it, Args&& ...args)
 	{
-		Node* n = constructNode(std::forward<Args>(args)...);
+		Node* n	= constructNode(std::forward<Args>(args)...);
+		return insertAt(n, it);
+	}
 
-		Node* prev	= &it.prev;
-		prev->next	= n;
-		n->next		= *it;
-		n->prev		= prev;
+	iterator erase(iterator pos)
+	{
+		--MySize;
+		pos.ptr->prev->next = pos.ptr->next;
+		pos.ptr->next->prev = pos.ptr->prev;
 
-		++MySize;
-		return iterator{ n };
+		// TODO: Don't deallocate memory until asked to?
+		// Add it to a chain after MyEnd so we don't need to allocate more later?
+		delete pos.ptr;
 	}
 };
 
