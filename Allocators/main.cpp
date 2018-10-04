@@ -30,7 +30,7 @@ int main()
 	};
 
 	List<ListTest> ll;
-	ll.emplace_back(ListTest{ 1 });
+	ll.emplace_back(1);
 
 	//std::vector<int>::iterator::operator++
 

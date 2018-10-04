@@ -15,7 +15,7 @@ public:
 		Node() = default;
 
 		template<class... Args>
-		Node(Args&&... args) : data(std::forward<Args>(args)...) {}
+		Node(Args&&... args) : data{ std::forward<Args>(args)... } {}
 
 		T		data;
 		Node*	next = nullptr;
@@ -55,8 +55,8 @@ public:
 	List()
 	{
 		MyHead.prev = MyHead.next = nullptr;
-		MyHead.next = MyEnd;
-		MyEnd.prev	= MyHead;
+		MyHead.next = &MyEnd;
+		MyEnd.prev	= &MyHead;
 		MySize		= 0;
 	}
 
@@ -76,16 +76,16 @@ private:
 
 public:
 
-	iterator begin() { return iterator{ MyHead->next }; }
+	iterator begin() { return iterator{ MyHead.next }; }
 	iterator end() { return iterator{ &MyEnd }; }
 	size_t size() const noexcept { return MySize; }
-	bool empty() const noexcept { return MySize; }
+	bool empty() const noexcept { return !MySize; }
 
 	// Give another list our node
 	void giveNode(iterator& ourNode, iterator pos)
 	{
 		--MySize;
-		Node* n = &ourNode.ptr;
+		Node* n = ourNode.ptr;
 	}
 
 	template<class... Args>
@@ -93,7 +93,7 @@ public:
 	{
 		Node* n = constructNode(std::forward<Args>(args)...);
 
-		Node* prev	= &MyEnd.prev;
+		Node* prev	= MyEnd.prev;
 		prev->next	= n;
 		n->next		= &MyEnd;
 		n->prev		= prev;
@@ -211,7 +211,7 @@ namespace alloc
 		SmallCache() = default;
 		SmallCache(size_type objSize, size_type count) : objSize(objSize), count(count)
 		{
-			newSlab(objSize, count);
+			newSlab();
 		}
 
 		bool operator<(const SmallCache& other) const noexcept
@@ -219,7 +219,7 @@ namespace alloc
 			return objSize < other.objSize;
 		}
 
-		void newSlab(size_type objSize, size_type count)
+		void newSlab()
 		{
 			slabsFree.emplace_back(objSize, count);
 		}
@@ -242,7 +242,7 @@ namespace alloc
 			{
 				// No empty slabs, need to create one! (TODO: If allowed to create?)
 				if (slabsFree.empty())
-					newSlab(objSize, count);
+					newSlab();
 
 				slabIt = std::begin(slabsFree);
 				store = &slabsFree;
