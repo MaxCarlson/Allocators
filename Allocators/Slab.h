@@ -181,11 +181,7 @@ namespace alloc
 	public:
 
 		SmallSlab() = default;
-		SmallSlab(size_t objSize, size_t count) : objSize(objSize), count(count), availible(count)
-		{
-			mem = reinterpret_cast<byte*>(operator new(objSize * count));
-			std::iota(std::begin(availible), std::end(availible), 0);
-		}
+		SmallSlab(size_t objSize, size_t count);
 
 		//~SmallSlab(){ delete mem; } 
 		// TODO: Need a manual destroy func if using vec and moving between vecs?
@@ -195,15 +191,7 @@ namespace alloc
 		size_type size() const noexcept { return count - availible.size(); }
 		bool empty() const noexcept { return availible.size() == count; }
 
-		std::pair<byte*, bool> allocate()
-		{
-			if (availible.empty()) // TODO: This should never happen?
-				return { nullptr, false };
-
-			auto idx = availible.back();
-			availible.pop_back();
-			return { mem + (idx * objSize), availible.empty() };
-		}
+		std::pair<byte*, bool> allocate();
 
 		template<class P>
 		void deallocate(P* ptr)
@@ -242,47 +230,13 @@ namespace alloc
 
 
 		SmallCache() = default;
-		SmallCache(size_type objSize, size_type count) : objSize(objSize), count(count)
-		{
-			newSlab();
-		}
+		SmallCache(size_type objSize, size_type count);
 
-		bool operator<(const SmallCache& other) const noexcept
-		{
-			return objSize < other.objSize;
-		}
+		bool operator<(const SmallCache& other) const noexcept;
 
-		void newSlab()
-		{
-			slabsFree.emplace_back(objSize, count);
-		}
+		void newSlab();
 
-		void freeEmpty()
-		{
-
-		}
-
-		std::pair<SlabStore*, It> findFreeSlab() 
-		{
-			It slabIt;
-			SlabStore* store = nullptr;
-			if (!slabsPart.empty())
-			{
-				slabIt	= std::begin(slabsPart);
-				store	= &slabsPart;
-			}
-			else 
-			{
-				// No empty slabs, need to create one! (TODO: If allowed to create?)
-				if (slabsFree.empty())
-					newSlab();
-
-				slabIt	= std::begin(slabsFree);
-				store	= &slabsFree;
-			}
-
-			return { store, slabIt };
-		}
+		std::pair<SlabStore*, It> findFreeSlab();
 
 		template<class T>
 		T* allocate()
@@ -293,39 +247,38 @@ namespace alloc
 			// Give the slab storage to the 
 			// full list if it has no more room
 			if (full)
-			{
 				store->giveNode(it, slabsFull, std::begin(slabsFull));
-			}
-
+			
 			return reinterpret_cast<T*>(mem);
+		}
+
+		// Search slabs for one that holds the memory
+		// ptr points to
+		//
+		// TODO: We should implement a coloring offset scheme
+		// so that some Slabs store objects at address of address % 8 == 0
+		// and others at addresses % 12 == 0 so we can search faster for the proper Slab
+		template<class P>
+		std::pair<SlabStore*, It> searchStore(SlabStore& store, P* ptr)
+		{
+			for (auto it = std::begin(store);
+				it != std::end(store); ++it)
+				if (it->containsMem(ptr))
+					return { &store, it };
+			return { &store, store.end() };
 		}
 
 		template<class T>
 		void deallocate(T* ptr)
 		{
-			// Search slabs for one that holds the memory
-			// ptr points to
-			//
-			// TODO: We should implement a coloring offset scheme
-			// so that some Slabs store objects at address of address % 8 == 0
-			// and others at addresses % 12 == 0 so we can search faster for the proper Slab
-			auto searchSS = [&ptr](SlabStore& store) -> std::pair<SlabStore*, It>
-			{
-				for (auto it =  std::begin(store); 
-						  it != std::end(store); ++it)
-					if (it->containsMem(ptr))
-						return { &store, it };
-				return { &store, store.end() };
-			};
-
-			auto [store, it] = searchSS(slabsFull);
+			auto [store, it] = searchStore(slabsFull, p);
 			// Need to move slab back into partials
 			if (it != slabsFull.end())
 			{
 				slabsFull.giveNode(it, slabsPart, slabsPart.begin());
 			}
 			else
-				auto [store, it] = searchSS(slabsPart);
+				auto [store, it] = searchStore(slabsPart, p);
 
 			if (it == slabsPart.end())
 				throw std::bad_alloc(); // TODO: Is this the right exception?
@@ -347,21 +300,9 @@ namespace alloc
 
 		inline static SmallStore caches;
 
-		void addCache(size_type objSize, size_type count)
-		{
-			if (caches.empty())
-			{
-				caches.emplace_back(objSize, count);
-				return;
-			}
-
-			for(It it = std::begin(caches); it != std::end(caches); ++it)
-				if (objSize < it->objSize)
-				{
-					caches.emplace(it, objSize, count);
-					break;
-				}
-		}
+		// Add a dynamic cache that stores count 
+		// number of objSize memory chunks
+		void addCache(size_type objSize, size_type count);
 
 		template<class T>
 		T* allocate()
@@ -411,7 +352,11 @@ namespace alloc
 		// BEFORE any memory is allocated due the way deallocation works. If any smaller 
 		// caches are added after an object has been allocated that the allocated object fits
 		// in it will result in undefined behavior
+		//
+		// Useable for memory sizes up to 64KB
 		inline static SlabMemInterface memStore;
+
+
 		inline static SlabObjInterface objStore;
 
 	public:
