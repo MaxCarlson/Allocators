@@ -193,6 +193,7 @@ namespace alloc
 
 		bool full() const noexcept { return availible.empty(); }
 		size_type size() const noexcept { return count - availible.size(); }
+		bool empty() const noexcept { return availible.size() == count; }
 
 		std::pair<byte*, bool> allocate()
 		{
@@ -204,15 +205,18 @@ namespace alloc
 			return { mem + (idx * objSize), availible.empty() };
 		}
 
-		void deallocate(byte* ptr)
+		template<class P>
+		void deallocate(P* ptr)
 		{
-			auto idx = static_cast<size_t>(ptr - mem);
+			auto idx = static_cast<size_t>((reinterpret_cast<byte*>(ptr) - mem) / objSize);
 			availible.emplace_back(idx);
 		}
 
-		bool containsMem(byte* ptr) const noexcept
+		template<class P>
+		bool containsMem(P* ptr) const noexcept
 		{
-			return (ptr >= mem && ptr < (mem + (objSize * count)));
+			return (reinterpret_cast<byte*>(ptr) >= mem 
+				 && reinterpret_cast<byte*>(ptr) < (mem + (objSize * count)));
 		}
 	};
 
@@ -310,7 +314,7 @@ namespace alloc
 				for (auto it =  std::begin(store); 
 						  it != std::end(store); ++it)
 					if (it->containsMem(ptr))
-						return it;
+						return { &store, it };
 				return { &store, store.end() };
 			};
 
@@ -318,7 +322,7 @@ namespace alloc
 			// Need to move slab back into partials
 			if (it != slabsFull.end())
 			{
-				slabsFull.giveNode(it, slabsPart.begin());
+				slabsFull.giveNode(it, slabsPart, slabsPart.begin());
 			}
 			else
 				auto [store, it] = searchSS(slabsPart);
@@ -330,7 +334,7 @@ namespace alloc
 			
 			// Return slab to free list if it's empty
 			if (it->empty())
-				store->giveNode(it, std::begin(slabsFree));
+				store->giveNode(it, slabsFree, std::begin(slabsFree));
 		}
 	};
 
@@ -365,7 +369,7 @@ namespace alloc
 			T* mem = nullptr;
 
 			for (It it = std::begin(caches); it != std::end(caches); ++it)
-				if (sizeof(T) < it->objSize)
+				if (sizeof(T) <= it->objSize)
 				{
 					mem = it->allocate<T>();
 					return mem;
@@ -378,7 +382,12 @@ namespace alloc
 		template<class T>
 		void deallocate(T* ptr)
 		{
-
+			for (It it = std::begin(caches); it != std::end(caches); ++it)
+				if (sizeof(T) <= it->objSize)
+				{
+					it->deallocate(ptr);
+					return;
+				}
 		}
 	};
 
@@ -398,7 +407,10 @@ namespace alloc
 	template<class Type>
 	class Slab
 	{
-
+		// NOTE: as it stands, all of memstores caches need to be instantiated
+		// BEFORE any memory is allocated due the way deallocation works. If any smaller 
+		// caches are added after an object has been allocated that the allocated object fits
+		// in it will result in undefined behavior
 		inline static SlabMemInterface memStore;
 		inline static SlabObjInterface objStore;
 
