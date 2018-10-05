@@ -345,17 +345,16 @@ namespace alloc
 
 		void addCache(size_type objSize, size_type count)
 		{
-			SmallCache ch{ objSize, count };
 			if (caches.empty())
 			{
-				caches.emplace_back(ch);
+				caches.emplace_back(objSize, count);
 				return;
 			}
 
 			for(It it = std::begin(caches); it != std::end(caches); ++it)
-				if (ch < *it)
+				if (objSize < it->objSize)
 				{
-					caches.emplace(it, ch);
+					caches.emplace(it, objSize, count);
 					break;
 				}
 		}
@@ -368,10 +367,6 @@ namespace alloc
 			for (It it = std::begin(caches); it != std::end(caches); ++it)
 				if (sizeof(T) < it->objSize)
 				{
-					
-					for (auto itt : it->slabsFree)
-						auto tt = itt;
-
 					mem = it->allocate<T>();
 					return mem;
 				}
