@@ -2,6 +2,7 @@
 #include "AllocHelpers.h"
 #include <vector>
 #include <array>
+#include <numeric>
 
 // A custom linked list class with a couple
 // extra operations
@@ -12,11 +13,13 @@ public:
 
 	struct Node
 	{
-		Node() = default;
+		Node() { i = ii++; };
 
 		template<class... Args>
 		Node(Args&&... args) : data{ std::forward<Args>(args)... } {}
 
+		inline static int ii = 0; // TODO: Just for debugging, remove after
+		int i;
 		T		data;
 		Node*	next = nullptr;
 		Node*	prev = nullptr;
@@ -24,7 +27,8 @@ public:
 
 	struct iterator
 	{
-		iterator(Node* ptr = nullptr) : ptr(ptr) {}
+		iterator() = default;
+		iterator(Node* ptr) : ptr(ptr) {}
 
 		T& operator*()
 		{
@@ -36,10 +40,21 @@ public:
 			return &ptr->data;
 		}
 
+		bool operator==(const iterator& it) const noexcept
+		{
+			return ptr == it.ptr;
+		}
+
+		bool operator!=(const iterator& it) const noexcept
+		{
+			return !(*this == it);
+		}
+
 		iterator& operator++()
 		{
-			if (ptr != MyEnd)
+			if (ptr->next)
 				ptr = ptr->next;
+			return *this;
 		}
 
 		iterator operator++(int)
@@ -54,7 +69,7 @@ public:
 
 	List()
 	{
-		MyHead.prev = MyHead.next = nullptr;
+		MyHead.prev = MyEnd.next = nullptr;
 		MyHead.next = &MyEnd;
 		MyEnd.prev	= &MyHead;
 		MySize		= 0;
@@ -62,9 +77,9 @@ public:
 
 private:
 
-	Node MyEnd;
-	Node MyHead;
-	size_t MySize;
+	Node	MyHead;
+	Node	MyEnd;
+	size_t	MySize;
 
 	template<class... Args>
 	Node* constructNode(Args&& ...args)
@@ -75,10 +90,11 @@ private:
 
 	iterator insertAt(Node* n, iterator it)
 	{
-		Node* prev	= &it.prev;
+		Node* prev	= it.ptr->prev;
 		prev->next	= n;
-		n->next		= *it;
+		n->next		= it.ptr;
 		n->prev		= prev;
+		it.ptr->prev = n;
 
 		++MySize;
 		return iterator{ n };
@@ -97,9 +113,9 @@ public:
 	void giveNode(iterator& ourNode, List& other, iterator pos)
 	{
 		--MySize;
-		Node* n				= ourNode.ptr;
-		ourNode.prev->next	= ourNode.next;
-		ourNode.next->prev	= ourNode.prev;
+		Node* n			= ourNode.ptr;
+		n->prev->next	= n->next;
+		n->next->prev	= n->prev;
 
 		other.insertAt(ourNode.ptr, pos);
 	}
@@ -165,16 +181,15 @@ namespace alloc
 	public:
 
 		SmallSlab() = default;
-		SmallSlab(size_t objSize, size_t count) : objSize(objSize), count(count)
+		SmallSlab(size_t objSize, size_t count) : objSize(objSize), count(count), availible(count)
 		{
 			mem = reinterpret_cast<byte*>(operator new(objSize * count));
-			availible.resize(count);
-			for (auto i = 0; i < count; ++i)
-				availible[i] = i;
+			std::iota(std::begin(availible), std::end(availible), 0);
 		}
 
-		//~SmallSlab(){ delete mem; }
+		//~SmallSlab(){ delete mem; } 
 		// TODO: Need a manual destroy func if using vec and moving between vecs?
+		// TODO: operator delete ? with byte* allocated from operator new?
 
 		bool full() const noexcept { return availible.empty(); }
 		size_type size() const noexcept { return count - availible.size(); }
@@ -275,7 +290,7 @@ namespace alloc
 			// full list if it has no more room
 			if (full)
 			{
-				store->giveNode(it, std::begin(slabsFull));
+				store->giveNode(it, slabsFull, std::begin(slabsFull));
 			}
 
 			return reinterpret_cast<T*>(mem);
@@ -349,9 +364,14 @@ namespace alloc
 		T* allocate()
 		{
 			T* mem = nullptr;
+
 			for (It it = std::begin(caches); it != std::end(caches); ++it)
 				if (sizeof(T) < it->objSize)
 				{
+					
+					for (auto itt : it->slabsFree)
+						auto tt = itt;
+
 					mem = it->allocate<T>();
 					return mem;
 				}
