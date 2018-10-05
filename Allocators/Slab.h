@@ -149,6 +149,19 @@ public:
 
 namespace alloc
 {
+
+	struct CacheInfo
+	{
+		CacheInfo(size_t size, size_t capacity, size_t objectSize, size_t objPerSlab)
+			: size(size), capacity(capacity), objectSize(objectSize), objPerSlab(objPerSlab) {}
+
+		size_t size;
+		size_t capacity;
+		size_t objectSize;
+		size_t objPerSlab;
+	};
+
+	/*
 	template<class T>
 	struct ObjSlab
 	{
@@ -161,12 +174,13 @@ namespace alloc
 	template<class T>
 	struct ObjCache
 	{
-		using Storage = std::list<ObjSlab<T>>;
+		using Storage = List<ObjSlab<T>>;
 
 		inline static Storage full;
 		inline static Storage free;
 
 	};
+	*/
 
 	struct SmallSlab
 	{
@@ -174,7 +188,7 @@ namespace alloc
 		using size_type = size_t;
 
 		byte* mem;
-		size_type objSize;
+		size_type objSize; 
 		size_type count;
 		std::vector<uint16_t> availible;
 		
@@ -187,9 +201,9 @@ namespace alloc
 		// TODO: Need a manual destroy func if using vec and moving between vecs?
 		// TODO: operator delete ? with byte* allocated from operator new?
 
-		bool full() const noexcept { return availible.empty(); }
-		size_type size() const noexcept { return count - availible.size(); }
-		bool empty() const noexcept { return availible.size() == count; }
+		bool full()			const noexcept { return availible.empty(); }
+		size_type size()	const noexcept { return count - availible.size(); }
+		bool empty()		const noexcept { return availible.size() == count; }
 
 		std::pair<byte*, bool> allocate();
 
@@ -214,8 +228,10 @@ namespace alloc
 	struct SmallCache
 	{
 		// TODOLIST:
+		// TODO: Better indexing of memory (offsets to search slabs faster, etc)
 		// TODO: Locking mechanism
 		// TODO: Page alignemnt/Page Sizes for slabs? (possible on windows?)
+		// TODO: Exception Safety 
 		
 		using size_type = size_t;
 		using Slab		= SmallSlab;
@@ -224,6 +240,9 @@ namespace alloc
 
 		size_type objSize;
 		size_type count;
+		size_type myCapacity	= 0;
+		size_type mySize		= 0;
+
 		SlabStore slabsFree;
 		SlabStore slabsPart;
 		SlabStore slabsFull;
@@ -232,7 +251,11 @@ namespace alloc
 		SmallCache() = default;
 		SmallCache(size_type objSize, size_type count);
 
-		bool operator<(const SmallCache& other) const noexcept;
+
+		size_type size()						const noexcept { return mySize; }
+		size_type capacity()					const noexcept { return myCapacity; }
+		bool operator<(const SmallCache& other) const noexcept { return objSize < other.objSize; }
+		CacheInfo info()						const noexcept { return { size(), capacity(), objSize, count }; }
 
 		void newSlab();
 
@@ -248,7 +271,8 @@ namespace alloc
 			// full list if it has no more room
 			if (full)
 				store->giveNode(it, slabsFull, std::begin(slabsFull));
-			
+
+			--mySize;
 			return reinterpret_cast<T*>(mem);
 		}
 
@@ -271,14 +295,14 @@ namespace alloc
 		template<class T>
 		void deallocate(T* ptr)
 		{
-			auto [store, it] = searchStore(slabsFull, p);
+			auto [store, it] = searchStore(slabsFull, ptr);
 			// Need to move slab back into partials
 			if (it != slabsFull.end())
 			{
 				slabsFull.giveNode(it, slabsPart, slabsPart.begin());
 			}
 			else
-				auto [store, it] = searchStore(slabsPart, p);
+				auto [store, it] = searchStore(slabsPart, ptr);
 
 			if (it == slabsPart.end())
 				throw std::bad_alloc(); // TODO: Is this the right exception?
@@ -288,10 +312,12 @@ namespace alloc
 			// Return slab to free list if it's empty
 			if (it->empty())
 				store->giveNode(it, slabsFree, std::begin(slabsFree));
+			++mySize;
 		}
 	};
 
-
+	// Holds all the memory caches 
+	// of different sizes
 	struct SlabMemInterface
 	{
 		using size_type		= size_t;
@@ -302,7 +328,12 @@ namespace alloc
 
 		// Add a dynamic cache that stores count 
 		// number of objSize memory chunks
+		//
+		// TODO: Add a debug check so this function won't add any 
+		// (or just any smaller than largest) caches after first allocation for safety?
 		void addCache(size_type objSize, size_type count);
+
+		std::vector<CacheInfo> info() const noexcept;
 
 		template<class T>
 		T* allocate()
@@ -317,7 +348,7 @@ namespace alloc
 				}
 			
 			throw std::bad_alloc();
-			return nullptr;
+			return mem;
 		}
 
 		template<class T>
@@ -387,6 +418,11 @@ namespace alloc
 		void addMemCache(size_type count)
 		{
 			addCache(sizeof(T), count);
+		}
+
+		CacheInfo memInfo() const noexcept
+		{
+			return memStore.info();
 		}
 
 		template<class T = Type>

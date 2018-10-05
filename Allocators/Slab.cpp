@@ -24,14 +24,10 @@ namespace alloc
 		newSlab();
 	}
 
-	bool SmallCache::operator<(const SmallCache & other) const noexcept
-	{
-		return objSize < other.objSize;
-	}
-
 	void SmallCache::newSlab()
 	{
 		slabsFree.emplace_back(objSize, count);
+		myCapacity += count;
 	}
 
 	std::pair<SmallCache::SlabStore*, SmallCache::It> SmallCache::findFreeSlab()
@@ -40,8 +36,8 @@ namespace alloc
 		SlabStore* store = nullptr;
 		if (!slabsPart.empty())
 		{
-			slabIt = std::begin(slabsPart);
-			store = &slabsPart;
+			slabIt	= std::begin(slabsPart);
+			store	= &slabsPart;
 		}
 		else
 		{
@@ -49,8 +45,8 @@ namespace alloc
 			if (slabsFree.empty())
 				newSlab();
 
-			slabIt = std::begin(slabsFree);
-			store = &slabsFree;
+			slabIt	= std::begin(slabsFree);
+			store	= &slabsFree;
 		}
 
 		return { store, slabIt };
@@ -71,6 +67,14 @@ namespace alloc
 				caches.emplace(it, objSize, count);
 				break;
 			}
+	}
+
+	std::vector<CacheInfo> SlabMemInterface::info() const noexcept
+	{
+		std::vector<CacheInfo> stats;
+		for (const auto& ch : caches)
+			stats.emplace_back(ch.info());
+		return stats;
 	}
 
 }
