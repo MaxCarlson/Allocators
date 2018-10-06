@@ -4,6 +4,16 @@
 #include <array>
 #include <numeric>
 
+namespace alloc
+{
+	struct SmallSlab;
+}
+template<class>
+class List;
+
+inline std::vector<List<alloc::SmallSlab>*> TRACK;
+
+
 // A custom linked list class with a couple
 // extra operations
 template<class T>
@@ -69,23 +79,34 @@ public:
 
 	List()
 	{
-		MyHead.prev = MyEnd.next = nullptr;
-		MyHead.next = &MyEnd;
-		MyEnd.prev	= &MyHead;
-		MySize		= 0;
+		MyHead			= new Node{};
+		MyEnd			= new Node{};
+		MyHead->prev	= MyEnd->next = nullptr;
+		MyHead->next	= MyEnd;
+		MyEnd->prev		= MyHead;
+		MySize			= 0;
+	}
+
+	List(List&& other) : MyHead{ std::move(other.MyHead) }, MyEnd{ std::move(other.MyEnd) }, MySize{ std::move(other.MySize) }
+	{
+	}
+
+	List& operator=(List&& other)
+	{
+		*this = std::move(other);
+		return *this;
 	}
 
 private:
 
-	Node	MyHead;
-	Node	MyEnd;
+	Node*	MyHead;
+	Node*	MyEnd;
 	size_t	MySize;
 
 	template<class... Args>
 	Node* constructNode(Args&& ...args)
 	{
-		Node* n = new Node{ std::forward<Args>(args)... };
-		return n;
+		return new Node{ std::forward<Args>(args)... };
 	}
 
 	iterator insertAt(Node* n, iterator it)
@@ -102,10 +123,13 @@ private:
 
 public:
 
-	iterator begin() { return iterator{ MyHead.next }; }
-	iterator end() { return iterator{ &MyEnd }; }
-	size_t size() const noexcept { return MySize; }
-	bool empty() const noexcept { return !MySize; }
+	iterator begin()				{ return iterator{ MyHead->next }; }
+	iterator end()					{ return iterator{ MyEnd }; }
+	T& back()						{ return MyEnd->prev->data; }
+	size_t size() const noexcept	{ return MySize; }
+	bool empty() const noexcept		{ return !MySize; }
+
+
 
 	// Give another list our node and insert it
 	// before pos. Don't deallocate the memory,
@@ -123,9 +147,8 @@ public:
 	template<class... Args>
 	decltype(auto) emplace_back(Args&& ...args)
 	{
-		Node* n		= constructNode(std::forward<Args>(args)...);
-		iterator it = insertAt(n, end());
-		return *it;
+		Node* n	= constructNode(std::forward<Args>(args)...);
+		return *insertAt(n, end());
 	}
 
 	template<class... Args>
@@ -254,7 +277,7 @@ namespace alloc
 
 		size_type size()						const noexcept { return mySize; }
 		size_type capacity()					const noexcept { return myCapacity; }
-		bool operator<(const SmallCache& other) const noexcept { return objSize < other.objSize; }
+		bool operator<(const SmallCache& other) const noexcept { return size() < other.size(); }
 		CacheInfo info()						const noexcept { return { size(), capacity(), objSize, count }; }
 
 		void newSlab();
@@ -266,6 +289,11 @@ namespace alloc
 		{
 			auto [store, it] = findFreeSlab();
 			auto [mem, full] = it->allocate();
+
+			// If we're taking memory from a free slab
+			// add it to the list of partially full slabs
+			if (store == &slabsFree)
+				store->giveNode(it, slabsPart, std::begin(slabsPart));
 			
 			// Give the slab storage to the 
 			// full list if it has no more room
@@ -325,6 +353,11 @@ namespace alloc
 		using It			= typename SmallStore::iterator;
 
 		inline static SmallStore caches;
+
+		SlabMemInterface()
+		{
+			caches.reserve(10);
+		}
 
 		// Add a dynamic cache that stores count 
 		// number of objSize memory chunks

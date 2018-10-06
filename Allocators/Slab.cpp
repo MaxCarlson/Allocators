@@ -1,5 +1,7 @@
 #include "Slab.h"
 
+
+
 namespace alloc
 {
 	SmallSlab::SmallSlab(size_t objSize, size_t count) : objSize(objSize), count(count), availible(count)
@@ -22,6 +24,8 @@ namespace alloc
 	SmallCache::SmallCache(size_type objSize, size_type count) : objSize(objSize), count(count)
 	{
 		newSlab();
+		//TRACK.emplace_back(&slabsFree); // DELETE WHEN DONE TESTING
+
 	}
 
 	void SmallCache::newSlab()
@@ -68,7 +72,7 @@ namespace alloc
 				return;
 			}
 
-		caches.emplace_back(objSize, count);
+		caches.emplace_back(SmallCache{ objSize, count });
 	}
 
 	std::vector<CacheInfo> SlabMemInterface::info() const noexcept
@@ -80,4 +84,5 @@ namespace alloc
 	}
 
 }
+
 

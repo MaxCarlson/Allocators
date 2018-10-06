@@ -27,13 +27,12 @@ int main()
 	{
 		Large(int val)
 		{
-		std:fill(std::begin(ar), std::end(ar), val);
+			std:fill(std::begin(ar), std::end(ar), val);
 		}
 		std::array<int, count> ar;
 	};
 
 
-	alloc::Slab<int> slab;
 	slab.addMemCache(sizeof(int), count);
 	slab.addMemCache<Large>(count);
 	
