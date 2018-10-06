@@ -300,7 +300,7 @@ namespace alloc
 			if (full)
 				store->giveNode(it, slabsFull, std::begin(slabsFull));
 
-			--mySize;
+			++mySize;
 			return reinterpret_cast<T*>(mem);
 		}
 
@@ -340,7 +340,8 @@ namespace alloc
 			// Return slab to free list if it's empty
 			if (it->empty())
 				store->giveNode(it, slabsFree, std::begin(slabsFree));
-			++mySize;
+
+			--mySize;
 		}
 	};
 
@@ -354,10 +355,7 @@ namespace alloc
 
 		inline static SmallStore caches;
 
-		SlabMemInterface()
-		{
-			caches.reserve(10);
-		}
+		SlabMemInterface() = default;
 
 		// Add a dynamic cache that stores count 
 		// number of objSize memory chunks

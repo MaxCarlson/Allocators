@@ -33,40 +33,67 @@ namespace Tests
 			slab.addMemCache<Large>(count);
 		}
 
-		TEST_METHOD(AllocationSlabMem)
+		std::pair<int**, Large**> allocMem(std::vector<int>& order, int seed)
 		{
 			int* iptrs[count];
 			Large* lptrs[count];
-
-			std::vector<int> order(count);
+			order.resize(count);
 			std::iota(std::begin(order), std::end(order), 0);
-			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(1));
+			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(seed));
 
 			for (int i = 0; i < count; ++i)
 			{
-				iptrs[i]	= slab.allocateMem();
-				*iptrs[i]	= i;
-				lptrs[i]	= slab.allocateMem<Large>();
-				*lptrs[i]	= { i };
+				iptrs[i] = slab.allocateMem();
+				*iptrs[i] = i;
+				lptrs[i] = slab.allocateMem<Large>();
+				*lptrs[i] = { i };
 			}
+			return { iptrs, lptrs };
+		}
 
+		void dealloc(int** iptrs, Large** lptrs, std::vector<int>& order)
+		{
 			for (auto idx : order)
 			{
 				Assert::IsTrue(*iptrs[idx] == idx, L"Failed to find an int");
 				slab.deallocateMem(iptrs[idx]);
 
-				for(auto i : (*lptrs[idx]).ar)
+				for (auto i : (*lptrs[idx]).ar)
 					Assert::IsTrue(i == idx, L"Failed finding a value in Large Struct");
 
 				slab.deallocateMem(lptrs[idx]);
 			}
-
-			//auto infos = slab.memInfo();
-
-			//for(const auto& i : infos)
-			//	Assert::IsTrue(i.size == 0);
-			
 		}
 
+		TEST_METHOD(Alloc_Mem)
+		{
+			std::vector<int> order;
+			auto [iptrs, lptrs] = allocMem(order, 1);
+
+			auto infos = slab.memInfo();
+
+			for (const auto& i : infos)
+				Assert::IsTrue(i.size == count);
+
+			dealloc(iptrs, lptrs, order);
+		}
+
+		TEST_METHOD(DeallocMem)
+		{
+			std::vector<int> order;
+			auto[iptrs, lptrs] = allocMem(order, 2);
+
+			auto infos = slab.memInfo();
+
+			for(const auto& i : infos)
+				Assert::IsTrue(i.size == count, L"Info incorrect!");
+
+			dealloc(iptrs, lptrs, order);
+
+			infos = slab.memInfo();
+
+			for (const auto& i : infos)
+				Assert::IsTrue(i.size == 0, L"Non-zero size after deallocation!");
+		}
 	};
 }
