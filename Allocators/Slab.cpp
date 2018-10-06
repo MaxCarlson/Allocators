@@ -5,7 +5,7 @@ namespace alloc
 	SmallSlab::SmallSlab(size_t objSize, size_t count) : objSize(objSize), count(count), availible(count)
 	{
 		mem = reinterpret_cast<byte*>(operator new(objSize * count));
-		std::iota(std::begin(availible), std::end(availible), 0);
+		std::iota(std::rbegin(availible), std::rend(availible), 0);
 	}
 
 	std::pair<byte*, bool> SmallSlab::allocate()
@@ -65,8 +65,10 @@ namespace alloc
 			if (objSize < it->objSize)
 			{
 				caches.emplace(it, objSize, count);
-				break;
+				return;
 			}
+
+		caches.emplace_back(objSize, count);
 	}
 
 	std::vector<CacheInfo> SlabMemInterface::info() const noexcept

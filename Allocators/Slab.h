@@ -346,7 +346,7 @@ namespace alloc
 					mem = it->allocate<T>();
 					return mem;
 				}
-			
+
 			throw std::bad_alloc();
 			return mem;
 		}
@@ -382,9 +382,9 @@ namespace alloc
 		// NOTE: as it stands, all of memstores caches need to be instantiated
 		// BEFORE any memory is allocated due the way deallocation works. If any smaller 
 		// caches are added after an object has been allocated that the allocated object fits
-		// in it will result in undefined behavior
+		// in it will result in undefined behavior on attempted deallocation!
 		//
-		// Useable for memory sizes up to 64KB
+		// Useable for memory sizes up to... (per cache) count <= std::numeric_limits<uint16_t>::max()
 		inline static SlabMemInterface memStore;
 
 
@@ -417,10 +417,10 @@ namespace alloc
 		template<class T = Type>
 		void addMemCache(size_type count)
 		{
-			addCache(sizeof(T), count);
+			memStore.addCache(sizeof(T), count);
 		}
 
-		CacheInfo memInfo() const noexcept
+		std::vector<CacheInfo> memInfo() const noexcept
 		{
 			return memStore.info();
 		}
