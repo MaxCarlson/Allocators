@@ -66,38 +66,37 @@ void alSpeedTest(Alloc&& alloc, Dealloc&& dealloc, std::string toPrint)
 	std::cout << toPrint.c_str() << " Time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " " << num << '\n';
 }
 
-// Just a temporary main to test allocators from
-// Should be removed in any actual use case
-//
-// General TODO's:
-// Thread Safety with allocators
-// Slab Allocation
-// Buddy Allocation
-// Mix Slab Allocation with existing allocators
 int main()
 {
 	alloc::Slab<int> slab;
-	DefaultAlloc allocNew;
+	DefaultAlloc defaultAl;
 	alloc::FreeList<Large, (count + 8)* sizeof(Large)> flal;
 
+	// Add caches for slab allocator
+	//
+	// Note: Less caches will make it faster
 	for(int i = 6; i < 13; ++i)
 		slab.addMemCache(1 << i, count);
 	slab.addMemCache<Large>(count);
 
-	// Slab functions
-	auto sAl = [&]()			{ return slab.allocateMem<Large>(); };
-	auto sDe = [&](auto ptr)	{ slab.deallocateMem<Large>(ptr); };
+	// Slab mem functions
+	auto sAlMem = [&]()			{ return slab.allocateMem<Large>(); };
+	auto sDeMem = [&](auto ptr)	{ slab.deallocateMem<Large>(ptr); };
+
+	// Slab obj functions # NOT IMPLEMENTED YET
+	auto sAlObj = [&]() {};
+	auto sDeObj = [&](auto ptr) {};
 
 	// FreeList funcs
 	auto flAl = [&]()			{ return flal.allocate(1); };
 	auto flDe = [&](auto ptr)	{ flal.deallocate(ptr); };
 
 	// Wrapped default new/delete alloc 
-	auto DefaultAl = [&]()			{ return allocNew.allocateMem<Large>(); };
-	auto DefaultDe = [&](auto ptr)	{ allocNew.deallocateMem(ptr); };
+	auto DefaultAl = [&]()			{ return defaultAl.allocateMem<Large>(); };
+	auto DefaultDe = [&](auto ptr)	{ defaultAl.deallocateMem(ptr); };
 
 
-	alSpeedTest<Large>(sAl, sDe, "Slab Test");
+	alSpeedTest<Large>(sAlMem, sDeMem, "Slab Test");
 	alSpeedTest<Large>(flAl, flDe, "FreeList Test");
 	alSpeedTest<Large>(DefaultAl, DefaultDe, "Default allocator");
 

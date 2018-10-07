@@ -43,10 +43,10 @@ namespace Tests
 
 			for (int i = 0; i < count; ++i)
 			{
-				iptrs[i] = slab.allocateMem();
-				*iptrs[i] = i;
-				lptrs[i] = slab.allocateMem<Large>();
-				*lptrs[i] = { i };
+				iptrs[i]	= slab.allocateMem();
+				*iptrs[i]	= i;
+				lptrs[i]	= slab.allocateMem<Large>();
+				*lptrs[i]	= { i };
 			}
 			return { iptrs, lptrs };
 		}
@@ -75,6 +75,7 @@ namespace Tests
 			for (const auto& i : infos)
 				Assert::IsTrue(i.size == count);
 
+			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(22));
 			dealloc(iptrs, lptrs, order);
 		}
 
@@ -88,6 +89,7 @@ namespace Tests
 			for(const auto& i : infos)
 				Assert::IsTrue(i.size == count, L"Info incorrect!");
 
+			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(88));
 			dealloc(iptrs, lptrs, order);
 
 			infos = slab.memInfo();

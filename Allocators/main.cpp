@@ -16,7 +16,7 @@ struct Large
 {
 	Large(int val)
 	{
-	std:fill(std::begin(ar), std::end(ar), val);
+	std::fill(std::begin(ar), std::end(ar), val);
 	}
 	std::array<int, count> ar;
 };
