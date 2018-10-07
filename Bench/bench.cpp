@@ -1,5 +1,6 @@
 #include "../Allocators/Slab.h"
 #include "../Allocators/Slab.cpp"
+#include "../Allocators/FreeList.h"
 
 #include <memory>
 #include <chrono>
@@ -35,19 +36,13 @@ struct DefaultAlloc
 	}
 };
 
-template<class Alloc, class T>
-void fillArray(Alloc& al, T* ptrs[])
+template<class T, class Alloc, class Dealloc>
+void alSpeedTest(Alloc&& alloc, Dealloc&& dealloc, std::string toPrint)
 {
+
+	T* ptrs[count];
 	for (int i = 0; i < count; ++i)
-		ptrs[i] = al.allocateMem<T>();
-}
-
-template<class Alloc>
-void allocationSpeed(Alloc& slab, std::string toPrint)
-{
-
-	Large* lptrs[count];
-	fillArray(slab, lptrs);
+		ptrs[i] = alloc();
 
 	std::vector<size_t> order(count);
 	std::shuffle(std::begin(order), std::end(order), std::default_random_engine(1));
@@ -61,9 +56,9 @@ void allocationSpeed(Alloc& slab, std::string toPrint)
 		if (i % count == 0)
 			idx = 0;
 
-		auto* loc = lptrs[order[idx]];
-		slab.deallocateMem(loc);
-		loc = slab.allocateMem<Large>();
+		auto* loc = ptrs[order[idx]];
+		dealloc(loc);
+		loc = alloc();
 	}
 
 	auto end = Clock::now();
@@ -83,13 +78,28 @@ int main()
 {
 	alloc::Slab<int> slab;
 	DefaultAlloc allocNew;
+	alloc::FreeList<Large, (count + 8)* sizeof(Large)> flal;
 
 	for(int i = 6; i < 13; ++i)
 		slab.addMemCache(1 << i, count);
 	slab.addMemCache<Large>(count);
 
-	allocationSpeed(slab, "Slab Allocator");
-	allocationSpeed(allocNew, "New Allocator");
+	// Slab functions
+	auto sAl = [&]()			{ return slab.allocateMem<Large>(); };
+	auto sDe = [&](auto ptr)	{ slab.deallocateMem<Large>(ptr); };
+
+	// FreeList funcs
+	auto flAl = [&]()			{ return flal.allocate(1); };
+	auto flDe = [&](auto ptr)	{ flal.deallocate(ptr); };
+
+	// Wrapped default new/delete alloc 
+	auto DefaultAl = [&]()			{ return allocNew.allocateMem<Large>(); };
+	auto DefaultDe = [&](auto ptr)	{ allocNew.deallocateMem(ptr); };
+
+
+	alSpeedTest<Large>(sAl, sDe, "Slab Test");
+	alSpeedTest<Large>(flAl, flDe, "FreeList Test");
+	alSpeedTest<Large>(DefaultAl, DefaultDe, "Default allocator");
 
 	return 0;
 }
