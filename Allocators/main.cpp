@@ -10,6 +10,58 @@
 
 using Clock = std::chrono::high_resolution_clock;
 
+constexpr auto max = 100000;
+constexpr auto count = 6400;
+
+struct Large
+{
+	Large(int val)
+	{
+	std:fill(std::begin(ar), std::end(ar), val);
+	}
+	std::array<int, count> ar;
+};
+
+struct New
+{
+	template<class T>
+	T* allocateMem()
+	{
+		return reinterpret_cast<T*>(operator new(sizeof(T)));
+	}
+
+	template<class T>
+	void deallocateMem(T* ptr)
+	{
+		operator delete(ptr);
+	}
+};
+
+template<class Alloc>
+void allocationSpeed(Alloc& slab, std::string toPrint)
+{
+	auto start = Clock::now();
+
+	Large* lptrs[count];
+
+	size_t num = 0;
+	size_t idx = 0;
+	for (int i = 0; i < max; ++i)
+	{
+		if (i % count == 0)
+			idx = 0;
+
+		lptrs[idx] = slab.allocateMem<Large>();
+		lptrs[idx]->ar[0] = i;
+		num += lptrs[idx]->ar[0];
+		slab.deallocateMem(lptrs[idx]);
+	}
+
+	auto end = Clock::now();
+
+	std::cout << toPrint.c_str() << " Time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " " << num << '\n';
+}
+
 // Just a temporary main to test allocators from
 // Should be removed in any actual use case
 //
@@ -21,43 +73,16 @@ using Clock = std::chrono::high_resolution_clock;
 int main()
 {
 	alloc::Slab<int> slab;
-	static const int count = 64;
+	New allocNew;
 
-	struct Large
-	{
-		Large(int val)
-		{
-			std:fill(std::begin(ar), std::end(ar), val);
-		}
-		std::array<int, count> ar;
-	};
-
-
-	slab.addMemCache(sizeof(int), count);
+	slab.addMemCache(sizeof(char), count);
+	slab.addMemCache(sizeof(uint16_t), count);
+	slab.addMemCache(sizeof(uint32_t), count);
+	slab.addMemCache(sizeof(uint64_t), count);
 	slab.addMemCache<Large>(count);
-	
 
-	int* iptrs[count];
-	Large* lptrs[count];
-
-	std::vector<int> order(count);
-	std::iota(std::begin(order), std::end(order), 0);
-	std::shuffle(std::begin(order), std::end(order), std::default_random_engine(1));
-
-	for (int i = 0; i < count; ++i)
-	{
-		iptrs[i] = slab.allocateMem();
-		*iptrs[i] = i;
-		lptrs[i] = slab.allocateMem<Large>();
-		*lptrs[i] = { i };
-	}
-
-	for (auto idx : order)
-	{
-		slab.deallocateMem(iptrs[idx]);
-		slab.deallocateMem(lptrs[idx]);
-		}
-	//std::vector<int>::iterator::operator++
+	allocationSpeed(slab, "Slab Allocator");
+	allocationSpeed(allocNew, "New Allocator");
 
 	return 0;
 }
