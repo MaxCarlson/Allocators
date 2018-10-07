@@ -1,5 +1,6 @@
 #pragma once
 #include "AllocHelpers.h"
+#include "SlabObj.h"
 #include <vector>
 #include <array>
 #include <numeric>
@@ -33,26 +34,7 @@ namespace alloc
 		size_t objPerSlab;
 	};
 
-	/*
-	template<class T>
-	struct ObjSlab
-	{
 
-	};
-
-	// TODO: Use this a stateless (except
-	// static vars) cache of objects so we can have
-	// caches deduced by type
-	template<class T>
-	struct ObjCache
-	{
-		using Storage = List<ObjSlab<T>>;
-
-		inline static Storage full;
-		inline static Storage free;
-
-	};
-	*/
 
 	struct SmallSlab
 	{
@@ -100,7 +82,7 @@ namespace alloc
 	struct SmallCache
 	{
 		// TODOLIST:
-		// TODO: Better indexing of memory (offsets to search slabs faster, etc)
+		// TODO: Better indexing of memory (Coloring offsets to search slabs faster, etc)
 		// TODO: Locking mechanism
 		// TODO: Page alignemnt/Page Sizes for slabs? (possible on windows?)
 		// TODO: Exception Safety 
@@ -222,17 +204,14 @@ namespace alloc
 		template<class T>
 		T* allocate()
 		{
-			T* mem = nullptr;
-
 			for (It it = std::begin(caches); it != std::end(caches); ++it)
 				if (sizeof(T) <= it->objSize)
 				{
-					mem = it->allocate<T>();
-					return mem;
+					return it->allocate<T>();
 				}
 
 			throw std::bad_alloc();
-			return mem;
+			return nullptr;
 		}
 
 		template<class T>
@@ -244,19 +223,6 @@ namespace alloc
 					it->deallocate(ptr);
 					return;
 				}
-		}
-	};
-
-	struct SlabObjInterface
-	{
-		using size_type		= size_t;
-		//using SmallStore	= std::vector<SmallCache>;
-		//using It			= typename SmallStore::iterator;
-
-		template<class T>
-		void addCache(size_type count)
-		{
-
 		}
 	};
 
@@ -272,7 +238,7 @@ namespace alloc
 		inline static SlabMemInterface memStore;
 
 
-		inline static SlabObjInterface objStore;
+		inline static SlabObj::Interface objStore;
 
 	public:
 
@@ -287,7 +253,7 @@ namespace alloc
 			return memStore.allocate<T>();
 		}
 
-		template<class T = Type>
+		template<class T>
 		void deallocateMem(T* ptr)
 		{
 			memStore.deallocate(ptr);

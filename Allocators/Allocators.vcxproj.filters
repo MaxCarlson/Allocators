@@ -38,5 +38,8 @@
     <ClInclude Include="Slab.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="SlabObj.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

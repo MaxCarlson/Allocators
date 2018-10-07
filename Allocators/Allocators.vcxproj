@@ -124,6 +124,7 @@
   <ItemGroup>
     <ClInclude Include="AllocHelpers.h" />
     <ClInclude Include="FreeList.h" />
+    <ClInclude Include="SlabObj.h" />
     <ClInclude Include="Slab.h" />
     <ClInclude Include="Linear.h" />
     <ClInclude Include="Pool.h" />
