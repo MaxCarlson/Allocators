@@ -33,10 +33,10 @@ namespace Tests
 			slab.addMemCache<Large>(count);
 		}
 
-		std::pair<int**, Large**> allocMem(std::vector<int>& order, int seed)
+		std::pair<std::vector<int*>, std::vector<Large*>> allocMem(std::vector<int>& order, int seed)
 		{
-			int* iptrs[count];
-			Large* lptrs[count];
+			std::vector<int*> iptrs(count);
+			std::vector<Large*> lptrs(count);
 			order.resize(count);
 			std::iota(std::begin(order), std::end(order), 0);
 			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(seed));
@@ -51,7 +51,7 @@ namespace Tests
 			return { iptrs, lptrs };
 		}
 
-		void dealloc(int** iptrs, Large** lptrs, std::vector<int>& order)
+		void dealloc(std::vector<int*> iptrs, std::vector<Large*> lptrs, std::vector<int>& order)
 		{
 			for (auto idx : order)
 			{

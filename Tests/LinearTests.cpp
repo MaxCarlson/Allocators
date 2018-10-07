@@ -48,21 +48,12 @@ namespace Tests
 			Assert::AreEqual(true, works);
 		}
 
-		// This isn't really a *proper* test
-		// as it's possible it could fail when working correctly
 		TEST_METHOD(Reset)
 		{
 			al.reset();
 			al = alloc::Linear<int, sizeof(int) * 4>();
 
-			auto* data = al.allocate(4);
-			for (int i = 1; i < 5; ++i)
-				data[i-1] = i;
-
-			al.reset();
-
-			for (int i = 1; i < 5; ++i)
-				Assert::AreNotEqual(data[i-1], i);
+			// TODO:
 		}
 
 		TEST_METHOD(Operators)
