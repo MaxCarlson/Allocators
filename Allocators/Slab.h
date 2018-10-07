@@ -4,6 +4,7 @@
 #include <array>
 #include <numeric>
 
+/*
 namespace alloc
 {
 	struct SmallSlab;
@@ -12,7 +13,7 @@ template<class>
 class List;
 
 inline std::vector<List<alloc::SmallSlab>*> TRACK;
-
+*/
 
 // A custom linked list class with a couple
 // extra operations
@@ -23,13 +24,11 @@ public:
 
 	struct Node
 	{
-		Node() { i = ii++; };
+		Node() {};
 
 		template<class... Args>
 		Node(Args&&... args) : data{ std::forward<Args>(args)... } {}
 
-		inline static int ii = 0; // TODO: Just for debugging, remove after
-		int i;
 		T		data;
 		Node*	next = nullptr;
 		Node*	prev = nullptr;
@@ -330,7 +329,11 @@ namespace alloc
 				slabsFull.giveNode(it, slabsPart, slabsPart.begin());
 			}
 			else
-				auto [store, it] = searchStore(slabsPart, ptr);
+			{
+				auto[s, i] = searchStore(slabsPart, ptr);
+				store = s;
+				it = i;
+			}
 
 			if (it == slabsPart.end())
 				throw std::bad_alloc(); // TODO: Is this the right exception?
