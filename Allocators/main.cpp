@@ -36,10 +36,7 @@ int main()
 
 	SlabObj::Interface itfc;
 
-	auto ll = [](Large& lrg) {return 1; };
-
-
-	itfc.addCache<Large>(10, ll);
+	itfc.addCache<Large>(128);
 
 	slab.addMemCache(sizeof(char), count);
 	slab.addMemCache(sizeof(uint16_t), count);

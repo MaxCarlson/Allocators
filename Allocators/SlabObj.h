@@ -19,6 +19,16 @@ namespace SlabObj
 			mem = reinterpret_cast<byte*>(operator new(sizeof(T) * count));
 			std::iota(std::rbegin(availible), std::rend(availible), 0);
 		}
+
+		T* allocate()
+		{
+
+		}
+
+		void deallocate(T* ptr)
+		{
+
+		}
 	};
 
 	// TODO: Use this a stateless (except
@@ -29,32 +39,72 @@ namespace SlabObj
 	{
 		using size_type = size_t;
 		using Storage	= alloc::List<Slab<T>>;
+		using It		= typename Storage::iterator;
 
-		inline static Storage full;
-		inline static Storage part;
-		inline static Storage free;
+		inline static Storage slabsFull;
+		inline static Storage slabsPart;
+		inline static Storage slabsFree;
 
-		inline static std::function<void(T&)> ctor;
-		inline static std::function<void(T&)> dtor;
+		inline static size_type count;		// Objects per cache
+		inline static size_type mySize;		// Total objects
+		inline static size_type myCapacity; // Total capacity for objects without more allocations
 
-		template<class Ctor, class Dtor>
-		static void addCache(size_type count, 
-			Ctor&& nctor, Dtor&& ndtor)
+		//inline static std::function<void(T&)> ctor;
+		//inline static std::function<void(T&)> dtor;
+
+		//template<class Ctor, class Dtor>
+		//static void addCache(size_type count, 
+		//	Ctor& nctor, Dtor& ndtor)
+		static void addCache(size_type count)
 		{
-			// TODO: Do we want to allow different size caches in here?
-			//if (size != count && init)
-			//	return;
-			//init = true;
-
-			ctor = nctor;
-			dtor = ndtor
-
-			free.emplace_back(count);
 		}
 
+		static void newSlab()
+		{
+			slabsFree.emplace_back(count);
+		}
+
+		// TODO: Identical Code as SlabMem!
+		static std::pair<Storage*, It> findSlab()
+		{
+			It slabIt;
+			Storage* store = nullptr;
+			if (!slabsPart.empty())
+			{
+				slabIt = std::begin(slabsPart);
+				store = &slabsPart;
+			}
+			else
+			{
+				// No empty slabs, need to create one! (TODO: If allowed to create?)
+				if (slabsFree.empty())
+					newSlab();
+
+				slabIt = std::begin(slabsFree);
+				store = &slabsFree;
+			}
+
+			return { store, slabIt };
+		}
+
+		// TODO: Identical Code as SlabMem!
 		static T* allocate()
 		{
+			auto[store, it] = findSlab();
+			auto[mem, full] = it->allocate();
 
+			// If we're taking memory from a free slab
+			// add it to the list of partially full slabs
+			if (store == &slabsFree)
+				store->giveNode(it, slabsPart, std::begin(slabsPart));
+
+			// Give the slab storage to the 
+			// full list if it has no more room
+			if (full)
+				store->giveNode(it, full, std::begin(full));
+
+			++mySize;
+			return reinterpret_cast<T*>(mem);
 		}
 
 		static void deallocate(T* ptr)
@@ -68,10 +118,10 @@ namespace SlabObj
 	{
 		using size_type = size_t;
 
-		template<class T, class Ctor>
-		void addCache(size_type count, Ctor&& ctor)
+		template<class T>
+		void addCache(size_type count)
 		{
-			Cache<T>::addCache(count, ctor, [](T& t) {});
+			Cache<T>::addCache(count);
 		}
 
 		template<class T>
