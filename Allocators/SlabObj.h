@@ -12,17 +12,34 @@ namespace SlabObj
 	{
 		byte* mem;
 		std::vector<uint16_t> availible;
+
+		// TODO: Or just keep a Cache* to our parent?
+		// TODO:+ How will we consntruct objects with the ctor if they
+		// are not default constructable? 
+		// TODO: Prefer to find some type of tuple/variadic init if possible
+
+		//std::function<void(T&)>* ctor;
+		//std::function<void(T&)>* dtor;
+
 		
 		Slab() = default;
 		Slab(size_t count) : availible(count)
 		{
 			mem = reinterpret_cast<byte*>(operator new(sizeof(T) * count));
 			std::iota(std::rbegin(availible), std::rend(availible), 0);
+
+			//for(auto i = 0; i < count; ++i)
+			//	::new (mem + (sizeof(T) * i)) T();
 		}
 
-		T* allocate()
+		std::pair<byte*, bool> allocate()
 		{
+			if (availible.empty()) // TODO: This should never happen?
+				return { nullptr, false };
 
+			auto idx = availible.back();
+			availible.pop_back();
+			return { mem + (idx * sizeof(T)), availible.empty() };
 		}
 
 		void deallocate(T* ptr)
@@ -45,8 +62,8 @@ namespace SlabObj
 		inline static Storage slabsPart;
 		inline static Storage slabsFree;
 
-		inline static size_type count;		// Objects per cache
 		inline static size_type mySize;		// Total objects
+		inline static size_type perCache;	// Objects per cache
 		inline static size_type myCapacity; // Total capacity for objects without more allocations
 
 		//inline static std::function<void(T&)> ctor;
@@ -57,11 +74,15 @@ namespace SlabObj
 		//	Ctor& nctor, Dtor& ndtor)
 		static void addCache(size_type count)
 		{
+			// TODO: Should we only allow this function to change count on init?
+			perCache = count;
+			newSlab();
 		}
 
 		static void newSlab()
 		{
-			slabsFree.emplace_back(count);
+			slabsFree.emplace_back(perCache);
+			myCapacity += perCache;
 		}
 
 		// TODO: Identical Code as SlabMem!
