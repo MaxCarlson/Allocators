@@ -2,7 +2,7 @@
 #include "Pool.h"
 #include "FreeList.h"
 #include "Slab.h"
-
+#include "SlabObj.h"
 #include <memory>
 #include <chrono>
 #include <iostream>
@@ -33,6 +33,13 @@ struct Large
 int main()
 {
 	alloc::Slab<int> slab;
+
+	SlabObj::Interface itfc;
+
+	auto ll = [](Large& lrg) {return 1; };
+
+
+	itfc.addCache<Large>(10, ll);
 
 	slab.addMemCache(sizeof(char), count);
 	slab.addMemCache(sizeof(uint16_t), count);
