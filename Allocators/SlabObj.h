@@ -53,7 +53,7 @@ namespace SlabObj
 	// TODO: Use this a stateless (except
 	// static vars) cache of objects so we can have
 	// caches deduced by type
-	template<class T, class... Sp>
+	template<class T, class Tors>
 	struct Cache
 	{
 		using size_type = size_t;
@@ -68,12 +68,6 @@ namespace SlabObj
 		inline static size_type perCache;	// Objects per cache
 		inline static size_type myCapacity; // Total capacity for objects without more allocations
 
-		inline static std::function<void(T&)> ctor;
-		inline static std::function<void(T&)> dtor;
-
-		//template<class Ctor, class Dtor>
-		//static void addCache(size_type count, 
-		//	Ctor& nctor, Dtor& ndtor)
 		static void addCache(size_type count)
 		{
 			// TODO: Should we only allow this function to change count on init?
@@ -137,9 +131,6 @@ namespace SlabObj
 	};
 
 	template<class... Args>
-	struct CtorBase {};
-
-	template<class... Args>
 	struct CtorArgs
 	{
 		CtorArgs(Args ...args) : args{ std::forward<Args>(args)... } {}
@@ -172,8 +163,6 @@ namespace SlabObj
 	template<class Func>
 	struct CtorFunc
 	{
-		using MyFunc = Func;
-
 		CtorFunc(Func& func) : func(func) {}
 		Func& func;
 
@@ -184,24 +173,21 @@ namespace SlabObj
 		}
 	};
 
+	// TODO: Better Name!
+	// TODO: Add const
 	template<class Ctor, class Dtor>
 	struct ObjPrimer
 	{
+		//ObjPrimer() = default; // TODO: Need default versions of ctor/dtor that do nothing (pref with no ops)
 		ObjPrimer(Ctor& ctor, Dtor& dtor) : ctor(ctor), dtor(dtor) {}
 		Ctor& ctor;
 		Dtor& dtor;
 
 		template<class T>
-		void construct(T* ptr)
-		{
-			ctor(*ptr);
-		}
+		void construct(T* ptr) { ctor(*ptr); }
 
 		template<class T>
-		void destruct(T* ptr)
-		{
-			dtor(*ptr);
-		}
+		void destruct(T* ptr) { dtor(*ptr); }
 	};
 
 
@@ -209,10 +195,10 @@ namespace SlabObj
 	{
 		using size_type = size_t;
 
-		template<class T, class... Args>
-		void addCache(size_type count, std::function<void(T&)> ctor = [](T&) {}, std::function<void(T&)> dtor = [](T&) {})
+		template<class T, class ObjPrimer>
+		void addCache(size_type count, ObjPrimer& tors)
 		{
-			Cache<T, Args...>::addCache(count);
+			Cache<T>::addCache(count, tors);
 		}
 
 		template<class T, class... Args>
