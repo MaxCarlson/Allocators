@@ -17,6 +17,8 @@ namespace SlabObj
 		// TODO:+ How will we consntruct objects with the ctor if they
 		// are not default constructable? 
 		// TODO: Prefer to find some type of tuple/variadic init if possible
+		// TODO: Slab Coloring
+		// TODO: Custom Alignement?
 
 		//std::function<void(T&)>* ctor;
 		//std::function<void(T&)>* dtor;
@@ -51,7 +53,7 @@ namespace SlabObj
 	// TODO: Use this a stateless (except
 	// static vars) cache of objects so we can have
 	// caches deduced by type
-	template<class T>
+	template<class T, class... Sp>
 	struct Cache
 	{
 		using size_type = size_t;
@@ -66,8 +68,8 @@ namespace SlabObj
 		inline static size_type perCache;	// Objects per cache
 		inline static size_type myCapacity; // Total capacity for objects without more allocations
 
-		//inline static std::function<void(T&)> ctor;
-		//inline static std::function<void(T&)> dtor;
+		inline static std::function<void(T&)> ctor;
+		inline static std::function<void(T&)> dtor;
 
 		//template<class Ctor, class Dtor>
 		//static void addCache(size_type count, 
@@ -134,24 +136,31 @@ namespace SlabObj
 		}
 	};
 
+	template<class... Args>
+	struct Ctor
+	{
+		Ctor(Args ...args) : args{ std::forward<Args>(args)... } {}
+		std::tuple<Args ...> args;
+	};
+
 
 	struct Interface
 	{
 		using size_type = size_t;
 
-		template<class T>
-		void addCache(size_type count)
+		template<class T, class... Args>
+		void addCache(size_type count, std::function<void(T&)> ctor = [](T&) {}, std::function<void(T&)> dtor = [](T&) {})
 		{
-			Cache<T>::addCache(count);
+			Cache<T, Args...>::addCache(count);
 		}
 
-		template<class T>
+		template<class T, class... Args>
 		T* allocate()
 		{
 			return Cache<T>::allocate();
 		}
 
-		template<class T>
+		template<class T, class... Args>
 		void deallocate(T* ptr)
 		{
 			Cache<T>::deallocate(ptr);

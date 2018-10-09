@@ -190,6 +190,7 @@ namespace alloc
 
 		inline static SmallStore caches;
 
+		// TODO: Make whole class static
 		SlabMemInterface() = default;
 
 		// Add a dynamic cache that stores count 

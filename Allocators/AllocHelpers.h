@@ -79,7 +79,7 @@ namespace alloc
 		{
 		}
 
-		List& operator=(List&& other)
+		List& operator=(List&& other) // TODO: Runtime Stack Overflow?
 		{
 			*this = std::move(other);
 			return *this;
