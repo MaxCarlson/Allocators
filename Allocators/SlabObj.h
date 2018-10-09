@@ -136,15 +136,13 @@ namespace SlabObj
 		}
 	};
 
-	struct CtorBase
-	{
-
-	};
+	template<class... Args>
+	struct CtorBase {};
 
 	template<class... Args>
-	struct Ctor
+	struct CtorArgs
 	{
-		Ctor(Args ...args) : args{ std::forward<Args>(args)... } {}
+		CtorArgs(Args ...args) : args{ std::forward<Args>(args)... } {}
 		std::tuple<Args ...> args;
 
 		template <class T, class Tuple, size_t... Is>
@@ -159,15 +157,31 @@ namespace SlabObj
 			);
 		}
 
+		// TODO: Lets avoid the copy constructor here, need to create in place!!
 		template<class T>
-		T construct() { return construct_from_tuple<T>(args); }
+		void operator()(T& t)
+		{
+			t = construct_from_tuple<T>(args);
+		}
 	};
 
+	// For constructing objects in SlabObj's Cache
+	// from llambdas or other functions. Must pass a function
+	// that takes a reference to the type of object being constructed
+	// [](T&){}
 	template<class Func>
-	struct CTor
+	struct CtorFunc
 	{
-		CTor(Func& func) : func(func) {}
+		using MyFunc = Func;
+
+		CtorFunc(Func& func) : func(func) {}
 		Func& func;
+
+		template<class T>
+		void operator()(T& t)
+		{
+			func(t);
+		}
 	};
 
 	template<class Ctor, class Dtor>
@@ -176,6 +190,18 @@ namespace SlabObj
 		ObjPrimer(Ctor& ctor, Dtor& dtor) : ctor(ctor), dtor(dtor) {}
 		Ctor& ctor;
 		Dtor& dtor;
+
+		template<class T>
+		void construct(T* ptr)
+		{
+			ctor(*ptr);
+		}
+
+		template<class T>
+		void destruct(T* ptr)
+		{
+			dtor(*ptr);
+		}
 	};
 
 

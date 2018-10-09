@@ -21,7 +21,7 @@ struct Large
 
 	Large(int a, int b, int c)
 	{
-
+		std::fill(std::begin(ar), std::end(ar), a * b * c);
 	}
 
 	std::array<int, count> ar;
@@ -43,16 +43,30 @@ int main()
 
 	SlabObj::Interface itfc;
 
+	auto ll = [&](Large& l) { return; };
+	auto ld = [&]() { return 'c'; };
+
+	SlabObj::CtorArgs ctorA(1, 2, 3);
+	SlabObj::CtorFunc ctorL(ll);
+
+	SlabObj::ObjPrimer prime(ctorA, ld);
+
+	Large* lp = reinterpret_cast<Large*>( operator new(sizeof(Large)));
+
+	prime.construct(lp);
+
+	/*
 	auto ll = [&]() { return 1; };
 
-	SlabObj::CTor ctor(ll);
+	SlabObj::CtorFunc ctor(ll);
 
 	auto rt = ctor.func();
 
 	int a = 5;
-	SlabObj::Ctor tor(a, 3, 4);
+	SlabObj::CtorArgs tor(1, 3, 4);
 
 	Large aa(tor.construct<Large>());
+	*/
 
 	itfc.addCache<Large>(128);
 
