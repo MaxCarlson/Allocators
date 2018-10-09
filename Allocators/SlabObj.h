@@ -136,11 +136,46 @@ namespace SlabObj
 		}
 	};
 
+	struct CtorBase
+	{
+
+	};
+
 	template<class... Args>
 	struct Ctor
 	{
 		Ctor(Args ...args) : args{ std::forward<Args>(args)... } {}
 		std::tuple<Args ...> args;
+
+		template <class T, class Tuple, size_t... Is>
+		T construct_from_tuple(Tuple&& tuple, std::index_sequence<Is...>) {
+			return T{ std::get<Is>(std::forward<Tuple>(tuple))... };
+		}
+
+		template <class T, class Tuple>
+		T construct_from_tuple(Tuple&& tuple) {
+			return construct_from_tuple<T>(std::forward<Tuple>(tuple),
+				std::make_index_sequence<std::tuple_size<std::decay_t<Tuple>>::value>{}
+			);
+		}
+
+		template<class T>
+		T construct() { return construct_from_tuple<T>(args); }
+	};
+
+	template<class Func>
+	struct CTor
+	{
+		CTor(Func& func) : func(func) {}
+		Func& func;
+	};
+
+	template<class Ctor, class Dtor>
+	struct ObjPrimer
+	{
+		ObjPrimer(Ctor& ctor, Dtor& dtor) : ctor(ctor), dtor(dtor) {}
+		Ctor& ctor;
+		Dtor& dtor;
 	};
 
 

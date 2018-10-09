@@ -27,17 +27,7 @@ struct Large
 	std::array<int, count> ar;
 };
 
-template <class T, class Tuple, size_t... Is>
-T construct_from_tuple(Tuple&& tuple, std::index_sequence<Is...>) {
-	return T{ std::get<Is>(std::forward<Tuple>(tuple))... };
-}
 
-template <class T, class Tuple>
-T construct_from_tuple(Tuple&& tuple) {
-	return construct_from_tuple<T>(std::forward<Tuple>(tuple),
-		std::make_index_sequence<std::tuple_size<std::decay_t<Tuple>>::value>{}
-	);
-}
 
 // Just a temporary main to test allocators from
 // Should be removed in any actual use case
@@ -53,10 +43,16 @@ int main()
 
 	SlabObj::Interface itfc;
 
+	auto ll = [&]() { return 1; };
+
+	SlabObj::CTor ctor(ll);
+
+	auto rt = ctor.func();
+
 	int a = 5;
 	SlabObj::Ctor tor(a, 3, 4);
 
-	Large aa(construct_from_tuple<Large>(tor.args));
+	Large aa(tor.construct<Large>());
 
 	itfc.addCache<Large>(128);
 
