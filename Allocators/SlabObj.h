@@ -52,13 +52,26 @@ namespace alloc
 		}
 	};
 
+	// Handles default cases for Xtors and calls
+	// T's destructor
 	struct DefaultDtor
 	{
 		template<class T>
 		void operator()(T& t) { t.~T(); }
 	};
 
-	inline static DefaultDtor defaultDtor;
+	// Default template parameter for Slab.addObjCache
+	struct DefaultXtor
+	{
+		template<class T>
+		void construct(T* ptr) { *ptr = T{}; }
+
+		template<class T>
+		void destruct(T* ptr) { ptr->~T(); }
+	};
+
+	inline static DefaultDtor defaultDtor; // Handles default destructions
+	inline static DefaultXtor defaultXtor; // Handles default construction/destruction
 
 	// TODO: Better Name!
 	// TODO: Add const
@@ -75,15 +88,6 @@ namespace alloc
 
 		template<class T>
 		void destruct(T* ptr) { dtor(*ptr); }
-	};
-
-	struct DefaultXtor
-	{
-		template<class T>
-		void construct(T* ptr) { *ptr = T{}; }
-
-		template<class T>
-		void destruct(T* ptr) { ptr->~T(); }
 	};
 }
 
@@ -163,15 +167,14 @@ namespace SlabObj
 			myCapacity += perCache;
 		}
 
-		// TODO: Identical Code as SlabMem!
 		static std::pair<Storage*, It> findSlab()
 		{
 			It slabIt;
 			Storage* store = nullptr;
 			if (!slabsPart.empty())
 			{
-				slabIt = std::begin(slabsPart);
-				store = &slabsPart;
+				slabIt	= std::begin(slabsPart);
+				store	= &slabsPart;
 			}
 			else
 			{
@@ -179,14 +182,13 @@ namespace SlabObj
 				if (slabsFree.empty())
 					newSlab();
 
-				slabIt = std::begin(slabsFree);
-				store = &slabsFree;
+				slabIt	= std::begin(slabsFree);
+				store	= &slabsFree;
 			}
 
 			return { store, slabIt };
 		}
 
-		// TODO: Identical Code as SlabMem!
 		static T* allocate()
 		{
 			auto[store, it] = findSlab();
@@ -200,7 +202,7 @@ namespace SlabObj
 			// Give the slab storage to the 
 			// full list if it has no more room
 			if (full)
-				store->giveNode(it, full, std::begin(full));
+				store->giveNode(it, slabsFull, std::begin(slabsFull));
 
 			++mySize;
 			return reinterpret_cast<T*>(mem);
@@ -223,7 +225,7 @@ namespace SlabObj
 		}
 
 		template<class T, class Xtors>
-		T* allocate(size_t count, Xtors& xtors)
+		T* allocate()
 		{
 			return Cache<T, Xtors>::allocate();
 		}

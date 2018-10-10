@@ -5,8 +5,42 @@
 #include <random>
 #include <array>
 
-using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+// Note: All this stuff needs to be done here
+// as we need access to Xtor stuff throughout the tests
+static const int count = 64;
 
+struct Large
+{
+	Large()
+	{
+	std:fill(std::begin(ar), std::end(ar), 1);
+	}
+
+	Large(int val)
+	{
+	std:fill(std::begin(ar), std::end(ar), val);
+	}
+	Large(int a, char b)
+	{
+	std:fill(std::begin(ar), std::end(ar), a * b);
+	}
+
+	std::array<int, count> ar;
+};
+
+// TODO: Capture variable here and make sure it works!
+auto dtorL = [](Large& l)			// Custom llambda dtor
+{
+std:fill(std::begin(l.ar), std::end(l.ar), 0);
+};
+
+alloc::CtorArgs ctorA(15, 'a');		// Custome variadic argument constructor
+alloc::XtorFunc dtor(dtorL);
+alloc::Xtors	xtors(ctorA, dtor); // Xtors wrapper
+
+using XtorType = decltype(xtors); 
+
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace Tests
 {
 
@@ -15,16 +49,6 @@ namespace Tests
 	public:
 		
 		alloc::Slab<int> slab;
-		static const int count = 64;
-
-		struct Large
-		{
-			Large(int val)
-			{
-				std:fill(std::begin(ar), std::end(ar), val);
-			}
-			std::array<int, count> ar;
-		};
 
 		TEST_CLASS_INITIALIZE(init)
 		{
@@ -34,6 +58,8 @@ namespace Tests
 			slab.addMemCache<Large>(count);
 
 			// SlabObj Init
+			slab.addObjCache<Large>(count);						// Default Constructor/dtor
+			slab.addObjCache<Large, XtorType>(count, xtors);	// Add custom cache with custom ctors/dtors
 		}
 
 		std::pair<std::vector<int*>, std::vector<Large*>> allocMem(std::vector<int>& order, int seed)
@@ -105,9 +131,35 @@ namespace Tests
 		// SlabObj test functions below //
 		//								//
 
-		TEST_METHOD(Alloc_Objs1)
+		std::pair<std::vector<Large*>, std::vector<Large*>> allocateObjs()
 		{
+			std::vector<Large*> def;
+			std::vector<Large*> custom;
 
+			for (int i = 0; i < count; ++i)
+			{
+				def.emplace_back(slab.allocateObj<Large>());
+				custom.emplace_back(slab.allocateObj<Large, XtorType>());
+			}
+
+			return { def, custom };
+		}
+
+		void testLargeForV(Large* l, int v)
+		{
+			for (auto& idx : l->ar)
+				Assert::IsTrue(idx == v);
+		}
+
+		TEST_METHOD(Alloc_Objs)
+		{
+			auto[def, custom] = allocateObjs();
+
+			for (int i = 0; i < count; ++i)
+			{
+				testLargeForV(def[i], 1);
+				testLargeForV(custom[i], 15 * 'a'); // These are explicitly not represented by a var here as I'm not sure how to do it with variadic Ctor
+			}
 		}
 
 	};
