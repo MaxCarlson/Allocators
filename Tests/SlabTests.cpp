@@ -28,9 +28,12 @@ namespace Tests
 
 		TEST_CLASS_INITIALIZE(init)
 		{
+			// SlabMem Init
 			alloc::Slab<int> slab;
 			slab.addMemCache(sizeof(int), count);
 			slab.addMemCache<Large>(count);
+
+			// SlabObj Init
 		}
 
 		std::pair<std::vector<int*>, std::vector<Large*>> allocMem(std::vector<int>& order, int seed)
@@ -97,5 +100,15 @@ namespace Tests
 			for (const auto& i : infos)
 				Assert::IsTrue(i.size == 0, L"Non-zero size after deallocation!");
 		}
+
+		//								//
+		// SlabObj test functions below //
+		//								//
+
+		TEST_METHOD(Alloc_Objs1)
+		{
+
+		}
+
 	};
 }

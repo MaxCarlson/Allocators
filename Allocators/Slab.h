@@ -261,10 +261,10 @@ namespace alloc
 			return memStore.info();
 		}
 
-		template<class T = Type>
-		void addObjCache(size_type count)
+		template<class T, class Xtors>
+		void addObjCache(size_type count, Xtors& xtors)
 		{
-			objStore.addCache<T>(count);
+			objStore.addCache<T, Xtors>(count, xtors);
 		}
 	};
 }

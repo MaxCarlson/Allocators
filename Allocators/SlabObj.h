@@ -52,13 +52,21 @@ namespace alloc
 		}
 	};
 
+	struct DefaultDtor
+	{
+		template<class T>
+		void operator()(T& t) { t.~T(); }
+	};
+
+	inline static DefaultDtor defaultDtor;
+
 	// TODO: Better Name!
 	// TODO: Add const
-	template<class Ctor, class Dtor>
+	template<class Ctor, class Dtor = DefaultDtor>
 	struct Xtors
 	{
 		//ObjPrimer() = default; // TODO: Need default versions of ctor/dtor that do nothing (pref with no ops)
-		Xtors(Ctor& ctor, Dtor& dtor) : ctor(ctor), dtor(dtor) {}
+		Xtors(Ctor& ctor, Dtor& dtor = defaultDtor) : ctor(ctor), dtor(dtor) {}
 		Ctor& ctor;
 		Dtor& dtor;
 
@@ -67,6 +75,15 @@ namespace alloc
 
 		template<class T>
 		void destruct(T* ptr) { dtor(*ptr); }
+	};
+
+	struct DefaultXtor
+	{
+		template<class T>
+		void construct(T* ptr) { *ptr = T{}; }
+
+		template<class T>
+		void destruct(T* ptr) { ptr->~T(); }
 	};
 }
 

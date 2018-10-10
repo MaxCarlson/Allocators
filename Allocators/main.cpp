@@ -43,17 +43,18 @@ int main()
 
 	SlabObj::Interface itfc;
 
-	auto ll = [&](Large& l) { return; };
+	auto ll = [&](Large& l) { l = { 12 }; };
 	auto ld = [&]() { return 'c'; };
 
 	alloc::CtorArgs ctorA(1, 2, 3);
 	alloc::XtorFunc ctorL(ll);
 
-	alloc::Xtors prime(ctorA, ld);
+	alloc::Xtors prime(ctorL);
 
-	Large* lp = reinterpret_cast<Large*>( operator new(sizeof(Large)));
+	slab.addObjCache<Large, decltype(prime)>(142, prime);
 
-	prime.construct(lp);
+	//Large* lp = reinterpret_cast<Large*>( operator new(sizeof(Large)));
+	//prime.construct(lp);
 
 	/*
 	auto ll = [&]() { return 1; };
