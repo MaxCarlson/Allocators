@@ -46,10 +46,10 @@ int main()
 	auto ll = [&](Large& l) { return; };
 	auto ld = [&]() { return 'c'; };
 
-	SlabObj::CtorArgs ctorA(1, 2, 3);
-	SlabObj::CtorFunc ctorL(ll);
+	alloc::CtorArgs ctorA(1, 2, 3);
+	alloc::XtorFunc ctorL(ll);
 
-	SlabObj::ObjPrimer prime(ctorA, ld);
+	alloc::XTors prime(ctorA, ld);
 
 	Large* lp = reinterpret_cast<Large*>( operator new(sizeof(Large)));
 
@@ -68,7 +68,7 @@ int main()
 	Large aa(tor.construct<Large>());
 	*/
 
-	itfc.addCache<Large>(128);
+	itfc.addCache<Large>(128, prime);
 
 	slab.addMemCache(sizeof(char), count);
 	slab.addMemCache(sizeof(uint16_t), count);

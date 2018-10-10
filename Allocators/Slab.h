@@ -5,21 +5,6 @@
 #include <array>
 #include <numeric>
 
-/*
-namespace alloc
-{
-	struct SmallSlab;
-}
-template<class>
-class List;
-
-inline std::vector<List<alloc::SmallSlab>*> TRACK;
-*/
-
-// A custom linked list class with a couple
-// extra operations
-
-
 namespace alloc
 {
 

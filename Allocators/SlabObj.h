@@ -3,11 +3,79 @@
 #include <vector>
 #include <functional>
 
+namespace alloc
+{
+	// Holds a tuple of initilization arguments
+// for constructing classes of a type in Slab Allocators
+// object pool
+// Can be replaced with a CtorFunction
+	template<class... Args>
+	struct CtorArgs
+	{
+		CtorArgs(Args ...args) : args{ std::forward<Args>(args)... } {}
+		std::tuple<Args ...> args;
+
+		template <class T, class Tuple, size_t... Is>
+		T construct_from_tuple(Tuple&& tuple, std::index_sequence<Is...>) {
+			return T{ std::get<Is>(std::forward<Tuple>(tuple))... };
+		}
+
+		template <class T, class Tuple>
+		T construct_from_tuple(Tuple&& tuple) {
+			return construct_from_tuple<T>(std::forward<Tuple>(tuple),
+				std::make_index_sequence<std::tuple_size<std::decay_t<Tuple>>::value>{}
+			);
+		}
+
+		// TODO: Lets avoid the copy constructor here, need to create in place!!
+		template<class T>
+		void operator()(T& t)
+		{
+			t = construct_from_tuple<T>(args);
+		}
+	};
+
+	// For constructing objects in SlabObj's Cache
+	// from llambdas or other functions. Must pass a function
+	// that takes a reference to the type of object being constructed
+	// [](T&){}
+	template<class Func>
+	struct XtorFunc
+	{
+		XtorFunc(Func& func) : func(func) {}
+		Func& func;
+
+		template<class T>
+		void operator()(T& t)
+		{
+			func(t);
+		}
+	};
+
+	// TODO: Better Name!
+	// TODO: Add const
+	template<class Ctor, class Dtor>
+	struct XTors
+	{
+		//ObjPrimer() = default; // TODO: Need default versions of ctor/dtor that do nothing (pref with no ops)
+		XTors(Ctor& ctor, Dtor& dtor) : ctor(ctor), dtor(dtor) {}
+		Ctor& ctor;
+		Dtor& dtor;
+
+		template<class T>
+		void construct(T* ptr) { ctor(*ptr); }
+
+		template<class T>
+		void destruct(T* ptr) { dtor(*ptr); }
+	};
+}
+
 namespace SlabObj
 {
 	using byte = alloc::byte;
 
-	template<class T>
+
+	template<class T, class XTors>
 	struct Slab
 	{
 		byte* mem;
@@ -53,11 +121,11 @@ namespace SlabObj
 	// TODO: Use this a stateless (except
 	// static vars) cache of objects so we can have
 	// caches deduced by type
-	template<class T, class Tors>
+	template<class T, class XTors>
 	struct Cache
 	{
 		using size_type = size_t;
-		using Storage	= alloc::List<Slab<T>>;
+		using Storage	= alloc::List<Slab<T, XTors>>;
 		using It		= typename Storage::iterator;
 
 		inline static Storage slabsFull;
@@ -68,7 +136,9 @@ namespace SlabObj
 		inline static size_type perCache;	// Objects per cache
 		inline static size_type myCapacity; // Total capacity for objects without more allocations
 
-		static void addCache(size_type count)
+		XTors* xtors;
+
+		static void addCache(size_type count, XTors& tors)
 		{
 			// TODO: Should we only allow this function to change count on init?
 			perCache = count;
@@ -130,87 +200,26 @@ namespace SlabObj
 		}
 	};
 
-	template<class... Args>
-	struct CtorArgs
-	{
-		CtorArgs(Args ...args) : args{ std::forward<Args>(args)... } {}
-		std::tuple<Args ...> args;
-
-		template <class T, class Tuple, size_t... Is>
-		T construct_from_tuple(Tuple&& tuple, std::index_sequence<Is...>) {
-			return T{ std::get<Is>(std::forward<Tuple>(tuple))... };
-		}
-
-		template <class T, class Tuple>
-		T construct_from_tuple(Tuple&& tuple) {
-			return construct_from_tuple<T>(std::forward<Tuple>(tuple),
-				std::make_index_sequence<std::tuple_size<std::decay_t<Tuple>>::value>{}
-			);
-		}
-
-		// TODO: Lets avoid the copy constructor here, need to create in place!!
-		template<class T>
-		void operator()(T& t)
-		{
-			t = construct_from_tuple<T>(args);
-		}
-	};
-
-	// For constructing objects in SlabObj's Cache
-	// from llambdas or other functions. Must pass a function
-	// that takes a reference to the type of object being constructed
-	// [](T&){}
-	template<class Func>
-	struct CtorFunc
-	{
-		CtorFunc(Func& func) : func(func) {}
-		Func& func;
-
-		template<class T>
-		void operator()(T& t)
-		{
-			func(t);
-		}
-	};
-
-	// TODO: Better Name!
-	// TODO: Add const
-	template<class Ctor, class Dtor>
-	struct ObjPrimer
-	{
-		//ObjPrimer() = default; // TODO: Need default versions of ctor/dtor that do nothing (pref with no ops)
-		ObjPrimer(Ctor& ctor, Dtor& dtor) : ctor(ctor), dtor(dtor) {}
-		Ctor& ctor;
-		Dtor& dtor;
-
-		template<class T>
-		void construct(T* ptr) { ctor(*ptr); }
-
-		template<class T>
-		void destruct(T* ptr) { dtor(*ptr); }
-	};
-
-
 	struct Interface
 	{
 		using size_type = size_t;
 
-		template<class T, class ObjPrimer>
-		void addCache(size_type count, ObjPrimer& tors)
+		template<class T, class XTors>
+		void addCache(size_type count, XTors& tors)
 		{
-			Cache<T>::addCache(count, tors);
+			Cache<T, XTors>::addCache(count, tors);
 		}
 
-		template<class T, class... Args>
-		T* allocate()
+		template<class T, class XTors>
+		T* allocate(size_t count, XTors& xtors)
 		{
-			return Cache<T>::allocate();
+			return Cache<T, XTors>::allocate();
 		}
 
-		template<class T, class... Args>
+		template<class T, class XTors>
 		void deallocate(T* ptr)
 		{
-			Cache<T>::deallocate(ptr);
+			Cache<T, XTors>::deallocate(ptr);
 		}
 	};
 }
