@@ -108,7 +108,7 @@ namespace Tests
 			dealloc(iptrs, lptrs, order);
 		}
 
-		TEST_METHOD(DeallocMem)
+		TEST_METHOD(Dealloc_Mem)
 		{
 			std::vector<int> order;
 			auto[iptrs, lptrs] = allocMem(order, 2);

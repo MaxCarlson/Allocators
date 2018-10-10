@@ -95,20 +95,18 @@ namespace SlabObj
 {
 	using byte = alloc::byte;
 
-	// TODO: Or just keep a Cache* to our parent?
-	// TODO:+ How will we consntruct objects with the ctor if they
-	// are not default constructable? 
-	// TODO: Prefer to find some type of tuple/variadic init if possible
+	// TODO: Look into sorted vec so we can allocate more than one at a time!
 	// TODO: Slab Coloring
 	// TODO: Custom Alignement?
 	template<class T, class Cache, class Xtors>
 	struct Slab
 	{
 		byte* mem;
+		size_t count;
 		std::vector<uint16_t> availible;
 		
 		Slab() = default;
-		Slab(size_t count) : availible(count)
+		Slab(size_t count) : count(count), availible(count)
 		{
 			mem = reinterpret_cast<byte*>(operator new(sizeof(T) * count));
 			std::iota(std::rbegin(availible), std::rend(availible), 0);
@@ -127,9 +125,21 @@ namespace SlabObj
 			return { mem + (idx * sizeof(T)), availible.empty() };
 		}
 
+		template<class P>
+		bool containsMem(P* ptr) const noexcept
+		{
+			return (reinterpret_cast<byte*>(ptr) >= mem
+				 && reinterpret_cast<byte*>(ptr) < (mem + (sizeof(T) * count)));
+		}
+
+		// Destruct the object and return its index to the
+		// list of availible memory. Re-initilize it to the required state
 		void deallocate(T* ptr)
 		{
-
+			auto idx = static_cast<size_t>((reinterpret_cast<byte*>(ptr) - mem) / sizeof(T));
+			availible.emplace_back(idx); 
+			Cache::xtors->destruct( *ptr);
+			Cache::xtors->construct(*ptr);
 		}
 	};
 
