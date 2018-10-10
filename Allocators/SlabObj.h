@@ -55,10 +55,10 @@ namespace alloc
 	// TODO: Better Name!
 	// TODO: Add const
 	template<class Ctor, class Dtor>
-	struct XTors
+	struct Xtors
 	{
 		//ObjPrimer() = default; // TODO: Need default versions of ctor/dtor that do nothing (pref with no ops)
-		XTors(Ctor& ctor, Dtor& dtor) : ctor(ctor), dtor(dtor) {}
+		Xtors(Ctor& ctor, Dtor& dtor) : ctor(ctor), dtor(dtor) {}
 		Ctor& ctor;
 		Dtor& dtor;
 
@@ -74,23 +74,17 @@ namespace SlabObj
 {
 	using byte = alloc::byte;
 
-
-	template<class T, class XTors>
+	// TODO: Or just keep a Cache* to our parent?
+	// TODO:+ How will we consntruct objects with the ctor if they
+	// are not default constructable? 
+	// TODO: Prefer to find some type of tuple/variadic init if possible
+	// TODO: Slab Coloring
+	// TODO: Custom Alignement?
+	template<class T, class Cache, class Xtors>
 	struct Slab
 	{
 		byte* mem;
 		std::vector<uint16_t> availible;
-
-		// TODO: Or just keep a Cache* to our parent?
-		// TODO:+ How will we consntruct objects with the ctor if they
-		// are not default constructable? 
-		// TODO: Prefer to find some type of tuple/variadic init if possible
-		// TODO: Slab Coloring
-		// TODO: Custom Alignement?
-
-		//std::function<void(T&)>* ctor;
-		//std::function<void(T&)>* dtor;
-
 		
 		Slab() = default;
 		Slab(size_t count) : availible(count)
@@ -98,8 +92,8 @@ namespace SlabObj
 			mem = reinterpret_cast<byte*>(operator new(sizeof(T) * count));
 			std::iota(std::rbegin(availible), std::rend(availible), 0);
 
-			//for(auto i = 0; i < count; ++i)
-			//	::new (mem + (sizeof(T) * i)) T();
+			for (auto i = 0; i < count; ++i)
+				Cache::xtors->construct(reinterpret_cast<T*>(mem + sizeof(T) * i));
 		}
 
 		std::pair<byte*, bool> allocate()
@@ -121,11 +115,11 @@ namespace SlabObj
 	// TODO: Use this a stateless (except
 	// static vars) cache of objects so we can have
 	// caches deduced by type
-	template<class T, class XTors>
+	template<class T, class Xtors>
 	struct Cache
 	{
 		using size_type = size_t;
-		using Storage	= alloc::List<Slab<T, XTors>>;
+		using Storage	= alloc::List<Slab<T, Cache, Xtors>>;
 		using It		= typename Storage::iterator;
 
 		inline static Storage slabsFull;
@@ -136,12 +130,13 @@ namespace SlabObj
 		inline static size_type perCache;	// Objects per cache
 		inline static size_type myCapacity; // Total capacity for objects without more allocations
 
-		XTors* xtors;
+		inline static Xtors* xtors;
 
-		static void addCache(size_type count, XTors& tors)
+		static void addCache(size_type count, Xtors& tors)
 		{
 			// TODO: Should we only allow this function to change count on init?
-			perCache = count;
+			xtors		= &tors;
+			perCache	= count;
 			newSlab();
 		}
 
@@ -204,22 +199,22 @@ namespace SlabObj
 	{
 		using size_type = size_t;
 
-		template<class T, class XTors>
-		void addCache(size_type count, XTors& tors)
+		template<class T, class Xtors>
+		void addCache(size_type count, Xtors& tors)
 		{
-			Cache<T, XTors>::addCache(count, tors);
+			Cache<T, Xtors>::addCache(count, tors);
 		}
 
-		template<class T, class XTors>
-		T* allocate(size_t count, XTors& xtors)
+		template<class T, class Xtors>
+		T* allocate(size_t count, Xtors& xtors)
 		{
-			return Cache<T, XTors>::allocate();
+			return Cache<T, Xtors>::allocate();
 		}
 
-		template<class T, class XTors>
+		template<class T, class Xtors>
 		void deallocate(T* ptr)
 		{
-			Cache<T, XTors>::deallocate(ptr);
+			Cache<T, Xtors>::deallocate(ptr);
 		}
 	};
 }

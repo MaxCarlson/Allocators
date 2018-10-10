@@ -49,7 +49,7 @@ int main()
 	alloc::CtorArgs ctorA(1, 2, 3);
 	alloc::XtorFunc ctorL(ll);
 
-	alloc::XTors prime(ctorA, ld);
+	alloc::Xtors prime(ctorA, ld);
 
 	Large* lp = reinterpret_cast<Large*>( operator new(sizeof(Large)));
 
