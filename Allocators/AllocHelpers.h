@@ -1,10 +1,25 @@
 #pragma once
 #include <memory>
 #include <stdexcept>
+#include <Windows.h>
+
 
 namespace alloc
 {
 	using byte = unsigned char;
+
+	// TODO: Saving this for later,
+	// Will be testing to see how page alignemnt/coloring helps performance
+	// Will make portable if I find it's working
+	inline size_t pageSize()
+	{
+		SYSTEM_INFO systemInfo;
+		GetSystemInfo(&systemInfo);
+		//std::cout << "Page Size Is: " << systemInfo.dwPageSize;
+
+		// TODO: Idea for allocating whole pages. std::aligned_alloc(pageSize(), size); !
+		return size_t{};
+	}
 
 	struct CacheInfo
 	{

@@ -177,6 +177,9 @@ namespace SlabObj
 			myCapacity += perCache;
 		}
 
+		// TODO: Right now this code is basically identical to SlabMem's
+		// Figure out if it's worth it to combine the functionality
+		//
 		static std::pair<Storage*, It> findSlab()
 		{
 			It slabIt;
@@ -218,9 +221,42 @@ namespace SlabObj
 			return reinterpret_cast<T*>(mem);
 		}
 
+		template<class P>
+		static std::pair<Storage*, It> searchStore(Storage& store, P* ptr)
+		{
+			for (auto it = std::begin(store);
+				it != std::end(store); ++it)
+				if (it->containsMem(ptr))
+					return { &store, it };
+			return { &store, store.end() };
+		}
+
 		static void deallocate(T* ptr)
 		{
+			auto[store, it] = searchStore(slabsFull, ptr);
+			// Need to move slab back into partials
+			if (it != slabsFull.end())
+			{
+				slabsFull.giveNode(it, slabsPart, slabsPart.begin());
+			}
+			else
+			{
+				// TODO: Super ugly. Due to not being able to structured bind already initlized variables
+				auto[s, i] = searchStore(slabsPart, ptr);
+				store = s;
+				it = i;
+			}
 
+			if (it == slabsPart.end())
+				throw std::bad_alloc(); // TODO: Is this the right exception?
+
+			it->deallocate(ptr);
+
+			// Return slab to free list if it's empty
+			if (it->empty())
+				store->giveNode(it, slabsFree, std::begin(slabsFree));
+
+			--mySize;
 		}
 
 		static alloc::CacheInfo info() noexcept

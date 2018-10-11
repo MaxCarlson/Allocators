@@ -133,6 +133,7 @@ namespace alloc
 			}
 			else
 			{
+				// TODO: Super ugly. Due to not being able to structured bind already initlized variables
 				auto[s, i] = searchStore(slabsPart, ptr);
 				store = s;
 				it = i;
@@ -209,7 +210,7 @@ namespace alloc
 		// Useable for memory sizes up to... (per cache) count <= std::numeric_limits<uint16_t>::max()
 		inline static SlabMemInterface memStore;
 
-
+		// TODO: This doesn't need to be an object, can just use static funcs
 		inline static SlabObj::Interface objStore;
 
 	public:
@@ -263,6 +264,12 @@ namespace alloc
 		T* allocateObj()
 		{
 			return objStore.allocate<T, Xtors>();
+		}
+
+		template<class T = Type, class Xtors = DefaultXtor>
+		T* deallocateObj(T* ptr)
+		{
+			objStore.deallocate<T, Xtors>(ptr);
 		}
 	};
 }

@@ -8,12 +8,13 @@
 // Note: All this stuff needs to be done here
 // as we need access to Xtor stuff throughout the tests
 static const int count = 64;
+static constexpr int LargeDefaultCtorVal = 1;
 
 struct Large
 {
 	Large()
 	{
-	std:fill(std::begin(ar), std::end(ar), 1);
+	std:fill(std::begin(ar), std::end(ar), LargeDefaultCtorVal);
 	}
 
 	Large(int val)
@@ -39,6 +40,7 @@ alloc::XtorFunc dtor(dtorL);
 alloc::Xtors	xtors(ctorA, dtor); // Xtors wrapper
 
 using XtorType = decltype(xtors); 
+
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace Tests
@@ -80,7 +82,7 @@ namespace Tests
 			return { iptrs, lptrs };
 		}
 
-		void dealloc(std::vector<int*> iptrs, std::vector<Large*> lptrs, std::vector<int>& order)
+		void deallocMem(std::vector<int*> iptrs, std::vector<Large*> lptrs, std::vector<int>& order)
 		{
 			for (auto idx : order)
 			{
@@ -105,7 +107,7 @@ namespace Tests
 				Assert::IsTrue(i.size == count);
 
 			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(22));
-			dealloc(iptrs, lptrs, order);
+			deallocMem(iptrs, lptrs, order);
 		}
 
 		TEST_METHOD(Dealloc_Mem)
@@ -119,7 +121,7 @@ namespace Tests
 				Assert::IsTrue(i.size == count, L"Info incorrect!");
 
 			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(88));
-			dealloc(iptrs, lptrs, order);
+			deallocMem(iptrs, lptrs, order);
 
 			infos = slab.memInfo();
 
@@ -145,6 +147,22 @@ namespace Tests
 			return { def, custom };
 		}
 
+		template<class Before, class After>
+		void deallocObjs(std::vector<Large*> def, std::vector<Large*> cus, std::vector<int>& order, 
+			Before&& before = []() {}, After&& after = []() {})
+		{
+			for (auto i = 0; i < count; ++i)
+			{
+				auto idx = order[i];
+				testLargeForV(def[idx], LargeDefaultCtorVal);
+				slab.deallocateObj<Large>(def[idx]);
+
+				testLargeForV(cus[idx], 15 * 'a');
+				slab.deallocateObj<Large, XtorType>(cus[idx]);
+
+			}
+		}
+
 		void testLargeForV(Large* l, int v)
 		{
 			for (auto& idx : l->ar)
@@ -155,9 +173,12 @@ namespace Tests
 		{
 			auto[def, custom] = allocateObjs();
 
+			std::vector<int> order(count);
+			std::iota(std::begin(order), std::end(order), 0);
+
 			for (int i = 0; i < count; ++i)
 			{
-				testLargeForV(def[i], 1);
+				testLargeForV(def[i], LargeDefaultCtorVal);
 				testLargeForV(custom[i], 15 * 'a'); 
 			}
 

@@ -28,7 +28,6 @@ struct Large
 };
 
 
-
 // Just a temporary main to test allocators from
 // Should be removed in any actual use case
 //
@@ -40,6 +39,7 @@ struct Large
 int main()
 {
 	alloc::Slab<int> slab;
+
 
 	SlabObj::Interface itfc;
 
