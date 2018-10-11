@@ -3,12 +3,13 @@
 #include <vector>
 #include <functional>
 
+// TODO: Better naming for these!
 namespace alloc
 {
 	// Holds a tuple of initilization arguments
-// for constructing classes of a type in Slab Allocators
-// object pool
-// Can be replaced with a CtorFunction
+	// for constructing classes of a type in Slab Allocators
+	// object pool
+	// Can be replaced with a CtorFunction
 	template<class... Args>
 	struct CtorArgs
 	{
@@ -73,7 +74,6 @@ namespace alloc
 	inline static DefaultDtor defaultDtor; // Handles default destructions
 	inline static DefaultXtor defaultXtor; // Handles default construction/destruction
 
-	// TODO: Better Name!
 	// TODO: Add const
 	template<class Ctor, class Dtor = DefaultDtor>
 	struct Xtors
@@ -222,6 +222,11 @@ namespace SlabObj
 		{
 
 		}
+
+		static alloc::CacheInfo info() noexcept
+		{
+			return { mySize, myCapacity, sizeof(T), perCache };
+		}
 	};
 
 	struct Interface
@@ -244,6 +249,12 @@ namespace SlabObj
 		void deallocate(T* ptr)
 		{
 			Cache<T, Xtors>::deallocate(ptr);
+		}
+
+		template<class T, class Xtors>
+		alloc::CacheInfo info() const noexcept
+		{
+			return Cache<T, Xtors>::info();
 		}
 	};
 }

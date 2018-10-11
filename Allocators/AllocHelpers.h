@@ -6,6 +6,17 @@ namespace alloc
 {
 	using byte = unsigned char;
 
+	struct CacheInfo
+	{
+		CacheInfo(size_t size, size_t capacity, size_t objectSize, size_t objPerSlab)
+			: size(size), capacity(capacity), objectSize(objectSize), objPerSlab(objPerSlab) {}
+
+		size_t size;
+		size_t capacity;
+		size_t objectSize;
+		size_t objPerSlab;
+	};
+
 	template<class T>
 	class List
 	{

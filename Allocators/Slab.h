@@ -7,20 +7,6 @@
 
 namespace alloc
 {
-
-	struct CacheInfo
-	{
-		CacheInfo(size_t size, size_t capacity, size_t objectSize, size_t objPerSlab)
-			: size(size), capacity(capacity), objectSize(objectSize), objPerSlab(objPerSlab) {}
-
-		size_t size;
-		size_t capacity;
-		size_t objectSize;
-		size_t objPerSlab;
-	};
-
-
-
 	struct SmallSlab
 	{
 	private:
@@ -259,6 +245,12 @@ namespace alloc
 		std::vector<CacheInfo> memInfo() const noexcept
 		{
 			return memStore.info();
+		}
+
+		template<class T = Type, class Xtors = DefaultXtor>
+		CacheInfo objInfo() const noexcept
+		{
+			return objStore.info<T, Xtors>();
 		}
 
 		template<class T = Type, class Xtors = DefaultXtor>

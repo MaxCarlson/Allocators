@@ -28,7 +28,7 @@ struct Large
 	std::array<int, count> ar;
 };
 
-// TODO: Capture variable here and make sure it works!
+// TODO: Capture variable here and make sure capture dtors work!
 auto dtorL = [](Large& l)			// Custom llambda dtor
 {
 std:fill(std::begin(l.ar), std::end(l.ar), 0);
@@ -158,8 +158,15 @@ namespace Tests
 			for (int i = 0; i < count; ++i)
 			{
 				testLargeForV(def[i], 1);
-				testLargeForV(custom[i], 15 * 'a'); // These are explicitly not represented by a var here as I'm not sure how to do it with variadic Ctor
+				testLargeForV(custom[i], 15 * 'a'); 
 			}
+
+			auto infoDef = slab.objInfo<Large>();
+			auto infoCus = slab.objInfo<Large, XtorType>();
+
+			Assert::IsTrue(infoDef.size == count);
+			Assert::IsTrue(infoCus.size == count);
+
 		}
 
 	};
