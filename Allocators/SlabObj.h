@@ -7,9 +7,9 @@
 namespace alloc
 {
 	// Holds a tuple of initilization arguments
-	// for constructing classes of a type in Slab Allocators
+	// for constructing classes of a type T in Slab Allocators
 	// object pool
-	// Can be replaced with a CtorFunction
+	// Can be replaced with a XtorFunc (with a function that takes T&)
 	template<class... Args>
 	struct CtorArgs
 	{
@@ -28,11 +28,10 @@ namespace alloc
 			);
 		}
 
-		// TODO: Lets avoid the copy constructor here, need to create in place!!
 		template<class T>
 		void operator()(T& t)
 		{
-			t = construct_from_tuple<T>(args);
+			new (&t) T(construct_from_tuple<T>(args));
 		}
 	};
 
@@ -65,7 +64,7 @@ namespace alloc
 	struct DefaultXtor
 	{
 		template<class T>
-		void construct(T* ptr) { *ptr = T{}; }
+		void construct(T* ptr) { new (ptr) T(); } 
 
 		template<class T>
 		void destruct(T* ptr) { ptr->~T(); }
@@ -78,7 +77,6 @@ namespace alloc
 	template<class Ctor, class Dtor = DefaultDtor>
 	struct Xtors
 	{
-		//ObjPrimer() = default; // TODO: Need default versions of ctor/dtor that do nothing (pref with no ops)
 		Xtors(Ctor& ctor, Dtor& dtor = defaultDtor) : ctor(ctor), dtor(dtor) {}
 		Ctor& ctor;
 		Dtor& dtor;
@@ -115,6 +113,10 @@ namespace SlabObj
 				Cache::xtors->construct(reinterpret_cast<T*>(mem + sizeof(T) * i));
 		}
 
+		bool full()			const noexcept { return availible.empty(); }
+		size_t size()		const noexcept { return count - availible.size(); }
+		bool empty()		const noexcept { return availible.size() == count; }
+
 		std::pair<byte*, bool> allocate()
 		{
 			if (availible.empty()) // TODO: This should never happen?
@@ -138,8 +140,8 @@ namespace SlabObj
 		{
 			auto idx = static_cast<size_t>((reinterpret_cast<byte*>(ptr) - mem) / sizeof(T));
 			availible.emplace_back(idx); 
-			Cache::xtors->destruct( *ptr);
-			Cache::xtors->construct(*ptr);
+			Cache::xtors->destruct( ptr);
+			Cache::xtors->construct(ptr);
 		}
 	};
 
@@ -157,11 +159,11 @@ namespace SlabObj
 		inline static Storage slabsPart;
 		inline static Storage slabsFree;
 
-		inline static size_type mySize;		// Total objects
-		inline static size_type perCache;	// Objects per cache
-		inline static size_type myCapacity; // Total capacity for objects without more allocations
+		inline static size_type mySize		= 0;	// Total objects
+		inline static size_type perCache	= 0;	// Objects per cache
+		inline static size_type myCapacity	= 0;	// Total capacity for objects without more allocations
 
-		inline static Xtors* xtors;
+		inline static Xtors* xtors = nullptr;
 
 		static void addCache(size_type count, Xtors& tors)
 		{
@@ -236,9 +238,7 @@ namespace SlabObj
 			auto[store, it] = searchStore(slabsFull, ptr);
 			// Need to move slab back into partials
 			if (it != slabsFull.end())
-			{
 				slabsFull.giveNode(it, slabsPart, slabsPart.begin());
-			}
 			else
 			{
 				// TODO: Super ugly. Due to not being able to structured bind already initlized variables

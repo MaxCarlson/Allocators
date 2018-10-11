@@ -12,27 +12,17 @@ static constexpr int LargeDefaultCtorVal = 1;
 
 struct Large
 {
-	Large()
-	{
-	std:fill(std::begin(ar), std::end(ar), LargeDefaultCtorVal);
-	}
+	Large()					: ar(count, LargeDefaultCtorVal) {}
+	Large(int val)			: ar(count, val) {}
+	Large(int a, char b)	: ar(count, a * b) {}
 
-	Large(int val)
-	{
-	std:fill(std::begin(ar), std::end(ar), val);
-	}
-	Large(int a, char b)
-	{
-	std:fill(std::begin(ar), std::end(ar), a * b);
-	}
-
-	std::array<int, count> ar;
+	std::vector<int> ar; // TODO: Why does this fail with a vector? Figure it out because we need vec for dtor testing
 };
 
 // TODO: Capture variable here and make sure capture dtors work!
 auto dtorL = [](Large& l)			// Custom llambda dtor
 {
-std:fill(std::begin(l.ar), std::end(l.ar), 0);
+
 };
 
 alloc::CtorArgs ctorA(15, 'a');		// Custome variadic argument constructor
@@ -147,9 +137,15 @@ namespace Tests
 			return { def, custom };
 		}
 
+		void testLargeForV(Large* l, int v)
+		{
+			for (auto& idx : l->ar)
+				Assert::IsTrue(idx == v);
+		}
+
 		template<class Before, class After>
 		void deallocObjs(std::vector<Large*> def, std::vector<Large*> cus, std::vector<int>& order, 
-			Before&& before = []() {}, After&& after = []() {})
+			Before&& before, After&& after)
 		{
 			for (auto i = 0; i < count; ++i)
 			{
@@ -161,12 +157,6 @@ namespace Tests
 				slab.deallocateObj<Large, XtorType>(cus[idx]);
 
 			}
-		}
-
-		void testLargeForV(Large* l, int v)
-		{
-			for (auto& idx : l->ar)
-				Assert::IsTrue(idx == v);
 		}
 
 		TEST_METHOD(Alloc_Objs)
@@ -188,7 +178,22 @@ namespace Tests
 			Assert::IsTrue(infoDef.size == count);
 			Assert::IsTrue(infoCus.size == count);
 
+			auto defLb = [](Large*l) {};
+			deallocObjs(def, custom, order, defLb, defLb);
 		}
 
+		TEST_METHOD(Delloc_Objs)
+		{
+			std::vector<int> order(count);
+			auto[def, custom] = allocateObjs();
+
+			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(111));
+
+			auto infoDef = slab.objInfo<Large>();
+			auto infoCus = slab.objInfo<Large, XtorType>();
+
+			Assert::IsTrue(infoDef.size == count);
+			Assert::IsTrue(infoCus.size == count);
+		}
 	};
 }

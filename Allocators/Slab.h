@@ -267,7 +267,7 @@ namespace alloc
 		}
 
 		template<class T = Type, class Xtors = DefaultXtor>
-		T* deallocateObj(T* ptr)
+		void deallocateObj(T* ptr)
 		{
 			objStore.deallocate<T, Xtors>(ptr);
 		}
