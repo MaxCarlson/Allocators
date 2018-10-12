@@ -16,13 +16,22 @@ struct Large
 	Large(int val)			: ar(count, val) {}
 	Large(int a, char b)	: ar(count, a * b) {}
 
+	Large(Large&& other) { ar = other.ar; }
+	Large& operator=(const Large& other) 
+	{
+		ar = other.ar;
+		return *this; 
+	}
+
 	std::vector<int> ar; // TODO: Why does this fail with a vector? Figure it out because we need vec for dtor testing
 };
 
 // TODO: Capture variable here and make sure capture dtors work!
 auto dtorL = [](Large& l)			// Custom llambda dtor
 {
-
+	l.ar.clear();
+	l.ar.shrink_to_fit();
+	l.ar = std::vector<int>(count, 100);
 };
 
 alloc::CtorArgs ctorA(15, 'a');		// Custome variadic argument constructor
@@ -67,7 +76,7 @@ namespace Tests
 				iptrs[i]	= slab.allocateMem();
 				*iptrs[i]	= i;
 				lptrs[i]	= slab.allocateMem<Large>();
-				*lptrs[i]	= { i };
+				new (lptrs[i]) Large(i);
 			}
 			return { iptrs, lptrs };
 		}
@@ -143,9 +152,9 @@ namespace Tests
 				Assert::IsTrue(idx == v);
 		}
 
-		template<class Before, class After>
+		template<class Before>
 		void deallocObjs(std::vector<Large*> def, std::vector<Large*> cus, std::vector<int>& order, 
-			Before&& before, After&& after)
+			Before&& before)
 		{
 			for (auto i = 0; i < count; ++i)
 			{
@@ -153,9 +162,11 @@ namespace Tests
 				testLargeForV(def[idx], LargeDefaultCtorVal);
 				slab.deallocateObj<Large>(def[idx]);
 
+				auto ptr = &(cus[idx]->ar[0]);
 				testLargeForV(cus[idx], 15 * 'a');
 				slab.deallocateObj<Large, XtorType>(cus[idx]);
 
+				before(ptr, &(cus[idx]->ar[0])); // Make sure lambda destructor is being called)
 			}
 		}
 
@@ -178,8 +189,8 @@ namespace Tests
 			Assert::IsTrue(infoDef.size == count);
 			Assert::IsTrue(infoCus.size == count);
 
-			auto defLb = [](Large*l) {};
-			deallocObjs(def, custom, order, defLb, defLb);
+			auto defLb = [](int*p, int*p1) {};
+			deallocObjs(def, custom, order, defLb);
 		}
 
 		TEST_METHOD(Delloc_Objs)
@@ -194,6 +205,11 @@ namespace Tests
 
 			Assert::IsTrue(infoDef.size == count);
 			Assert::IsTrue(infoCus.size == count);
+
+			auto lb = [](int*p1, int*p2) { 
+				Assert::IsTrue(p1 != p2); 
+			};
+			deallocObjs(def, custom, order, lb);
 		}
 	};
 }

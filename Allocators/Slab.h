@@ -217,9 +217,9 @@ namespace alloc
 
 		using size_type = size_t;
 
-
-		// Does not take a count argument because 
-		// we can only allocate one object at a time
+		// Note: When allocating memory you must remember that
+		// no object of type T has been constructed here. Therfore you should
+		// use placement new to create one!
 		template<class T = Type>
 		T* allocateMem()
 		{
