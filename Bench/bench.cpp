@@ -37,7 +37,7 @@ struct DefaultAlloc
 };
 
 template<class T, class Alloc, class Dealloc>
-void alSpeedTest(Alloc&& alloc, Dealloc&& dealloc, std::string toPrint)
+void alSpeedTest(Alloc&& alloc, Dealloc&& dealloc, std::string toPrint, bool construct = true)
 {
 
 	T* ptrs[count];
@@ -57,6 +57,10 @@ void alSpeedTest(Alloc&& alloc, Dealloc&& dealloc, std::string toPrint)
 			idx = 0;
 
 		auto* loc = ptrs[order[idx]];
+
+		if (construct)
+			new (loc) Large(1);
+
 		dealloc(loc);
 		loc = alloc();
 	}
@@ -79,13 +83,17 @@ int main()
 		slab.addMemCache(1 << i, count);
 	slab.addMemCache<Large>(count);
 
+	alloc::CtorArgs lCtor(1);
+	using lCtorT = decltype(lCtor);
+	slab.addObjCache<Large, lCtorT>(count, lCtor);
+
 	// Slab mem functions
 	auto sAlMem = [&]()			{ return slab.allocateMem<Large>(); };
 	auto sDeMem = [&](auto ptr)	{ slab.deallocateMem<Large>(ptr); };
 
 	// Slab obj functions # NOT IMPLEMENTED YET
-	auto sAlObj = [&]() {};
-	auto sDeObj = [&](auto ptr) {};
+	auto sAlObj = [&]() { return slab.allocateObj<Large, lCtorT>(); };
+	auto sDeObj = [&](auto ptr) { slab.deallocateObj<Large, lCtorT>(ptr); };
 
 	// FreeList funcs
 	auto flAl = [&]()			{ return flal.allocate(1); };
@@ -96,9 +104,11 @@ int main()
 	auto DefaultDe = [&](auto ptr)	{ defaultAl.deallocateMem(ptr); };
 
 
-	alSpeedTest<Large>(sAlMem, sDeMem, "Slab Test");
-	alSpeedTest<Large>(flAl, flDe, "FreeList Test");
 	alSpeedTest<Large>(DefaultAl, DefaultDe, "Default allocator");
+	alSpeedTest<Large>(flAl, flDe, "FreeList Test");
+	alSpeedTest<Large>(sAlMem, sDeMem, "Slab Test");
+	alSpeedTest<Large>(sAlObj, sDeObj, "Slab Obj Test", false);
+
 
 	return 0;
 }

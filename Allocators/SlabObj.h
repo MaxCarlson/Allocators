@@ -29,10 +29,13 @@ namespace alloc
 		}
 
 		template<class T>
-		void operator()(T& t)
-		{
-			new (&t) T(construct_from_tuple<T>(args));
-		}
+		void operator()(T& t) { new (&t) T(construct_from_tuple<T>(args)); }
+
+		template<class T>
+		void construct(T* ptr) { this->operator()(*ptr); }
+
+		template<class T>
+		void destruct(T* ptr) { ptr->~T(); }
 	};
 
 	// For constructing objects in SlabObj's Cache
@@ -46,10 +49,13 @@ namespace alloc
 		Func& func;
 
 		template<class T>
-		void operator()(T& t)
-		{
-			func(t);
-		}
+		void operator()(T& t) { func(t); }
+
+		template<class T>
+		void construct(T* ptr) { this->operator()(*ptr); }
+
+		template<class T>
+		void destruct(T* ptr) { ptr->~T(); }
 	};
 
 	// Handles default cases for Xtors and calls
