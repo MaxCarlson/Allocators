@@ -29,20 +29,22 @@ namespace alloc
 		CtorArgs(Args ...args) : args{ std::forward<Args>(args)... } {}
 		std::tuple<Args ...> args;
 
+		// Build T in place with tuple args expanded into
+		// individual arguments for T's Ctor
 		template <class T, class Tuple, size_t... Is>
-		T construct_from_tuple(Tuple&& tuple, std::index_sequence<Is...>) {
-			return T{ std::get<Is>(std::forward<Tuple>(tuple))... };
+		void construct_from_tuple(T* ptr, Tuple&& tuple, std::index_sequence<Is...>) {
+			new (ptr) T( std::get<Is>(std::forward<Tuple>(tuple))... );
 		}
 
 		template <class T, class Tuple>
-		T construct_from_tuple(Tuple&& tuple) {
-			return construct_from_tuple<T>(std::forward<Tuple>(tuple),
+		void construct_from_tuple(T* ptr, Tuple&& tuple) {
+			construct_from_tuple(ptr, std::forward<Tuple>(tuple),
 				std::make_index_sequence<std::tuple_size<std::decay_t<Tuple>>::value>{}
 			);
 		}
 
 		template<class T>
-		void operator()(T& t) { new (&t) T(construct_from_tuple<T>(args)); }
+		void operator()(T& t) { construct_from_tuple(&t, args); }
 
 		template<class T>
 		void construct(T* ptr) { this->operator()(*ptr); }
@@ -52,6 +54,7 @@ namespace alloc
 	// from llambdas or other functions. Must pass a function
 	// that takes a reference to the type of object being constructed
 	// [](T&){}
+	// Can be used as both a Ctor & Dtor
 	template<class Func>
 	struct XtorFunc : SlabObj::DefaultXtor<Func>
 	{
@@ -67,7 +70,7 @@ namespace alloc
 
 	// Handles default cases for Xtors and calls
 	// T's destructor
-	struct DefaultDtor
+	struct DefaultDtor 
 	{
 		template<class T>
 		void operator()(T& t) { t.~T(); }
@@ -77,8 +80,10 @@ namespace alloc
 	inline static SlabObj::DefaultXtor	defaultXtor; // Handles default construction/destruction
 
 	// TODO: Add const?
-	// Used to enable custom Ctor+Dtor for objects in
-	// Slab allocators object pool.
+	// Wrapper struct for when you need both a Ctor &
+	// a Dtor for Slab allocators object caches
+	// Ctor: CtorArgs or XtorFunc
+	// Dtor: XtorFunc wrapping a llamda (defaults to default dtor)
 	template<class Ctor, class Dtor = DefaultDtor>
 	struct Xtors
 	{
