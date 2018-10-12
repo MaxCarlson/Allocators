@@ -26,12 +26,10 @@ struct Large
 	std::vector<int> ar; // TODO: Why does this fail with a vector? Figure it out because we need vec for dtor testing
 };
 
-// TODO: Capture variable here and make sure capture dtors work!
+int DtorCount = 0;
 auto dtorL = [](Large& l)			// Custom llambda dtor
 {
-	l.ar.clear();
-	l.ar.shrink_to_fit();
-	l.ar = std::vector<int>(count, 100);
+	DtorCount += l.ar[0];
 };
 
 alloc::CtorArgs ctorA(15, 'a');		// Custome variadic argument constructor
@@ -152,9 +150,7 @@ namespace Tests
 				Assert::IsTrue(idx == v);
 		}
 
-		template<class Before>
-		void deallocObjs(std::vector<Large*> def, std::vector<Large*> cus, std::vector<int>& order, 
-			Before&& before)
+		void deallocObjs(std::vector<Large*> def, std::vector<Large*> cus, std::vector<int>& order)
 		{
 			for (auto i = 0; i < count; ++i)
 			{
@@ -162,11 +158,14 @@ namespace Tests
 				testLargeForV(def[idx], LargeDefaultCtorVal);
 				slab.deallocateObj<Large>(def[idx]);
 
-				auto ptr = &(cus[idx]->ar[0]);
+				// Lambda Dtor test vals ( Only changed during Dealloc_Objs)
+				auto prevCount	= DtorCount;
+				auto prevNum	= cus[idx]->ar[0];
+				
 				testLargeForV(cus[idx], 15 * 'a');
 				slab.deallocateObj<Large, XtorType>(cus[idx]);
 
-				before(ptr, &(cus[idx]->ar[0])); // Make sure lambda destructor is being called)
+				Assert::IsTrue(prevCount + prevNum == DtorCount); // Make sure lambda destructor is being called)
 			}
 		}
 
@@ -189,11 +188,10 @@ namespace Tests
 			Assert::IsTrue(infoDef.size == count);
 			Assert::IsTrue(infoCus.size == count);
 
-			auto defLb = [](int*p, int*p1) {};
-			deallocObjs(def, custom, order, defLb);
+			deallocObjs(def, custom, order);
 		}
 
-		TEST_METHOD(Delloc_Objs)
+		TEST_METHOD(Dealloc_Objs)
 		{
 			std::vector<int> order(count);
 			auto[def, custom] = allocateObjs();
@@ -206,10 +204,7 @@ namespace Tests
 			Assert::IsTrue(infoDef.size == count);
 			Assert::IsTrue(infoCus.size == count);
 
-			auto lb = [](int*p1, int*p2) { 
-				Assert::IsTrue(p1 != p2); 
-			};
-			deallocObjs(def, custom, order, lb);
+			deallocObjs(def, custom, order);
 		}
 	};
 }
