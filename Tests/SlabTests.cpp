@@ -16,13 +16,6 @@ struct Large
 	Large(int val)			: ar(count, val) {}
 	Large(int a, char b)	: ar(count, a * b) {}
 
-	Large(Large&& other) { ar = other.ar; }
-	Large& operator=(const Large& other) 
-	{
-		ar = other.ar;
-		return *this; 
-	}
-
 	std::vector<int> ar; // TODO: Why does this fail with a vector? Figure it out because we need vec for dtor testing
 };
 

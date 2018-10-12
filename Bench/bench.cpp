@@ -9,7 +9,7 @@
 
 using Clock = std::chrono::high_resolution_clock;
 
-constexpr auto max = 9000000;
+constexpr auto max = 400;//4000000;
 constexpr auto count = 9400;
 
 struct Large
@@ -24,16 +24,10 @@ struct Large
 struct DefaultAlloc
 {
 	template<class T>
-	T* allocateMem()
-	{
-		return reinterpret_cast<T*>(operator new(sizeof(T)));
-	}
+	T* allocateMem() { return reinterpret_cast<T*>(operator new(sizeof(T))); }
 
 	template<class T>
-	void deallocateMem(T* ptr)
-	{
-		operator delete(ptr);
-	}
+	void deallocateMem(T* ptr) { operator delete(ptr); }
 };
 
 template<class T, class Alloc, class Dealloc>

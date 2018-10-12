@@ -248,25 +248,25 @@ namespace alloc
 			return memStore.info();
 		}
 
-		template<class T = Type, class Xtors = DefaultXtor>
+		template<class T = Type, class Xtors = SlabObj::DefaultXtor<>>
 		CacheInfo objInfo() const noexcept
 		{
 			return objStore.info<T, Xtors>();
 		}
 
-		template<class T = Type, class Xtors = DefaultXtor>
+		template<class T = Type, class Xtors = SlabObj::DefaultXtor<>>
 		void addObjCache(size_type count, Xtors& xtors = defaultXtor)
 		{
 			objStore.addCache<T, Xtors>(count, xtors);
 		}
 
-		template<class T = Type, class Xtors = DefaultXtor>
+		template<class T = Type, class Xtors = SlabObj::DefaultXtor<>>
 		T* allocateObj()
 		{
 			return objStore.allocate<T, Xtors>();
 		}
 
-		template<class T = Type, class Xtors = DefaultXtor>
+		template<class T = Type, class Xtors = SlabObj::DefaultXtor<>>
 		void deallocateObj(T* ptr)
 		{
 			objStore.deallocate<T, Xtors>(ptr);

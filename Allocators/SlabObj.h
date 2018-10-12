@@ -3,6 +3,19 @@
 #include <vector>
 #include <functional>
 
+namespace SlabObj
+{
+	template<class... Args>
+	struct DefaultXtor
+	{
+		template<class T>
+		void construct(T* ptr) { new (ptr) T(); }
+
+		template<class T>
+		void destruct(T* ptr) { ptr->~T(); }
+	};
+}
+
 // TODO: Better naming for these!
 namespace alloc
 {
@@ -11,7 +24,7 @@ namespace alloc
 	// object pool
 	// Can be replaced with a XtorFunc (with a function that takes T&)
 	template<class... Args>
-	struct CtorArgs
+	struct CtorArgs : public SlabObj::DefaultXtor<Args...>
 	{
 		CtorArgs(Args ...args) : args{ std::forward<Args>(args)... } {}
 		std::tuple<Args ...> args;
@@ -33,9 +46,6 @@ namespace alloc
 
 		template<class T>
 		void construct(T* ptr) { this->operator()(*ptr); }
-
-		template<class T>
-		void destruct(T* ptr) { ptr->~T(); }
 	};
 
 	// For constructing objects in SlabObj's Cache
@@ -43,7 +53,7 @@ namespace alloc
 	// that takes a reference to the type of object being constructed
 	// [](T&){}
 	template<class Func>
-	struct XtorFunc
+	struct XtorFunc : SlabObj::DefaultXtor<Func>
 	{
 		XtorFunc(Func& func) : func(func) {}
 		Func& func;
@@ -53,9 +63,6 @@ namespace alloc
 
 		template<class T>
 		void construct(T* ptr) { this->operator()(*ptr); }
-
-		template<class T>
-		void destruct(T* ptr) { ptr->~T(); }
 	};
 
 	// Handles default cases for Xtors and calls
@@ -66,20 +73,12 @@ namespace alloc
 		void operator()(T& t) { t.~T(); }
 	};
 
-	// Default template parameter for Slab.addObjCache
-	struct DefaultXtor
-	{
-		template<class T>
-		void construct(T* ptr) { new (ptr) T(); } 
+	inline static DefaultDtor			defaultDtor; // Handles default destructions
+	inline static SlabObj::DefaultXtor	defaultXtor; // Handles default construction/destruction
 
-		template<class T>
-		void destruct(T* ptr) { ptr->~T(); }
-	};
-
-	inline static DefaultDtor defaultDtor; // Handles default destructions
-	inline static DefaultXtor defaultXtor; // Handles default construction/destruction
-
-	// TODO: Add const
+	// TODO: Add const?
+	// Used to enable custom Ctor+Dtor for objects in
+	// Slab allocators object pool.
 	template<class Ctor, class Dtor = DefaultDtor>
 	struct Xtors
 	{
