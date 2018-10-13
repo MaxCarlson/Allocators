@@ -12,10 +12,10 @@
 
 using Clock = std::chrono::high_resolution_clock;
 
-constexpr auto max = 400;//4000000;
+constexpr auto max = 1000000;
 constexpr auto count = 9400;
 
-
+auto RandomEngine = std::default_random_engine(1);
 
 struct DefaultAlloc
 {
@@ -26,17 +26,40 @@ struct DefaultAlloc
 	void deallocateMem(T* ptr) { operator delete(ptr); }
 };
 
+constexpr auto MinAllocInO = 1;
+constexpr auto MinDeInO = 1;
+constexpr auto MaxAllocInO = 100;
+constexpr auto MaxDeInO = 100;
+
 template<class T>
-void basicAlDeTest(std::pair<std::function<T*()>, std::function<void(T*)>>& allocs, std::string toPrint, bool construct = true)
+struct TestInit
+{
+	TestInit(std::string testName,
+		std::vector<std::string> names,
+		std::vector<bool> construct,
+		std::vector<std::pair<std::function<T*()>, std::function<void(T*)>>> allocs)
+		: testName(testName), names(names), construct(construct), allocs(allocs) {}
+
+	using MyType = T;
+
+	std::string testName;
+	std::vector<size_t> order;
+	std::vector<std::string> names;
+	std::vector<bool> construct;
+	std::vector<std::pair<std::function<T*()>, std::function<void(T*)>>> allocs;
+};
+
+template<class T>
+void basicAlloc(const TestInit<T>& init)
+{
+	auto&[alloc, dealloc] = init.allocs;
+
+}
+
+template<class T, class Ctor>
+void basicAlDeal(std::pair<std::function<T*()>, std::function<void(T*)>>& allocs, std::string toPrint, bool construct, Ctor& ctor)
 {
 	auto&[alloc, dealloc] = allocs;
-
-	T* ptrs[count];
-	for (int i = 0; i < count; ++i)
-		ptrs[i] = alloc();
-
-	std::vector<size_t> order(count);
-	std::shuffle(std::begin(order), std::end(order), std::default_random_engine(1));
 
 	auto start = Clock::now();
 
@@ -47,13 +70,12 @@ void basicAlDeTest(std::pair<std::function<T*()>, std::function<void(T*)>>& allo
 		if (i % count == 0)
 			idx = 0;
 
-		auto* loc = ptrs[order[idx]];
+		auto* loc = alloc();
 
 		if (construct)
-			new (loc) T("Init Name");
+			ctor.construct(loc);
 
 		dealloc(loc);
-		loc = alloc();
 	}
 
 	auto end = Clock::now();
@@ -82,8 +104,8 @@ template<class T, class SlabXtors>
 decltype(auto) allocWrappers()
 {
 	// Wrapped default new/delete alloc 
-	auto DefaultAl = [&]() ->T* { return defaultAl.allocateMem<T>(); };
-	auto DefaultDe = [&](T* ptr) { defaultAl.deallocateMem<T>(ptr); };
+	auto DefaultAl = [&]() { return defaultAl.allocateMem<T>(); };
+	auto DefaultDe = [&](auto ptr) { defaultAl.deallocateMem<T>(ptr); };
 
 	alloc::FreeList<T, FreeListBytes> flal;
 
@@ -111,21 +133,24 @@ decltype(auto) allocWrappers()
 	return allocs;
 }
 
-template<class AlVec, class TestPtr>
-void runTest(std::string testName, std::vector<std::string> names, std::vector<bool> construct, AlVec&& alVec, TestPtr* testPtr)
+
+template<class TestInit, class TestPtr, class Ctor>
+void runTest(TestInit& init, TestPtr* testPtr, Ctor& ctor)
 {
-	std::cout << '\n' << testName.c_str() << '\n';
+	std::cout << '\n' << init.testName << '\n';
+
+	std::vector<size_t> order(count);
+	std::iota(std::begin(order), std::end(order), 0);
+	std::shuffle(std::begin(order), std::end(order), RandomEngine);
+	init.order = std::move(order);
 
 	for (int i = 0; i < WrapIdx::NUM_ALLOCS; ++i)
-		testPtr(alVec[i], names[i], construct[i]);
+		testPtr(init.allocs[i], init.names[i], init.construct[i], ctor);
 }
 
 int main()
 {
-
-
 	// Add caches for slab allocator
-	//
 	// Note: Less caches will make it faster
 	for(int i = 6; i < 13; ++i)
 		slab.addMemCache(1 << i, count);
@@ -136,12 +161,13 @@ int main()
 	slab.addObjCache<PartialInit, lCtorT>(count, lCtor);
 
 
-
 	std::vector<bool> construct		= { true, true, true, false };
 	std::vector<std::string> names	= { "Default", "FreeList", "Slab Mem", "Slab Obj" };
 
-	auto wrappers = allocWrappers<PartialInit, lCtorT>();
-	runTest("Basic Al/De Test", names, construct, wrappers, &basicAlDeTest<PartialInit>);
+	alloc::CtorArgs testPiArg(std::string("Init Test String"));
+	TestInit<PartialInit> testPI("Basic Al/De Test", names, construct, allocWrappers<PartialInit, lCtorT>());
+
+	runTest(testPI, &basicAlDeal<PartialInit, decltype(testPiArg)>, testPiArg);
 
 
 
