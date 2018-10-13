@@ -12,7 +12,7 @@
 
 using Clock = std::chrono::high_resolution_clock;
 
-constexpr auto max = 1000000;
+constexpr auto max = 100000;
 constexpr auto count = 9400;
 
 auto RandomEngine = std::default_random_engine(1);
@@ -26,34 +26,63 @@ struct DefaultAlloc
 	void deallocateMem(T* ptr) { operator delete(ptr); }
 };
 
-constexpr auto MinAllocInO = 1;
-constexpr auto MinDeInO = 1;
-constexpr auto MaxAllocInO = 100;
-constexpr auto MaxDeInO = 100;
-
 template<class T>
 struct TestInit
 {
-	TestInit(std::string testName,
-		std::vector<std::string> names,
+	TestInit(std::vector<std::string> names,
 		std::vector<bool> construct,
 		std::vector<std::pair<std::function<T*()>, std::function<void(T*)>>> allocs)
-		: testName(testName), names(names), construct(construct), allocs(allocs) {}
+		: names(names), construct(construct), allocs(allocs) {}
 
 	using MyType = T;
 
-	std::string testName;
 	std::vector<size_t> order;
 	std::vector<std::string> names;
 	std::vector<bool> construct;
 	std::vector<std::pair<std::function<T*()>, std::function<void(T*)>>> allocs;
 };
 
-template<class T>
-void basicAlloc(const TestInit<T>& init)
+template<class T, class Ctor>
+void basicAlloc(std::pair<std::function<T*()>, std::function<void(T*)>>& allocs, std::string toPrint, bool construct, Ctor& ctor)
 {
-	auto&[alloc, dealloc] = init.allocs;
+	using TimeType = std::chrono::milliseconds;
 
+	auto&[alloc, dealloc] = allocs;
+
+	auto start = Clock::now();
+
+	size_t num = 0;
+	size_t idx = 0;
+	size_t deallocTime = 0;
+	std::vector<T*> ptrs;
+
+	for (int i = 0; i < max; ++i)
+	{
+		if (i % count == 0)
+		{
+			idx = 0;
+			auto start = Clock::now();
+
+			for (auto& ptr : ptrs)
+				dealloc(ptr);
+			ptrs.clear();
+
+			auto end = Clock::now();
+			deallocTime += std::chrono::duration_cast<TimeType>(end - start).count();
+		}
+
+		ptrs.emplace_back(alloc());
+
+		if (construct)
+			ctor.construct(ptrs[idx]);
+	}
+
+	auto end = Clock::now();
+
+	for (auto ptr : ptrs)
+		dealloc(ptr);
+
+	std::cout << toPrint.c_str() << " Time: " << std::chrono::duration_cast<TimeType>(end - start).count() - deallocTime << " " << num << '\n';
 }
 
 template<class T, class Ctor>
@@ -86,7 +115,8 @@ void basicAlDeal(std::pair<std::function<T*()>, std::function<void(T*)>>& allocs
 // Allocators
 alloc::Slab<int> slab;
 DefaultAlloc defaultAl;
-constexpr auto FreeListBytes = sizeof(PartialInit) * count;
+
+constexpr auto FreeListBytes = (sizeof(PartialInit) + sizeof(alloc::FreeList<PartialInit, 999>::OurHeader)) * (count + 5550);
 
 enum WrapIdx
 {
@@ -135,9 +165,9 @@ decltype(auto) allocWrappers()
 
 
 template<class TestInit, class TestPtr, class Ctor>
-void runTest(TestInit& init, TestPtr* testPtr, Ctor& ctor)
+void runTest(std::string testName, TestInit& init, TestPtr* testPtr, Ctor& ctor)
 {
-	std::cout << '\n' << init.testName << '\n';
+	std::cout << '\n' << testName << ' ' << typeid(TestInit::MyType).name() << '\n';
 
 	std::vector<size_t> order(count);
 	std::iota(std::begin(order), std::end(order), 0);
@@ -160,15 +190,19 @@ int main()
 	using lCtorT = decltype(lCtor);
 	slab.addObjCache<PartialInit, lCtorT>(count, lCtor);
 
-
+	// Some basic test properties
 	std::vector<bool> construct		= { true, true, true, false };
 	std::vector<std::string> names	= { "Default", "FreeList", "Slab Mem", "Slab Obj" };
 
+	// Init ctor for PartialInit class testing
 	alloc::CtorArgs testPiArg(std::string("Init Test String"));
-	TestInit<PartialInit> testPI("Basic Al/De Test", names, construct, allocWrappers<PartialInit, lCtorT>());
+	using PiCtorT = decltype(testPiArg);
 
-	runTest(testPI, &basicAlDeal<PartialInit, decltype(testPiArg)>, testPiArg);
+	// Initilize test arguments/funcs/xtors
+	TestInit<PartialInit> testPi(names, construct, allocWrappers<PartialInit, lCtorT>());
 
+	runTest("Basic Alloc", testPi, &basicAlloc<PartialInit, PiCtorT>, testPiArg);
+	runTest("Basic Alloc/Dealloc", testPi, &basicAlDeal<PartialInit, PiCtorT>, testPiArg);
 
 
 	return 0;

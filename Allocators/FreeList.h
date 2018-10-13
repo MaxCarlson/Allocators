@@ -257,6 +257,7 @@ namespace alloc
 	public:
 		using OurPolicy = PolicyInterface<bytes, Policy>;
 		using size_type = typename OurPolicy::size_type;
+		using OurHeader	= typename OurPolicy::Header;
 
 	private:
 		inline static OurPolicy storage;
