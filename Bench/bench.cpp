@@ -3,23 +3,19 @@
 #include "../Allocators/FreeList.h"
 
 #include <memory>
+#include <functional>
+#include <vector>
 #include <chrono>
 #include <iostream>
 #include <random>
+#include "TestTypes.h"
 
 using Clock = std::chrono::high_resolution_clock;
 
 constexpr auto max = 400;//4000000;
 constexpr auto count = 9400;
 
-struct Large
-{
-	Large(int val)
-	{
-	std:fill(std::begin(ar), std::end(ar), val);
-	}
-	std::array<int, count> ar;
-};
+
 
 struct DefaultAlloc
 {
@@ -30,9 +26,10 @@ struct DefaultAlloc
 	void deallocateMem(T* ptr) { operator delete(ptr); }
 };
 
-template<class T, class Alloc, class Dealloc>
-void alSpeedTest(Alloc&& alloc, Dealloc&& dealloc, std::string toPrint, bool construct = true)
+template<class T>
+void basicAlDeTest(std::pair<std::function<T*()>, std::function<void(T*)>>& allocs, std::string toPrint, bool construct = true)
 {
+	auto&[alloc, dealloc] = allocs;
 
 	T* ptrs[count];
 	for (int i = 0; i < count; ++i)
@@ -53,7 +50,7 @@ void alSpeedTest(Alloc&& alloc, Dealloc&& dealloc, std::string toPrint, bool con
 		auto* loc = ptrs[order[idx]];
 
 		if (construct)
-			new (loc) Large(1);
+			new (loc) T("Init Name");
 
 		dealloc(loc);
 		loc = alloc();
@@ -64,44 +61,88 @@ void alSpeedTest(Alloc&& alloc, Dealloc&& dealloc, std::string toPrint, bool con
 	std::cout << toPrint.c_str() << " Time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " " << num << '\n';
 }
 
+// Allocators
+alloc::Slab<int> slab;
+DefaultAlloc defaultAl;
+constexpr auto FreeListBytes = sizeof(PartialInit) * count;
+
+enum WrapIdx
+{
+	Default_Idx,
+	FreeList_Idx,
+	SlabMem_Idx,
+	SlabObj_Idx,
+	NUM_ALLOCS
+};
+
+
+// Create wrapper functions so we can call allocators
+// easily with different types
+template<class T, class SlabXtors>
+decltype(auto) allocWrappers()
+{
+	// Wrapped default new/delete alloc 
+	auto DefaultAl = [&]() ->T* { return defaultAl.allocateMem<T>(); };
+	auto DefaultDe = [&](T* ptr) { defaultAl.deallocateMem<T>(ptr); };
+
+	alloc::FreeList<T, FreeListBytes> flal;
+
+	// FreeList funcs
+	auto flAl = [&]() { return flal.allocate(1); };
+	auto flDe = [&](auto ptr) { flal.deallocate(ptr); };
+
+	// Slab mem functions
+	auto sAlMem = [&]() { return slab.allocateMem<T>(); };
+	auto sDeMem = [&](auto ptr) { slab.deallocateMem<T>(ptr); };
+
+	// Slab obj functions 
+	auto sAlObj = [&]() { return slab.allocateObj<T, SlabXtors>(); };
+	auto sDeObj = [&](auto ptr) { slab.deallocateObj<T, SlabXtors>(ptr); };
+
+	std::vector<std::pair<std::function<T*()>,
+		std::function<void(T*)>>> allocs =
+	{ 
+		{DefaultAl, DefaultDe},
+		{flAl, flDe},
+		{sAlMem, sDeMem},
+		{sAlObj, sDeObj}
+	};
+
+	return allocs;
+}
+
+template<class AlVec, class TestPtr>
+void runTest(std::string testName, std::vector<std::string> names, std::vector<bool> construct, AlVec&& alVec, TestPtr* testPtr)
+{
+	std::cout << '\n' << testName.c_str() << '\n';
+
+	for (int i = 0; i < WrapIdx::NUM_ALLOCS; ++i)
+		testPtr(alVec[i], names[i], construct[i]);
+}
+
 int main()
 {
-	alloc::Slab<int> slab;
-	DefaultAlloc defaultAl;
-	alloc::FreeList<Large, (count + 8)* sizeof(Large)> flal;
+
 
 	// Add caches for slab allocator
 	//
 	// Note: Less caches will make it faster
 	for(int i = 6; i < 13; ++i)
 		slab.addMemCache(1 << i, count);
-	slab.addMemCache<Large>(count);
+	slab.addMemCache<PartialInit>(count);
 
-	alloc::CtorArgs lCtor(1);
+	alloc::CtorArgs lCtor(std::string("Init Name"));
 	using lCtorT = decltype(lCtor);
-	slab.addObjCache<Large, lCtorT>(count, lCtor);
-
-	// Slab mem functions
-	auto sAlMem = [&]()			{ return slab.allocateMem<Large>(); };
-	auto sDeMem = [&](auto ptr)	{ slab.deallocateMem<Large>(ptr); };
-
-	// Slab obj functions # NOT IMPLEMENTED YET
-	auto sAlObj = [&]() { return slab.allocateObj<Large, lCtorT>(); };
-	auto sDeObj = [&](auto ptr) { slab.deallocateObj<Large, lCtorT>(ptr); };
-
-	// FreeList funcs
-	auto flAl = [&]()			{ return flal.allocate(1); };
-	auto flDe = [&](auto ptr)	{ flal.deallocate(ptr); };
-
-	// Wrapped default new/delete alloc 
-	auto DefaultAl = [&]()			{ return defaultAl.allocateMem<Large>(); };
-	auto DefaultDe = [&](auto ptr)	{ defaultAl.deallocateMem(ptr); };
+	slab.addObjCache<PartialInit, lCtorT>(count, lCtor);
 
 
-	alSpeedTest<Large>(DefaultAl, DefaultDe, "Default allocator");
-	alSpeedTest<Large>(flAl, flDe, "FreeList Test");
-	alSpeedTest<Large>(sAlMem, sDeMem, "Slab Test");
-	alSpeedTest<Large>(sAlObj, sDeObj, "Slab Obj Test", false);
+
+	std::vector<bool> construct		= { true, true, true, false };
+	std::vector<std::string> names	= { "Default", "FreeList", "Slab Mem", "Slab Obj" };
+
+	auto wrappers = allocWrappers<PartialInit, lCtorT>();
+	runTest("Basic Al/De Test", names, construct, wrappers, &basicAlDeTest<PartialInit>);
+
 
 
 	return 0;

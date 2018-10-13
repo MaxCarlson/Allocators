@@ -101,6 +101,7 @@ namespace alloc
 			MySize = 0;
 		}
 
+		/*
 		List(List&& other) : MyHead{ std::move(other.MyHead) }, MyEnd{ std::move(other.MyEnd) }, MySize{ std::move(other.MySize) }
 		{
 		}
@@ -110,6 +111,7 @@ namespace alloc
 			*this = std::move(other);
 			return *this;
 		}
+		*/
 
 	private:
 

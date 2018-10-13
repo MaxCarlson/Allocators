@@ -155,9 +155,6 @@ namespace SlabObj
 		}
 	};
 
-	// TODO: Use this a stateless (except
-	// static vars) cache of objects so we can have
-	// caches deduced by type
 	template<class T, class Xtors>
 	struct Cache
 	{
@@ -175,10 +172,15 @@ namespace SlabObj
 
 		inline static Xtors* xtors = nullptr;
 
+		static void setXtors(Xtors& tors) { xtors = &tors; }
+
 		static void addCache(size_type count, Xtors& tors)
 		{
+			// TODO: Should this also reconstruct all objects that 
+			// haven't used this ctor and are availible? Yes, probably!
+			setXtors(tors);
+
 			// TODO: Should we only allow this function to change count on init?
-			xtors		= &tors;
 			perCache	= count;
 			newSlab();
 		}
@@ -190,7 +192,7 @@ namespace SlabObj
 		}
 
 		// TODO: Right now this code is basically identical to SlabMem's
-		// Figure out if it's worth it to combine the functionality
+		// Figure out if it's worth it to combine the functionality (it may start to split off as I add features)
 		//
 		static std::pair<Storage*, It> findSlab()
 		{
