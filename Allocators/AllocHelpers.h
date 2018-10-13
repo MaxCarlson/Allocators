@@ -2,7 +2,8 @@
 #include <memory>
 #include <stdexcept>
 #include <Windows.h>
-
+#include <cstdlib>
+#include <stdlib.h>
 
 namespace alloc
 {
@@ -15,11 +16,27 @@ namespace alloc
 	{
 		SYSTEM_INFO systemInfo;
 		GetSystemInfo(&systemInfo);
-		//std::cout << "Page Size Is: " << systemInfo.dwPageSize;
-
-		// TODO: Idea for allocating whole pages. std::aligned_alloc(pageSize(), size); !
-		return size_t{};
+		return systemInfo.dwPageSize;
 	}
+
+	inline size_t nearestPageSz(size_t bytes)
+	{
+		auto pgSz = pageSize();
+		auto cnt = bytes / pgSz;
+		if (cnt * pgSz < bytes)
+			++cnt;
+		return cnt * pgSz;
+	}
+
+	template<class T>
+	inline T* allocatePage(size_t bytes)
+	{
+		// TODO: Idea for allocating whole pages. std::aligned_alloc(pageSize(), size); !
+		// TODO: Looks like we might need to use aligned_malloc? MCVS doesn't seem to have implemented aligned_alloc!
+		return nullptr;//std::aligned_alloc(pageSize(), bytes);
+	}
+
+
 
 	struct CacheInfo
 	{
