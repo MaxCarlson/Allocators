@@ -45,7 +45,7 @@ namespace alloc
 
 	inline size_t nearestPageSz(size_t bytes)
 	{
-		auto pgSz = pageSize();
+		static auto pgSz = pageSize();
 		auto cnt = bytes / pgSz;
 		if (cnt * pgSz < bytes)
 			++cnt;

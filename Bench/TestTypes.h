@@ -13,7 +13,7 @@ struct DefaultAlloc
 
 struct PartialInit
 {
-	PartialInit(std::string name) : name(name) 
+	PartialInit(const std::string& name) : name(name) 
 	{
 	}
 

@@ -109,15 +109,16 @@ namespace SlabObj
 	template<class T, class Cache, class Xtors>
 	struct Slab
 	{
-		byte* mem;
-		size_t count;
-		std::vector<uint16_t> availible;
+		byte*					mem;
+		size_t					count;
+		std::vector<uint16_t>	availible;
 		
 		Slab() = default;
 		Slab(size_t count) : count(count), availible(count)
 		{
-			//mem = alloc::allocatePage<byte>(count);
-			mem = reinterpret_cast<byte*>(operator new(sizeof(T) * count));
+			mem = alloc::allocatePage<byte>(sizeof(T) * count);
+			//mem = reinterpret_cast<byte*>(operator new(sizeof(T) * count));
+
 			std::iota(std::rbegin(availible), std::rend(availible), 0);
 
 			for (auto i = 0; i < count; ++i)
@@ -182,7 +183,8 @@ namespace SlabObj
 		{
 			setXtors(tors);
 
-			perCache	= count;
+			//perCache	= count;
+			perCache = alloc::nearestPageSz(count * sizeof(T)) / sizeof(T);
 			newSlab();
 		}
 
