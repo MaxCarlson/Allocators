@@ -61,16 +61,18 @@ void runTest(std::string testName, TestInit& init, TestPtr* testPtr, Ctor& ctor)
 {
 	std::cout << '\n' << testName << ' ' << typeid(TestInit::MyType).name() << '\n';
 
+	std::default_random_engine re{ 1 };
 	std::vector<size_t> order(maxAllocs);
 	std::iota(std::begin(order), std::end(order), 0);
-	std::shuffle(std::begin(order), std::end(order), RandomEngine);
+	std::shuffle(std::begin(order), std::end(order), re);
 	init.order = std::move(order);
 
+	
 	for (int i = 0; i < WrapIdx::NUM_ALLOCATORS; ++i)
 	{
 		if (init.skip[i])
 			continue;
-		testPtr({ init, i, ctor });
+		testPtr({ init, i, ctor, re });
 	}
 }
 

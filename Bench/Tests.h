@@ -41,9 +41,9 @@ struct IdvTestInit
 {
 	using MyType = T;
 
-	IdvTestInit(TestInit<T>& init, int idx, Ctor& ctor) 
+	IdvTestInit(TestInit<T>& init, int idx, Ctor& ctor, std::default_random_engine re)
 		: order(order), name(init.names[idx]), construct(init.construct[idx]), 
-		  alloc(init.allocs[idx].first), dealloc(init.allocs[idx].second), ctor(ctor) {}
+		  alloc(init.allocs[idx].first), dealloc(init.allocs[idx].second), ctor(ctor), re(re) {}
 
 	const std::vector<size_t>& order;
 	const std::string& name;
@@ -51,6 +51,7 @@ struct IdvTestInit
 	std::function<T*()>& alloc;
 	std::function<void(T*)>& dealloc;
 	Ctor& ctor;
+	std::default_random_engine re;
 };
 
 template<class Init>
@@ -134,7 +135,7 @@ void randomAlDe(Init init)
 	for (auto i = 0; i < maxAllocs; ++i)
 		ptrs.emplace_back(init.alloc());
 
-	std::shuffle(std::begin(ptrs), std::end(ptrs), RandomEngine); // TODO: Should be same shuffle for each test type!
+	std::shuffle(std::begin(ptrs), std::end(ptrs), init.re); // TODO: Should be same shuffle for each test type!
 	
 	auto start = Clock::now();
 
@@ -145,9 +146,10 @@ void randomAlDe(Init init)
 	for (auto i = 0; i < iterations; ++i)
 	{
 		if (deallocs > ptrs.size() || (allocs == 0 || !ptrs.size()))
-			allocs = dis(RandomEngine);
+			allocs	= dis(init.re);
+
 		else if (deallocs == 0)
-			deallocs = dis(RandomEngine);
+			deallocs = dis(init.re);
 
 		if (allocs && ptrs.size() < maxAllocs)
 		{
