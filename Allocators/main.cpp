@@ -40,6 +40,9 @@ int main()
 {
 	alloc::Slab<int> slab;
 
+	//int* iptr = alloc::allocatePage<int>(50000);
+	//alloc::alignedFree(iptr);
+
 
 	SlabObj::Interface itfc;
 

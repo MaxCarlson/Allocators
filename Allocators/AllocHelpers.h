@@ -2,6 +2,7 @@
 #include <memory>
 #include <stdexcept>
 #include <Windows.h>
+
 #include <cstdlib>
 #include <stdlib.h>
 
@@ -19,6 +20,29 @@ namespace alloc
 		return systemInfo.dwPageSize;
 	}
 
+	template<class T>
+	inline T* alignedAlloc(size_t size, size_t alignment)
+	{
+		if (alignment < alignof(void*))
+			alignment = alignof(void*);
+
+		size_t space	= size + alignment - 1;
+		void* mem		= operator new(space + sizeof(void*));
+		void* aligMem	= reinterpret_cast<void*>(reinterpret_cast<byte*>(mem) + sizeof(void*));
+
+		std::align(alignment, size, aligMem, space);
+
+		*(reinterpret_cast<void**>(aligMem) - 1) = mem;
+
+		return reinterpret_cast<T*>(aligMem);
+	}
+
+	template<class T>
+	inline void alignedFree(T* ptr)
+	{
+		operator delete(*(reinterpret_cast<void**>(ptr) - 1));
+	}
+
 	inline size_t nearestPageSz(size_t bytes)
 	{
 		auto pgSz = pageSize();
@@ -31,9 +55,10 @@ namespace alloc
 	template<class T>
 	inline T* allocatePage(size_t bytes)
 	{
-		// TODO: Idea for allocating whole pages. std::aligned_alloc(pageSize(), size); !
-		// TODO: Looks like we might need to use aligned_malloc? MCVS doesn't seem to have implemented aligned_alloc!
-		return nullptr;//std::aligned_alloc(pageSize(), bytes);
+		static auto pgSize = pageSize();
+		auto pgs		   = nearestPageSz(bytes);
+
+		return alignedAlloc<T>(pgs, pgSize);
 	}
 
 

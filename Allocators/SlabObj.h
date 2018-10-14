@@ -173,15 +173,15 @@ namespace SlabObj
 
 		inline static Xtors* xtors = nullptr;
 
+		// TODO: Should this also reconstruct all objects that 
+		// haven't used this ctor and are availible? Yes, probably!
 		static void setXtors(Xtors& tors) { xtors = &tors; }
 
+		// TODO: Should we only allow this function to change count on init?
 		static void addCache(size_type count, Xtors& tors)
 		{
-			// TODO: Should this also reconstruct all objects that 
-			// haven't used this ctor and are availible? Yes, probably!
 			setXtors(tors);
 
-			// TODO: Should we only allow this function to change count on init?
 			perCache	= count;
 			newSlab();
 		}
