@@ -116,8 +116,8 @@ namespace SlabObj
 		Slab() = default;
 		Slab(size_t count) : count(count), availible(count)
 		{
-			mem = alloc::allocatePage<byte>(sizeof(T) * count);
-			//mem = reinterpret_cast<byte*>(operator new(sizeof(T) * count));
+			//mem = alloc::allocatePage<byte>(sizeof(T) * count);
+			mem = reinterpret_cast<byte*>(operator new(sizeof(T) * count));
 
 			std::iota(std::rbegin(availible), std::rend(availible), 0);
 

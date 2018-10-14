@@ -67,7 +67,7 @@ void runTest(std::string testName, TestInit& init, TestPtr* testPtr, Ctor& ctor)
 	init.order = std::move(order);
 
 	for (int i = 0; i < WrapIdx::NUM_ALLOCS; ++i)
-		testPtr(init.allocs[i], init.names[i], init.construct[i], ctor);
+		testPtr({ init, i, ctor });
 }
 
 int main()
@@ -93,8 +93,8 @@ int main()
 	// Initilize test arguments/funcs/xtors
 	TestInit<PartialInit> testPi(names, construct, allocWrappers<PartialInit, lCtorT>());
 
-	runTest("Basic Alloc", testPi, &basicAlloc<PartialInit, PiCtorT>, testPiArg);
-	runTest("Basic Alloc/Dealloc", testPi, &basicAlDeal<PartialInit, PiCtorT>, testPiArg);
+	runTest("Basic Alloc", testPi, &basicAlloc<IdvTestInit<PartialInit, PiCtorT>>, testPiArg);
+	runTest("Basic Alloc/Dealloc", testPi, &basicAlDeal<IdvTestInit<PartialInit, PiCtorT>>, testPiArg);
 
 
 	return 0;
