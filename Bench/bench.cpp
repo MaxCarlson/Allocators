@@ -9,7 +9,7 @@
 // Allocators
 alloc::Slab<int> slab;
 DefaultAlloc defaultAl;
-constexpr auto FreeListBytes = (sizeof(PartialInit) + sizeof(alloc::FreeList<PartialInit, 999>::OurHeader)) * (count + 5550);
+constexpr auto FreeListBytes = (sizeof(PartialInit) + sizeof(alloc::FreeList<PartialInit, 999999999>::OurHeader)) * (maxAllocs + 5550);
 
 enum WrapIdx
 {
@@ -17,7 +17,7 @@ enum WrapIdx
 	FreeList_Idx,
 	SlabMem_Idx,
 	SlabObj_Idx,
-	NUM_ALLOCS
+	NUM_ALLOCATORS
 };
 
 
@@ -32,8 +32,8 @@ decltype(auto) allocWrappers()
 
 	// FreeList funcs
 	alloc::FreeList<T, FreeListBytes> flal;
-	auto flAl = [&]() { return flal.allocate(1); };
-	auto flDe = [&](auto ptr) { flal.deallocate(ptr); };
+	auto flAl	= [&]() { return flal.allocate(1); };
+	auto flDe	= [&](auto ptr) { flal.deallocate(ptr); };
 
 	// Slab mem functions
 	auto sAlMem = [&]() { return slab.allocateMem<T>(); };
@@ -61,13 +61,26 @@ void runTest(std::string testName, TestInit& init, TestPtr* testPtr, Ctor& ctor)
 {
 	std::cout << '\n' << testName << ' ' << typeid(TestInit::MyType).name() << '\n';
 
-	std::vector<size_t> order(count);
+	std::vector<size_t> order(maxAllocs);
 	std::iota(std::begin(order), std::end(order), 0);
 	std::shuffle(std::begin(order), std::end(order), RandomEngine);
 	init.order = std::move(order);
 
-	for (int i = 0; i < WrapIdx::NUM_ALLOCS; ++i)
+	for (int i = 0; i < WrapIdx::NUM_ALLOCATORS; ++i)
+	{
+		if (init.skip[i])
+			continue;
 		testPtr({ init, i, ctor });
+	}
+}
+
+template<class T, class Ctor>
+void callTests(TestInit<T>& init, Ctor& ctor)
+{
+	using FuncType = IdvTestInit<T, Ctor>;
+	runTest("Basic Alloc", init,		 &basicAlloc<FuncType>,  ctor);
+	runTest("Basic Alloc/Dealloc", init, &basicAlDeal<FuncType>, ctor);
+	runTest("Random Al/De", init,		 &randomAlDe<FuncType>,  ctor);
 }
 
 int main()
@@ -75,26 +88,27 @@ int main()
 	// Add caches for slab allocator
 	// Note: Less caches will make it faster
 	for(int i = 6; i < 13; ++i)
-		slab.addMemCache(1 << i, count);
-	slab.addMemCache<PartialInit>(count);
+		slab.addMemCache(1 << i, cacheSz);
+	slab.addMemCache<PartialInit>(cacheSz);
 
-	alloc::CtorArgs lCtor(std::string("Init Name"));
+	// Custom ctor for slabObj PartilInit
+	alloc::CtorArgs lCtor(std::string("Init Test String"));
 	using lCtorT = decltype(lCtor);
-	slab.addObjCache<PartialInit, lCtorT>(count, lCtor);
+	slab.addObjCache<PartialInit, lCtorT>(maxAllocs, lCtor);
 
 	// Some basic test properties
+	std::vector<bool> defSkips(4, false); // TODO: Not functioning correctly with new test format
 	std::vector<bool> construct		= { true, true, true, false };
-	std::vector<std::string> names	= { "Default", "FreeList", "Slab Mem", "Slab Obj" };
-
-	// Init ctor for PartialInit class testing
-	alloc::CtorArgs testPiArg(std::string("Init Test String"));
-	using PiCtorT = decltype(testPiArg);
+	std::vector<std::string> names	= { "Default", "FreeList", "SlabMem", "SlabObj" };
 
 	// Initilize test arguments/funcs/xtors
-	TestInit<PartialInit> testPi(names, construct, allocWrappers<PartialInit, lCtorT>());
+	TestInit<PartialInit> testPi(names, construct, defSkips, allocWrappers<PartialInit, lCtorT>());
 
-	runTest("Basic Alloc", testPi, &basicAlloc<IdvTestInit<PartialInit, PiCtorT>>, testPiArg);
-	runTest("Basic Alloc/Dealloc", testPi, &basicAlDeal<IdvTestInit<PartialInit, PiCtorT>>, testPiArg);
+	// Init ctor for PartialInit class testing
+	alloc::CtorArgs piArgs(std::string("Init Test String"));
+
+	callTests<PartialInit, decltype(piArgs)>(testPi, piArgs);
+
 
 
 	return 0;

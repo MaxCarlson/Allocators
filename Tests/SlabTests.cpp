@@ -7,14 +7,14 @@
 
 // Note: All this stuff needs to be done here
 // as we need access to Xtor stuff throughout the tests
-static const int count = 64;
+static const int maxAllocs = 64;
 static constexpr int LargeDefaultCtorVal = 1;
 
 struct Large
 {
-	Large()					: ar(count, LargeDefaultCtorVal) {}
-	Large(int val)			: ar(count, val) {}
-	Large(int a, char b)	: ar(count, a * b) {}
+	Large()					: ar(maxAllocs, LargeDefaultCtorVal) {}
+	Large(int val)			: ar(maxAllocs, val) {}
+	Large(int a, char b)	: ar(maxAllocs, a * b) {}
 
 	std::vector<int> ar; // TODO: Why does this fail with a vector? Figure it out because we need vec for dtor testing
 };
@@ -46,23 +46,23 @@ namespace Tests
 		{
 			// SlabMem Init
 			alloc::Slab<int> slab;
-			slab.addMemCache(sizeof(int), count);
-			slab.addMemCache<Large>(count);
+			slab.addMemCache(sizeof(int), maxAllocs);
+			slab.addMemCache<Large>(maxAllocs);
 
 			// SlabObj Init
-			slab.addObjCache<Large>(count);						// Default Constructor/dtor
-			slab.addObjCache<Large, XtorType>(count, xtors);	// Add custom cache with custom ctors/dtors
+			slab.addObjCache<Large>(maxAllocs);						// Default Constructor/dtor
+			slab.addObjCache<Large, XtorType>(maxAllocs, xtors);	// Add custom cache with custom ctors/dtors
 		}
 
 		std::pair<std::vector<int*>, std::vector<Large*>> allocMem(std::vector<int>& order, int seed)
 		{
-			std::vector<int*> iptrs(count);
-			std::vector<Large*> lptrs(count);
-			order.resize(count);
+			std::vector<int*> iptrs(maxAllocs);
+			std::vector<Large*> lptrs(maxAllocs);
+			order.resize(maxAllocs);
 			std::iota(std::begin(order), std::end(order), 0);
 			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(seed));
 
-			for (int i = 0; i < count; ++i)
+			for (int i = 0; i < maxAllocs; ++i)
 			{
 				iptrs[i]	= slab.allocateMem();
 				*iptrs[i]	= i;
@@ -94,7 +94,7 @@ namespace Tests
 			auto infos = slab.memInfo();
 
 			for (const auto& i : infos)
-				Assert::IsTrue(i.size == count);
+				Assert::IsTrue(i.size == maxAllocs);
 
 			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(22));
 			deallocMem(iptrs, lptrs, order);
@@ -108,7 +108,7 @@ namespace Tests
 			auto infos = slab.memInfo();
 
 			for(const auto& i : infos)
-				Assert::IsTrue(i.size == count, L"Info incorrect!");
+				Assert::IsTrue(i.size == maxAllocs, L"Info incorrect!");
 
 			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(88));
 			deallocMem(iptrs, lptrs, order);
@@ -128,7 +128,7 @@ namespace Tests
 			std::vector<Large*> def;
 			std::vector<Large*> custom;
 
-			for (int i = 0; i < count; ++i)
+			for (int i = 0; i < maxAllocs; ++i)
 			{
 				def.emplace_back(slab.allocateObj<Large>());
 				custom.emplace_back(slab.allocateObj<Large, XtorType>());
@@ -145,7 +145,7 @@ namespace Tests
 
 		void deallocObjs(std::vector<Large*> def, std::vector<Large*> cus, std::vector<int>& order)
 		{
-			for (auto i = 0; i < count; ++i)
+			for (auto i = 0; i < maxAllocs; ++i)
 			{
 				auto idx = order[i];
 				testLargeForV(def[idx], LargeDefaultCtorVal);
@@ -166,10 +166,10 @@ namespace Tests
 		{
 			auto[def, custom] = allocateObjs();
 
-			std::vector<int> order(count);
+			std::vector<int> order(maxAllocs);
 			std::iota(std::begin(order), std::end(order), 0);
 
-			for (int i = 0; i < count; ++i)
+			for (int i = 0; i < maxAllocs; ++i)
 			{
 				testLargeForV(def[i], LargeDefaultCtorVal);
 				testLargeForV(custom[i], 15 * 'a'); 
@@ -178,15 +178,15 @@ namespace Tests
 			auto infoDef = slab.objInfo<Large>();
 			auto infoCus = slab.objInfo<Large, XtorType>();
 
-			Assert::IsTrue(infoDef.size == count);
-			Assert::IsTrue(infoCus.size == count);
+			Assert::IsTrue(infoDef.size == maxAllocs);
+			Assert::IsTrue(infoCus.size == maxAllocs);
 
 			deallocObjs(def, custom, order);
 		}
 
 		TEST_METHOD(Dealloc_Objs)
 		{
-			std::vector<int> order(count);
+			std::vector<int> order(maxAllocs);
 			auto[def, custom] = allocateObjs();
 
 			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(111));
@@ -194,8 +194,8 @@ namespace Tests
 			auto infoDef = slab.objInfo<Large>();
 			auto infoCus = slab.objInfo<Large, XtorType>();
 
-			Assert::IsTrue(infoDef.size == count);
-			Assert::IsTrue(infoCus.size == count);
+			Assert::IsTrue(infoDef.size == maxAllocs);
+			Assert::IsTrue(infoCus.size == maxAllocs);
 
 			deallocObjs(def, custom, order);
 		}
