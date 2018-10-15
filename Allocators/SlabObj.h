@@ -9,10 +9,10 @@ namespace SlabObjImpl
 	struct DefaultXtor
 	{
 		template<class T>
-		void construct(T* ptr) { new (ptr) T(); }
+		static void construct(T* ptr) { new (ptr) T(); }
 
 		template<class T>
-		void destruct(T* ptr) { ptr->~T(); }
+		static void destruct(T* ptr) {}
 	};
 }
 
@@ -78,8 +78,8 @@ namespace alloc
 		void operator()(T& t) {}
 	};
 
-	inline static DefaultDtor			defaultDtor; // Handles default destructions
-	inline static SlabObjImpl::DefaultXtor	defaultXtor; // Handles default construction/destruction
+	inline static DefaultDtor				defaultDtor; // Handles default destructions (Does nothing)
+	inline static SlabObjImpl::DefaultXtor	defaultXtor; // Handles default construction/destruction (Default ctor w/ placement new) 
 
 	// TODO: Add const?
 	// Wrapper struct for when you need both a Ctor &
@@ -125,6 +125,15 @@ namespace SlabObjImpl
 
 			for (auto i = 0; i < count; ++i)
 				Cache::xtors->construct(reinterpret_cast<T*>(mem + sizeof(T) * i));
+		}
+
+		~Slab()
+		{
+			for (auto i = 0; i < count; ++i)
+				reinterpret_cast<T*>(mem + sizeof(T) * i)->~T();
+
+			//alloc::alignedFree(mem);
+			operator delete(reinterpret_cast<void*>(mem));
 		}
 
 		bool full()			const noexcept { return availible.empty(); }
@@ -179,12 +188,12 @@ namespace SlabObjImpl
 		// haven't used this ctor and are availible? Yes, probably!
 		static void setXtors(Xtors& tors) { xtors = &tors; }
 
+
 		// TODO: Should we only allow this function to change count on init?
 		static void addCache(size_type count, Xtors& tors)
 		{
 			setXtors(tors);
 
-			//perCache	= count;
 			perCache = alloc::nearestPageSz(count * sizeof(T)) / sizeof(T);
 			newSlab();
 		}
@@ -275,6 +284,21 @@ namespace SlabObjImpl
 			--mySize;
 		}
 
+		static void freeAll()
+		{
+			slabsFull.clear();
+			slabsPart.clear();
+			slabsFree.clear();
+			myCapacity	= 0;
+			mySize		= 0;
+		}
+
+		static void freeEmpty()
+		{
+			myCapacity -= slabsFree.size() * perCache;
+			slabsFree.clear();
+		}
+
 		static alloc::CacheInfo info() noexcept
 		{
 			return { mySize, myCapacity, sizeof(T), perCache };
@@ -301,6 +325,18 @@ namespace SlabObjImpl
 		static void deallocate(T* ptr)
 		{
 			Cache<T, Xtors>::deallocate(ptr);
+		}
+
+		template<class T, class Xtors>
+		static void freeAll()
+		{
+			Cache<T, Xtors>::freeAll();
+		}
+
+		template<class T, class Xtors>
+		static void freeEmpty()
+		{
+			Cache<T, Xtors>::freeEmpty();
 		}
 
 		template<class T, class Xtors>

@@ -63,12 +63,6 @@ namespace alloc
 		using size_type = size_t;
 
 		template<class T = Type, class Xtors = SlabObjImpl::DefaultXtor<>>
-		CacheInfo objInfo() const noexcept
-		{
-			return SlabObjImpl::Interface::info<T, Xtors>();
-		}
-
-		template<class T = Type, class Xtors = SlabObjImpl::DefaultXtor<>>
 		void addCache(size_type count, Xtors& xtors = defaultXtor)
 		{
 			SlabObjImpl::Interface::addCache<T, Xtors>(count, xtors);
@@ -84,6 +78,24 @@ namespace alloc
 		void deallocate(T* ptr)
 		{
 			SlabObjImpl::Interface::deallocate<T, Xtors>(ptr);
+		}
+
+		template<class T = Type, class Xtors = SlabObjImpl::DefaultXtor<>>
+		void freeAll()
+		{
+			SlabObjImpl::Interface::freeAll<T, Xtors>();
+		}
+
+		template<class T = Type, class Xtors = SlabObjImpl::DefaultXtor<>>
+		void freeEmpty()
+		{
+			SlabObjImpl::Interface::freeEmpty<T, Xtors>();
+		}
+
+		template<class T = Type, class Xtors = SlabObjImpl::DefaultXtor<>>
+		CacheInfo objInfo() const noexcept
+		{
+			return SlabObjImpl::Interface::info<T, Xtors>();
 		}
 	};
 }

@@ -135,25 +135,19 @@ namespace alloc
 
 		List()
 		{
-			MyHead = new Node{};
-			MyEnd = new Node{};
-			MyHead->prev = MyEnd->next = nullptr;
-			MyHead->next = MyEnd;
-			MyEnd->prev = MyHead;
-			MySize = 0;
+			MyHead			= new Node{};
+			MyEnd			= new Node{};
+			MySize			= 0;
+			MyHead->prev	= MyEnd->next = nullptr;
+			MyHead->next	= MyEnd;
+			MyEnd->prev		= MyHead;
 		}
 
-		/*
-		List(List&& other) : MyHead{ std::move(other.MyHead) }, MyEnd{ std::move(other.MyEnd) }, MySize{ std::move(other.MySize) }
+		~List()
 		{
+			delete MyHead;
+			delete MyEnd;
 		}
-
-		List& operator=(List&& other) // TODO: Runtime Stack Overflow?
-		{
-			*this = std::move(other);
-			return *this;
-		}
-		*/
 
 	private:
 
@@ -187,17 +181,15 @@ namespace alloc
 		size_t size() const noexcept { return MySize; }
 		bool empty() const noexcept { return !MySize; }
 
-
-
 		// Give another list our node and insert it
 		// before pos. Don't deallocate the memory,
 		// just pass it to another list to handle
 		void giveNode(iterator& ourNode, List& other, iterator pos)
 		{
 			--MySize;
-			Node* n = ourNode.ptr;
-			n->prev->next = n->next;
-			n->next->prev = n->prev;
+			Node* n			= ourNode.ptr;
+			n->prev->next	= n->next;
+			n->next->prev	= n->prev;
 
 			other.insertAt(ourNode.ptr, pos);
 		}
@@ -225,6 +217,20 @@ namespace alloc
 			// TODO: Don't deallocate memory until asked to?
 			// Add it to a chain after MyEnd so we don't need to allocate more later?
 			delete pos.ptr;
+		}
+
+		void clear()
+		{
+			for (auto it = begin(); it != MyEnd;)
+			{
+				auto* ptr = it.ptr;
+				++it;
+				delete ptr;
+			}
+
+			MySize			= 0;
+			MyHead->next	= MyEnd;
+			MyEnd->prev		= MyHead;
 		}
 	};
 }

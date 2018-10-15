@@ -14,6 +14,11 @@ constexpr int count = 1024;
 
 struct Large
 {
+	Large()
+	{
+		std::fill(std::begin(ar), std::end(ar), 0);
+	}
+
 	Large(int val)
 	{
 	std::fill(std::begin(ar), std::end(ar), val);
@@ -22,6 +27,11 @@ struct Large
 	Large(int a, int b, int c)
 	{
 		std::fill(std::begin(ar), std::end(ar), a * b * c);
+	}
+
+	~Large()
+	{
+		auto a = 0;
 	}
 
 	std::array<int, count> ar;
@@ -40,10 +50,21 @@ struct Large
 int main()
 {
 	alloc::SlabMem<int> slabM;
-	alloc::SlabObj<int> slabO;
+	alloc::SlabObj<Large> slabO;
 
 	//int* iptr = alloc::allocatePage<int>(50000);
 	//alloc::alignedFree(iptr);
+
+	slabO.addCache<Large>(100);
+
+	for (int i = 0; i < 1000000; ++i)
+	{
+		Large* ptrs[500];
+		for (int i = 0; i < 500; ++i)
+			ptrs[i] = slabO.allocate();
+
+		slabO.freeAll();
+	}
 
 
 	slabM.addCache(sizeof(char), count);
