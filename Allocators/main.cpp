@@ -36,6 +36,7 @@ struct Large
 // Slab Allocation
 // Buddy Allocation
 // Mix Slab Allocation with existing allocators
+// Allocator w/ thread private heaps like Intel's tbb::scalable_allocator<T>
 int main()
 {
 	alloc::Slab<int> slab;

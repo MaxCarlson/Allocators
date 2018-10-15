@@ -68,12 +68,14 @@ namespace alloc
 		void construct(T* ptr) { this->operator()(*ptr); }
 	};
 
-	// Handles default cases for Xtors and calls
-	// T's destructor
+	// Handles the default case in object pools
+	// and does nothing when objects are given back
+	// to a cache in the pool. When a cache is freed
+	// the objects destructor is called.
 	struct DefaultDtor 
 	{
 		template<class T>
-		void operator()(T& t) { t.~T(); }
+		void operator()(T& t) {}
 	};
 
 	inline static DefaultDtor			defaultDtor; // Handles default destructions
@@ -152,8 +154,7 @@ namespace SlabObj
 		{
 			auto idx = static_cast<size_t>((reinterpret_cast<byte*>(ptr) - mem) / sizeof(T));
 			availible.emplace_back(idx); 
-			Cache::xtors->destruct( ptr);
-			Cache::xtors->construct(ptr);
+			Cache::xtors->destruct( ptr); // This defaults to doing nothing, and will only do something if a dtor is passed
 		}
 	};
 
@@ -285,25 +286,25 @@ namespace SlabObj
 		using size_type = size_t;
 
 		template<class T, class Xtors>
-		void addCache(size_type count, Xtors& tors)
+		static void addCache(size_type count, Xtors& tors)
 		{
 			Cache<T, Xtors>::addCache(count, tors);
 		}
 
 		template<class T, class Xtors>
-		T* allocate()
+		static T* allocate()
 		{
 			return Cache<T, Xtors>::allocate();
 		}
 
 		template<class T, class Xtors>
-		void deallocate(T* ptr)
+		static void deallocate(T* ptr)
 		{
 			Cache<T, Xtors>::deallocate(ptr);
 		}
 
 		template<class T, class Xtors>
-		alloc::CacheInfo info() const noexcept
+		static alloc::CacheInfo info() 
 		{
 			return Cache<T, Xtors>::info();
 		}

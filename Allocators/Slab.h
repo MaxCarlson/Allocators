@@ -272,4 +272,36 @@ namespace alloc
 			objStore.deallocate<T, Xtors>(ptr);
 		}
 	};
+
+	template<class Type>
+	class SlabPool
+	{
+	public:
+
+		using size_type = size_t;
+
+		template<class T = Type, class Xtors = SlabObj::DefaultXtor<>>
+		CacheInfo objInfo() const noexcept
+		{
+			return SlabObj::Interface::info<T, Xtors>();
+		}
+
+		template<class T = Type, class Xtors = SlabObj::DefaultXtor<>>
+		void addCache(size_type count, Xtors& xtors = defaultXtor)
+		{
+			SlabObj::Interface::addCache<T, Xtors>(count, xtors);
+		}
+
+		template<class T = Type, class Xtors = SlabObj::DefaultXtor<>>
+		T* allocate()
+		{
+			return SlabObj::Interface::allocate<T, Xtors>();
+		}
+
+		template<class T = Type, class Xtors = SlabObj::DefaultXtor<>>
+		void deallocate(T* ptr)
+		{
+			SlabObj::Interface::deallocate<T, Xtors>(ptr);
+		}
+	};
 }
