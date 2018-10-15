@@ -49,6 +49,16 @@ namespace alloc
 			memStore.addCache(sizeof(T), count);
 		}
 
+		void freeAll(size_type cacheSize)
+		{
+			memStore.freeAll(cacheSize);
+		}
+
+		void freeEmpty(size_type cacheSize)
+		{
+			memStore.freeEmpty(cacheSize);
+		}
+
 		std::vector<CacheInfo> info() const noexcept
 		{
 			return memStore.info();

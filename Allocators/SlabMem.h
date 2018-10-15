@@ -26,10 +26,16 @@ namespace SlabMemImpl
 			std::iota(std::rbegin(availible), std::rend(availible), 0);
 		}
 
-		//~SmallSlab(){ delete mem; } 
-		// TODO: Need a manual destroy func if using vec and moving between vecs?
-		// TODO: operator delete ? with byte* allocated from operator new?
-
+		// TODO: There's a huge issue here with using this
+		// and having the Caches stored in a vector. FIX IT!
+		~Slab()
+		{
+			//if(mem)
+			//	operator delete(mem);
+			//std::vector<int> vec;
+			//vec.~vector<int>();
+		}
+		
 		bool full()			const noexcept { return availible.empty(); }
 		size_type size()	const noexcept { return count - availible.size(); }
 		bool empty()		const noexcept { return availible.size() == count; }
@@ -49,6 +55,7 @@ namespace SlabMemImpl
 		{
 			auto idx = static_cast<size_t>((reinterpret_cast<byte*>(ptr) - mem) / objSize);
 			availible.emplace_back(idx);
+			ptr->~P();
 		}
 
 		template<class P>
@@ -89,7 +96,6 @@ namespace SlabMemImpl
 		{
 			newSlab();
 		}
-
 
 		size_type size()						const noexcept { return mySize; }
 		size_type capacity()					const noexcept { return myCapacity; }
@@ -188,6 +194,22 @@ namespace SlabMemImpl
 
 			--mySize;
 		}
+
+		void freeAll()
+		{
+			slabsFree.clear();
+			slabsPart.clear();
+			slabsFull.clear();
+			myCapacity	= 0;
+			mySize		= 0;
+		}
+
+		void freeEmpty()
+		{
+			myCapacity -= slabsFree.size() * objSize;
+			slabsFree.clear();
+		}
+
 	};
 
 	// Holds all the memory caches 
@@ -256,5 +278,46 @@ namespace SlabMemImpl
 					return;
 				}
 		}
+
+		template<bool all>
+		void freeFunc(size_t cacheSize)
+		{
+			if (cacheSize == 0)
+			{
+				for (It it = std::begin(caches); it != std::end(caches); ++it)
+				{
+					if constexpr (all)
+						it->freeAll();
+					else
+						it->freeEmpty();
+				}
+				return;
+			}
+
+			for (It it = std::begin(caches); it != std::end(caches); ++it)
+				if (it->size() == cacheSize)
+				{
+					if constexpr (all)
+						it->freeAll();
+					else
+						it->freeEmpty();
+					return;
+				}
+		}
+
+		// Free all memory of all caches
+		// If cacheSize is specified, only 
+		// free the memory of that cache (if it exists)
+		void freeAll(size_t cacheSize = 0)
+		{
+			freeFunc<true>(cacheSize);
+		}
+
+		void freeEmpty(size_t cacheSize = 0)
+		{
+			freeFunc<false>(cacheSize);
+		}
+
+
 	};
 }

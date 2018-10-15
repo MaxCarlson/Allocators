@@ -142,7 +142,8 @@ namespace alloc
 			MyHead->next	= MyEnd;
 			MyEnd->prev		= MyHead;
 		}
-
+		
+		//TODO:  How do we square this with keeping it in a vector in SlabMem?
 		~List()
 		{
 			delete MyHead;
