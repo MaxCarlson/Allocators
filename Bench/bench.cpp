@@ -1,5 +1,4 @@
 #include "../Allocators/Slab.h"
-#include "../Allocators/Slab.cpp"
 #include "../Allocators/FreeList.h"
 
 #include <memory>

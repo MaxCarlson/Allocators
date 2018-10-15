@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "CppUnitTest.h"
 #include "../Allocators/Slab.h"
-#include "../Allocators/Slab.cpp"
 #include <random>
 #include <array>
 

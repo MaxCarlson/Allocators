@@ -46,36 +46,6 @@ int main()
 	//alloc::alignedFree(iptr);
 
 
-	SlabObjImpl::Interface itfc;
-
-	auto ll = [&](Large& l) { l = { 12 }; };
-	auto ld = [&]() { return 'c'; };
-
-	alloc::CtorArgs ctorA(1, 2, 3);
-	alloc::XtorFunc ctorL(ll);
-
-	alloc::Xtors prime(ctorL);
-
-	slabO.addCache<Large, decltype(prime)>(142, prime);
-
-	//Large* lp = reinterpret_cast<Large*>( operator new(sizeof(Large)));
-	//prime.construct(lp);
-
-	/*
-	auto ll = [&]() { return 1; };
-
-	SlabObj::CtorFunc ctor(ll);
-
-	auto rt = ctor.func();
-
-	int a = 5;
-	SlabObj::CtorArgs tor(1, 3, 4);
-
-	Large aa(tor.construct<Large>());
-	*/
-
-	itfc.addCache<Large>(128, prime);
-
 	slabM.addCache(sizeof(char), count);
 	slabM.addCache(sizeof(uint16_t), count);
 	slabM.addCache(sizeof(uint32_t), count);
