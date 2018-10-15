@@ -39,13 +39,14 @@ struct Large
 // Allocator w/ thread private heaps like Intel's tbb::scalable_allocator<T>
 int main()
 {
-	alloc::Slab<int> slab;
+	alloc::SlabMem<int> slabM;
+	alloc::SlabObj<int> slabO;
 
 	//int* iptr = alloc::allocatePage<int>(50000);
 	//alloc::alignedFree(iptr);
 
 
-	SlabObj::Interface itfc;
+	SlabObjImpl::Interface itfc;
 
 	auto ll = [&](Large& l) { l = { 12 }; };
 	auto ld = [&]() { return 'c'; };
@@ -55,7 +56,7 @@ int main()
 
 	alloc::Xtors prime(ctorL);
 
-	slab.addObjCache<Large, decltype(prime)>(142, prime);
+	slabO.addCache<Large, decltype(prime)>(142, prime);
 
 	//Large* lp = reinterpret_cast<Large*>( operator new(sizeof(Large)));
 	//prime.construct(lp);
@@ -75,11 +76,11 @@ int main()
 
 	itfc.addCache<Large>(128, prime);
 
-	slab.addMemCache(sizeof(char), count);
-	slab.addMemCache(sizeof(uint16_t), count);
-	slab.addMemCache(sizeof(uint32_t), count);
-	slab.addMemCache(sizeof(uint64_t), count);
-	slab.addMemCache<Large>(count);
+	slabM.addCache(sizeof(char), count);
+	slabM.addCache(sizeof(uint16_t), count);
+	slabM.addCache(sizeof(uint32_t), count);
+	slabM.addCache(sizeof(uint64_t), count);
+	slabM.addCache<Large>(count);
 
 
 	return 0;

@@ -3,7 +3,7 @@
 #include <vector>
 #include <functional>
 
-namespace SlabObj
+namespace SlabObjImpl
 {
 	template<class... Args>
 	struct DefaultXtor
@@ -24,7 +24,7 @@ namespace alloc
 	// object pool
 	// Can be replaced with a XtorFunc (with a function that takes T&)
 	template<class... Args>
-	struct CtorArgs : public SlabObj::DefaultXtor<Args...>
+	struct CtorArgs : public SlabObjImpl::DefaultXtor<Args...>
 	{
 		CtorArgs(Args ...args) : args{ std::forward<Args>(args)... } {}
 		std::tuple<Args ...> args;
@@ -56,7 +56,7 @@ namespace alloc
 	// [](T&){}
 	// Can be used as both a Ctor & Dtor
 	template<class Func>
-	struct XtorFunc : SlabObj::DefaultXtor<Func>
+	struct XtorFunc : SlabObjImpl::DefaultXtor<Func>
 	{
 		XtorFunc(Func& func) : func(func) {}
 		Func& func;
@@ -79,7 +79,7 @@ namespace alloc
 	};
 
 	inline static DefaultDtor			defaultDtor; // Handles default destructions
-	inline static SlabObj::DefaultXtor	defaultXtor; // Handles default construction/destruction
+	inline static SlabObjImpl::DefaultXtor	defaultXtor; // Handles default construction/destruction
 
 	// TODO: Add const?
 	// Wrapper struct for when you need both a Ctor &
@@ -101,7 +101,7 @@ namespace alloc
 	};
 }
 
-namespace SlabObj
+namespace SlabObjImpl
 {
 	using byte = alloc::byte;
 

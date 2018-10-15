@@ -200,7 +200,7 @@ namespace alloc
 	};
 
 	template<class Type>
-	class Slab
+	class SlabMem
 	{
 		// NOTE: as it stands, all of memstores caches need to be instantiated
 		// BEFORE any memory is allocated due the way deallocation works. If any smaller 
@@ -210,9 +210,6 @@ namespace alloc
 		// Useable for memory sizes up to... (per cache) count <= std::numeric_limits<uint16_t>::max()
 		inline static SlabMemInterface memStore;
 
-		// TODO: This doesn't need to be an object, can just use static funcs
-		inline static SlabObj::Interface objStore;
-
 	public:
 
 		using size_type = size_t;
@@ -221,87 +218,63 @@ namespace alloc
 		// no object of type T has been constructed here. Therfore you should
 		// use placement new to create one!
 		template<class T = Type>
-		T* allocateMem()
+		T* allocate()
 		{
 			return memStore.allocate<T>();
 		}
 
 		template<class T>
-		void deallocateMem(T* ptr)
+		void deallocate(T* ptr)
 		{
 			memStore.deallocate(ptr);
 		}
 
-		void addMemCache(size_type objSize, size_type count)
+		void addCache(size_type objSize, size_type count)
 		{
 			memStore.addCache(objSize, count);
 		}
 
 		template<class T = Type>
-		void addMemCache(size_type count)
+		void addCache(size_type count)
 		{
 			memStore.addCache(sizeof(T), count);
 		}
 
-		std::vector<CacheInfo> memInfo() const noexcept
+		std::vector<CacheInfo> info() const noexcept
 		{
 			return memStore.info();
-		}
-
-		template<class T = Type, class Xtors = SlabObj::DefaultXtor<>>
-		CacheInfo objInfo() const noexcept
-		{
-			return objStore.info<T, Xtors>();
-		}
-
-		template<class T = Type, class Xtors = SlabObj::DefaultXtor<>>
-		void addObjCache(size_type count, Xtors& xtors = defaultXtor)
-		{
-			objStore.addCache<T, Xtors>(count, xtors);
-		}
-
-		template<class T = Type, class Xtors = SlabObj::DefaultXtor<>>
-		T* allocateObj()
-		{
-			return objStore.allocate<T, Xtors>();
-		}
-
-		template<class T = Type, class Xtors = SlabObj::DefaultXtor<>>
-		void deallocateObj(T* ptr)
-		{
-			objStore.deallocate<T, Xtors>(ptr);
 		}
 	};
 
 	template<class Type>
-	class SlabPool
+	class SlabObj
 	{
 	public:
 
 		using size_type = size_t;
 
-		template<class T = Type, class Xtors = SlabObj::DefaultXtor<>>
+		template<class T = Type, class Xtors = SlabObjImpl::DefaultXtor<>>
 		CacheInfo objInfo() const noexcept
 		{
-			return SlabObj::Interface::info<T, Xtors>();
+			return SlabObjImpl::Interface::info<T, Xtors>();
 		}
 
-		template<class T = Type, class Xtors = SlabObj::DefaultXtor<>>
+		template<class T = Type, class Xtors = SlabObjImpl::DefaultXtor<>>
 		void addCache(size_type count, Xtors& xtors = defaultXtor)
 		{
-			SlabObj::Interface::addCache<T, Xtors>(count, xtors);
+			SlabObjImpl::Interface::addCache<T, Xtors>(count, xtors);
 		}
 
-		template<class T = Type, class Xtors = SlabObj::DefaultXtor<>>
+		template<class T = Type, class Xtors = SlabObjImpl::DefaultXtor<>>
 		T* allocate()
 		{
-			return SlabObj::Interface::allocate<T, Xtors>();
+			return SlabObjImpl::Interface::allocate<T, Xtors>();
 		}
 
-		template<class T = Type, class Xtors = SlabObj::DefaultXtor<>>
+		template<class T = Type, class Xtors = SlabObjImpl::DefaultXtor<>>
 		void deallocate(T* ptr)
 		{
-			SlabObj::Interface::deallocate<T, Xtors>(ptr);
+			SlabObjImpl::Interface::deallocate<T, Xtors>(ptr);
 		}
 	};
 }

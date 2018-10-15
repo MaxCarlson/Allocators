@@ -7,7 +7,9 @@
 #include "Tests.h"
 
 // Allocators
-alloc::Slab<int> slab;
+alloc::SlabMem<int> slabM;
+alloc::SlabObj<int> slabO;
+
 DefaultAlloc defaultAl;
 constexpr auto FreeListBytes = (sizeof(PartialInit) + sizeof(alloc::FreeList<PartialInit, 999999999>::OurHeader)) * (maxAllocs + 5550);
 
@@ -27,8 +29,8 @@ template<class T, class SlabXtors>
 decltype(auto) allocWrappers()
 {
 	// Wrapped default new/delete alloc 
-	auto DefaultAl = [&]() { return defaultAl.allocateMem<T>(); };
-	auto DefaultDe = [&](auto ptr) { defaultAl.deallocateMem<T>(ptr); };
+	auto DefaultAl = [&]() { return defaultAl.allocate<T>(); };
+	auto DefaultDe = [&](auto ptr) { defaultAl.deallocate<T>(ptr); };
 
 	// FreeList funcs
 	alloc::FreeList<T, FreeListBytes> flal;
@@ -36,12 +38,12 @@ decltype(auto) allocWrappers()
 	auto flDe	= [&](auto ptr) { flal.deallocate(ptr); };
 
 	// Slab mem functions
-	auto sAlMem = [&]() { return slab.allocateMem<T>(); };
-	auto sDeMem = [&](auto ptr) { slab.deallocateMem<T>(ptr); };
+	auto sAlMem = [&]() { return slabM.allocate<T>(); };
+	auto sDeMem = [&](auto ptr) { slabM.deallocate<T>(ptr); };
 
 	// Slab obj functions 
-	auto sAlObj = [&]() { return slab.allocateObj<T, SlabXtors>(); };
-	auto sDeObj = [&](auto ptr) { slab.deallocateObj<T, SlabXtors>(ptr); };
+	auto sAlObj = [&]() { return slabO.allocate<T, SlabXtors>(); };
+	auto sDeObj = [&](auto ptr) { slabO.deallocate<T, SlabXtors>(ptr); };
 
 	std::vector<std::pair<std::function<T*()>,
 		std::function<void(T*)>>> allocs =
@@ -90,13 +92,13 @@ int main()
 	// Add caches for slab allocator
 	// Note: Less caches will make it faster
 	for(int i = 6; i < 13; ++i)
-		slab.addMemCache(1 << i, cacheSz);
-	slab.addMemCache<PartialInit>(cacheSz);
+		slabM.addCache(1 << i, cacheSz);
+	slabM.addCache<PartialInit>(cacheSz);
 
 	// Custom ctor for slabObj PartilInit
 	alloc::CtorArgs lCtor(std::string("Init Test String"));
 	using lCtorT = decltype(lCtor);
-	slab.addObjCache<PartialInit, lCtorT>(maxAllocs, lCtor);
+	slabO.addCache<PartialInit, lCtorT>(maxAllocs, lCtor);
 
 	// Some basic test properties
 	std::vector<bool> defSkips(4, false); // TODO: Not functioning correctly with new test format

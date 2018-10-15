@@ -40,18 +40,20 @@ namespace Tests
 	{
 	public:
 		
-		alloc::Slab<int> slab;
+		alloc::SlabMem<int> slabM;
+		alloc::SlabObj<Large> slabO;
 
 		TEST_CLASS_INITIALIZE(init)
 		{
 			// SlabMem Init
-			alloc::Slab<int> slab;
-			slab.addMemCache(sizeof(int), maxAllocs);
-			slab.addMemCache<Large>(maxAllocs);
+			alloc::SlabMem<int> slabM;
+			slabM.addCache(sizeof(int), maxAllocs);
+			slabM.addCache<Large>(maxAllocs);
 
 			// SlabObj Init
-			slab.addObjCache<Large>(maxAllocs);						// Default Constructor/dtor
-			slab.addObjCache<Large, XtorType>(maxAllocs, xtors);	// Add custom cache with custom ctors/dtors
+			alloc::SlabObj<Large> slabO;
+			slabO.addCache<Large>(maxAllocs);						// Default Constructor/dtor
+			slabO.addCache<Large, XtorType>(maxAllocs, xtors);	// Add custom cache with custom ctors/dtors
 		}
 
 		std::pair<std::vector<int*>, std::vector<Large*>> allocMem(std::vector<int>& order, int seed)
@@ -64,9 +66,9 @@ namespace Tests
 
 			for (int i = 0; i < maxAllocs; ++i)
 			{
-				iptrs[i]	= slab.allocateMem();
+				iptrs[i]	= slabM.allocate();
 				*iptrs[i]	= i;
-				lptrs[i]	= slab.allocateMem<Large>();
+				lptrs[i]	= slabM.allocate<Large>();
 				new (lptrs[i]) Large(i);
 			}
 			return { iptrs, lptrs };
@@ -77,12 +79,12 @@ namespace Tests
 			for (auto idx : order)
 			{
 				Assert::IsTrue(*iptrs[idx] == idx, L"Failed to find an int");
-				slab.deallocateMem(iptrs[idx]);
+				slabM.deallocate(iptrs[idx]);
 
 				for (auto i : (*lptrs[idx]).ar)
 					Assert::IsTrue(i == idx, L"Failed finding a value in Large Struct");
 
-				slab.deallocateMem(lptrs[idx]);
+				slabM.deallocate(lptrs[idx]);
 			}
 		}
 
@@ -91,7 +93,7 @@ namespace Tests
 			std::vector<int> order;
 			auto [iptrs, lptrs] = allocMem(order, 1);
 
-			auto infos = slab.memInfo();
+			auto infos = slabM.info();
 
 			for (const auto& i : infos)
 				Assert::IsTrue(i.size == maxAllocs);
@@ -105,7 +107,7 @@ namespace Tests
 			std::vector<int> order;
 			auto[iptrs, lptrs] = allocMem(order, 2);
 
-			auto infos = slab.memInfo();
+			auto infos = slabM.info();
 
 			for(const auto& i : infos)
 				Assert::IsTrue(i.size == maxAllocs, L"Info incorrect!");
@@ -113,7 +115,7 @@ namespace Tests
 			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(88));
 			deallocMem(iptrs, lptrs, order);
 
-			infos = slab.memInfo();
+			infos = slabM.info();
 
 			for (const auto& i : infos)
 				Assert::IsTrue(i.size == 0, L"Non-zero size after deallocation!");
@@ -130,8 +132,8 @@ namespace Tests
 
 			for (int i = 0; i < maxAllocs; ++i)
 			{
-				def.emplace_back(slab.allocateObj<Large>());
-				custom.emplace_back(slab.allocateObj<Large, XtorType>());
+				def.emplace_back(slabO.allocate<Large>());
+				custom.emplace_back(slabO.allocate<Large, XtorType>());
 			}
 
 			return { def, custom };
@@ -149,14 +151,14 @@ namespace Tests
 			{
 				auto idx = order[i];
 				testLargeForV(def[idx], LargeDefaultCtorVal);
-				slab.deallocateObj<Large>(def[idx]);
+				slabO.deallocate<Large>(def[idx]);
 
 				// Lambda Dtor test vals ( Only changed during Dealloc_Objs)
 				auto prevCount	= DtorCount;
 				auto prevNum	= cus[idx]->ar[0];
 				
 				testLargeForV(cus[idx], 15 * 'a');
-				slab.deallocateObj<Large, XtorType>(cus[idx]);
+				slabO.deallocate<Large, XtorType>(cus[idx]);
 
 				Assert::IsTrue(prevCount + prevNum == DtorCount); // Make sure lambda destructor is being called)
 			}
@@ -175,8 +177,8 @@ namespace Tests
 				testLargeForV(custom[i], 15 * 'a'); 
 			}
 
-			auto infoDef = slab.objInfo<Large>();
-			auto infoCus = slab.objInfo<Large, XtorType>();
+			auto infoDef = slabO.objInfo<Large>();
+			auto infoCus = slabO.objInfo<Large, XtorType>();
 
 			Assert::IsTrue(infoDef.size == maxAllocs);
 			Assert::IsTrue(infoCus.size == maxAllocs);
@@ -191,8 +193,8 @@ namespace Tests
 
 			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(111));
 
-			auto infoDef = slab.objInfo<Large>();
-			auto infoCus = slab.objInfo<Large, XtorType>();
+			auto infoDef = slabO.objInfo<Large>();
+			auto infoCus = slabO.objInfo<Large, XtorType>();
 
 			Assert::IsTrue(infoDef.size == maxAllocs);
 			Assert::IsTrue(infoCus.size == maxAllocs);

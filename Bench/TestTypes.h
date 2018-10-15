@@ -5,10 +5,10 @@
 struct DefaultAlloc
 {
 	template<class T>
-	T* allocateMem() { return reinterpret_cast<T*>(operator new(sizeof(T))); }
+	T* allocate() { return reinterpret_cast<T*>(operator new(sizeof(T))); }
 
 	template<class T>
-	void deallocateMem(T* ptr) { operator delete(ptr); }
+	void deallocate(T* ptr) { operator delete(ptr); }
 };
 
 struct PartialInit
