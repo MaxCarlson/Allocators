@@ -30,10 +30,7 @@ namespace SlabMemImpl
 		// and having the Caches stored in a vector. FIX IT!
 		~Slab()
 		{
-			//if(mem)
-			//	operator delete(mem);
-			//std::vector<int> vec;
-			//vec.~vector<int>();
+			operator delete(mem);
 		}
 		
 		bool full()			const noexcept { return availible.empty(); }
@@ -62,7 +59,7 @@ namespace SlabMemImpl
 		bool containsMem(P* ptr) const noexcept
 		{
 			return (reinterpret_cast<byte*>(ptr) >= mem
-				&& reinterpret_cast<byte*>(ptr) < (mem + (objSize * count)));
+				 && reinterpret_cast<byte*>(ptr) < (mem + (objSize * count)));
 		}
 	};
 
@@ -74,7 +71,6 @@ namespace SlabMemImpl
 		// TODOLIST:
 		// TODO: Better indexing of memory (Coloring offsets to search slabs faster, etc)
 		// TODO: Locking mechanism
-		// TODO: Page alignemnt/Page Sizes for slabs? (possible on windows?)
 		// TODO: Exception Safety 
 
 		using size_type = size_t;
@@ -114,8 +110,8 @@ namespace SlabMemImpl
 			SlabStore* store = nullptr;
 			if (!slabsPart.empty())
 			{
-				slabIt = std::begin(slabsPart);
-				store = &slabsPart;
+				slabIt	= std::begin(slabsPart);
+				store	= &slabsPart;
 			}
 			else
 			{
@@ -123,8 +119,8 @@ namespace SlabMemImpl
 				if (slabsFree.empty())
 					newSlab();
 
-				slabIt = std::begin(slabsFree);
-				store = &slabsFree;
+				slabIt	= std::begin(slabsFree);
+				store	= &slabsFree;
 			}
 
 			return { store, slabIt };
@@ -172,9 +168,8 @@ namespace SlabMemImpl
 			auto[store, it] = searchStore(slabsFull, ptr);
 			// Need to move slab back into partials
 			if (it != slabsFull.end())
-			{
 				slabsFull.giveNode(it, slabsPart, slabsPart.begin());
-			}
+			
 			else
 			{
 				// TODO: Super ugly. Due to not being able to structured bind already initlized variables
@@ -295,7 +290,7 @@ namespace SlabMemImpl
 			}
 
 			for (It it = std::begin(caches); it != std::end(caches); ++it)
-				if (it->size() == cacheSize)
+				if (it->objSize == cacheSize)
 				{
 					if constexpr (all)
 						it->freeAll();
@@ -308,6 +303,10 @@ namespace SlabMemImpl
 		// Free all memory of all caches
 		// If cacheSize is specified, only 
 		// free the memory of that cache (if it exists)
+		//
+		// Note: Do NOT call this if you have objects
+		// that haven't been destructed that need to be,
+		// you'll have a memory leak if you do.
 		void freeAll(size_t cacheSize = 0)
 		{
 			freeFunc<true>(cacheSize);

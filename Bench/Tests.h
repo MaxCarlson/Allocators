@@ -8,8 +8,8 @@
 using Clock = std::chrono::high_resolution_clock;
 
 constexpr auto cacheSz		= 1024;
-constexpr auto iterations	= 10000;
-//constexpr auto iterations	= 1000000;
+//constexpr auto iterations	= 10000;
+constexpr auto iterations	= 1000000;
 constexpr auto maxAllocs	= 9400;
 
 // Holds arguments for all tests of a type
@@ -125,7 +125,11 @@ void randomAlDe(Init init)
 	ptrs.reserve(maxAllocs);
 	
 	for (auto i = 0; i < maxAllocs; ++i)
+	{
 		ptrs.emplace_back(init.alloc());
+		if (init.construct)
+			init.ctor.construct(ptrs.back());
+	}
 
 	std::shuffle(std::begin(ptrs), std::end(ptrs), init.re); // TODO: Should be same shuffle for each test type!
 	
@@ -138,7 +142,7 @@ void randomAlDe(Init init)
 	for (auto i = 0; i < iterations; ++i)
 	{
 		if (deallocs > ptrs.size() || (allocs <= 0 || !ptrs.size()))
-			allocs	= dis(init.re);
+			allocs = dis(init.re);
 
 		else if (deallocs <= 0)
 			deallocs = dis(init.re);
@@ -148,7 +152,7 @@ void randomAlDe(Init init)
 			ptrs.emplace_back(init.alloc());
 
 			if (init.construct)
-				init.ctor.construct(&(*ptrs.back()));
+				init.ctor.construct(ptrs.back());
 			--allocs;
 		}
 		else if (deallocs || ptrs.size() + allocs >= maxAllocs)

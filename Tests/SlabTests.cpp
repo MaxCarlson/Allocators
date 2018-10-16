@@ -9,11 +9,17 @@
 static const int maxAllocs = 64;
 static constexpr int LargeDefaultCtorVal = 1;
 
+static int LargeDtorCounter = 0;
+
 struct Large
 {
 	Large()					: ar(maxAllocs, LargeDefaultCtorVal) {}
 	Large(int val)			: ar(maxAllocs, val) {}
 	Large(int a, char b)	: ar(maxAllocs, a * b) {}
+	~Large()
+	{
+		++LargeDtorCounter;
+	}
 
 	std::vector<int> ar; // TODO: Why does this fail with a vector? Figure it out because we need vec for dtor testing
 };
@@ -120,6 +126,30 @@ namespace Tests
 				Assert::IsTrue(i.size == 0, L"Non-zero size after deallocation!");
 		}
 
+		TEST_METHOD(FreeAll_Mem)
+		{
+			std::vector<int> order;
+			auto[iptrs, lptrs] = allocMem(order, 2);
+
+			auto infos = slabM.info();
+	
+			for (const auto& i : infos)
+				Assert::IsTrue(i.size == maxAllocs, L"Info incorrect!");
+
+			auto preDeallocCnt = LargeDtorCounter;
+			slabM.freeAll(sizeof(int));
+			slabM.freeAll(sizeof(Large));
+
+			// SlabMem.freeAll does NOT call dtors (how could it know what fills what?)
+			Assert::IsTrue(LargeDtorCounter == preDeallocCnt);
+
+			infos = slabM.info();
+			Assert::IsTrue(infos[0].size == 0);
+			Assert::IsTrue(infos[1].size == 0);
+			Assert::IsTrue(infos[0].capacity == 0);
+			Assert::IsTrue(infos[1].capacity == 0);
+		}
+
 		//								//
 		// SlabObj test functions below //
 		//								//
@@ -199,6 +229,34 @@ namespace Tests
 			Assert::IsTrue(infoCus.size == maxAllocs);
 
 			deallocObjs(def, custom, order);
+		}
+
+		TEST_METHOD(FreeAll_Objs)
+		{
+			auto[def, custom]	= allocateObjs();
+			auto infoDef		= slabO.objInfo<Large>();
+			auto infoCus		= slabO.objInfo<Large, XtorType>();
+			Assert::IsTrue(infoDef.size == maxAllocs);
+			Assert::IsTrue(infoCus.size == maxAllocs);
+
+			// Measure the number of Large destructors called
+			// to make sure the objects are being destroyed when freeing
+			auto preDtorCount = LargeDtorCounter;
+
+			slabO.freeAll<Large>();
+			Assert::IsTrue(LargeDtorCounter == preDtorCount + infoDef.capacity);
+
+			preDtorCount = LargeDtorCounter;
+			slabO.freeAll<Large, XtorType>();
+			Assert::IsTrue(LargeDtorCounter == preDtorCount + infoCus.capacity);
+
+
+			infoDef = slabO.objInfo<Large>();
+			infoCus = slabO.objInfo<Large, XtorType>();
+			Assert::IsTrue(infoDef.size == 0);
+			Assert::IsTrue(infoCus.size == 0);
+			Assert::IsTrue(infoDef.capacity == 0);
+			Assert::IsTrue(infoCus.capacity == 0);
 		}
 	};
 }
