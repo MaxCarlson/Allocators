@@ -8,8 +8,8 @@
 using Clock = std::chrono::high_resolution_clock;
 
 constexpr auto cacheSz		= 1024;
-//constexpr auto iterations	= 10000;
-constexpr auto iterations	= 1000000;
+constexpr auto iterations	= 10000;
+//constexpr auto iterations	= 1000000;
 constexpr auto maxAllocs	= 9400;
 
 // Holds arguments for all tests of a type
@@ -83,6 +83,7 @@ void basicAlloc(Init init)
 
 		if (init.construct)
 			init.ctor.construct(ptrs[idx]);
+		++idx;
 	}
 
 	auto end = Clock::now();
@@ -98,13 +99,8 @@ void basicAlDeal(Init init)
 {
 	auto start = Clock::now();
 
-	size_t num = 0;
-	size_t idx = 0;
 	for (int i = 0; i < iterations; ++i)
 	{
-		if (i % maxAllocs == 0)
-			idx = 0;
-
 		auto* loc = init.alloc();
 
 		if (init.construct)
@@ -114,7 +110,7 @@ void basicAlDeal(Init init)
 	}
 
 	auto end = Clock::now();
-	std::cout << init.name << " Time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " " << num << '\n';
+	std::cout << init.name << " Time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << '\n';
 }
 
 template<class Init>
@@ -141,15 +137,18 @@ void randomAlDe(Init init)
 
 	for (auto i = 0; i < iterations; ++i)
 	{
-		if (deallocs > ptrs.size() || (allocs == 0 || !ptrs.size()))
+		if (deallocs > ptrs.size() || (allocs <= 0 || !ptrs.size()))
 			allocs	= dis(init.re);
 
-		else if (deallocs == 0)
+		else if (deallocs <= 0)
 			deallocs = dis(init.re);
 
 		if (allocs && ptrs.size() < maxAllocs)
 		{
 			ptrs.emplace_back(init.alloc());
+
+			if (init.construct)
+				init.ctor.construct(&(*ptrs.back()));
 			--allocs;
 		}
 		else if (deallocs || ptrs.size() + allocs >= maxAllocs)

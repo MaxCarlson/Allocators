@@ -53,7 +53,7 @@ namespace SlabMemImpl
 		template<class P>
 		void deallocate(P* ptr)
 		{
-			auto idx = static_cast<size_t>((reinterpret_cast<byte*>(ptr) - mem) / objSize);
+			auto idx = static_cast<size_type>((reinterpret_cast<byte*>(ptr) - mem) / objSize);
 			availible.emplace_back(idx);
 			ptr->~P();
 		}

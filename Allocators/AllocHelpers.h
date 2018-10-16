@@ -133,6 +133,19 @@ namespace alloc
 			Node* ptr;
 		};
 
+	private:
+
+		void otherMove(List&& other)
+		{
+			MySize			= other.MySize;
+			MyHead			= other.MyHead;
+			MyEnd			= other.MyEnd;
+			other.MyHead	= nullptr;
+			other.MyEnd		= nullptr;
+		}
+
+	public:
+
 		List()
 		{
 			MyHead			= new Node{};
@@ -141,6 +154,17 @@ namespace alloc
 			MyHead->prev	= MyEnd->next = nullptr;
 			MyHead->next	= MyEnd;
 			MyEnd->prev		= MyHead;
+		}
+
+		List(List&& other)
+		{
+			otherMove(std::move(other));
+		}
+
+		List& operator=(List&& other)
+		{
+			otherMove(std::move(other));
+			return *this;
 		}
 		
 		//TODO:  How do we square this with keeping it in a vector in SlabMem?
