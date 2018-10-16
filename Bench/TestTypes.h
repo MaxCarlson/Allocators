@@ -23,6 +23,18 @@ struct PartialInit
 	std::string name;
 };
 
+struct SimpleStruct
+{
+	SimpleStruct(int a, int b, size_t e, size_t f) : a(a), b(b), c(a), d(b), e(e), f(f) {}
+
+	int a;
+	int b;
+	int c;
+	int d;
+	size_t e;
+	size_t f;
+};
+
 struct FullInit
 {
 	FullInit() = default;

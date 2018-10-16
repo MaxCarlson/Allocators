@@ -95,9 +95,13 @@ int main()
 	slabM.addCache<PartialInit>(cacheSz);
 
 	// Custom ctor for slabObj PartilInit
-	alloc::CtorArgs lCtor(std::string("Init Test String"));
-	using lCtorT = decltype(lCtor);
-	slabO.addCache<PartialInit, lCtorT>(maxAllocs, lCtor);
+	alloc::CtorArgs piCtor(std::string("Init Test String"));
+	using piCtorT = decltype(piCtor);
+	alloc::CtorArgs ssCtor(1, 2, 3ULL, 4ULL);
+	using ssCtorT = decltype(ssCtor);
+
+	slabO.addCache<PartialInit, piCtorT>(cacheSz, piCtor);
+	slabO.addCache<SimpleStruct, ssCtorT>(cacheSz, ssCtor);
 
 	// Some basic test properties
 	std::vector<bool> defSkips(4, false); // TODO: Not functioning correctly with new test format
@@ -105,14 +109,11 @@ int main()
 	std::vector<std::string> names	= { "Default", "FreeList", "SlabMem", "SlabObj" };
 
 	// Initilize test arguments/funcs/xtors
-	TestInit<PartialInit> testPi(names, construct, defSkips, allocWrappers<PartialInit, lCtorT>());
+	TestInit<PartialInit> testPi(names, construct, defSkips, allocWrappers<PartialInit, piCtorT>());
+	callTests<PartialInit, piCtorT>(testPi, piCtor);
 
-	// Init ctor for PartialInit class testing
-	alloc::CtorArgs piArgs(std::string("Init Test String"));
-
-	callTests<PartialInit, decltype(piArgs)>(testPi, piArgs);
-
-
+	TestInit<SimpleStruct> testSS(names, construct, defSkips, allocWrappers<SimpleStruct, ssCtorT>());
+	callTests<SimpleStruct, ssCtorT>(testSS, ssCtor);
 
 	return 0;
 }
