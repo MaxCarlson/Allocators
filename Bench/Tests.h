@@ -9,8 +9,8 @@ using Clock = std::chrono::high_resolution_clock;
 
 constexpr auto cacheSz		= 1024;
 //constexpr auto iterations	= 10000;
-constexpr auto iterations	= 1000000;
-constexpr auto maxAllocs	= 9400;
+constexpr auto iterations	= 5000000;
+constexpr auto maxAllocs	= 22000;
 
 // Holds arguments for all tests of a type
 template<class T>
@@ -91,7 +91,7 @@ void basicAlloc(Init init)
 	for (auto ptr : ptrs)
 		init.dealloc(ptr);
 
-	std::cout << init.name << " Time: " << std::chrono::duration_cast<TimeType>(end - start).count() - deallocTime << " " << num << '\n';
+	std::cout << init.name << " Time: " << std::chrono::duration_cast<TimeType>(end - start).count() - deallocTime << " " << TestV << '\n';
 }
 
 template<class Init>
@@ -110,7 +110,7 @@ void basicAlDeal(Init init)
 	}
 
 	auto end = Clock::now();
-	std::cout << init.name << " Time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << '\n';
+	std::cout << init.name << " Time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << ' ' << TestV << '\n';
 }
 
 template<class Init>
@@ -167,5 +167,5 @@ void randomAlDe(Init init)
 		init.dealloc(ptr);
 
 	auto end = Clock::now();
-	std::cout << init.name << " Time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << '\n';
+	std::cout << init.name << " Time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << ' ' << TestV << '\n';
 }

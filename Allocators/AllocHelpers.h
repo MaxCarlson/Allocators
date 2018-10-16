@@ -10,14 +10,18 @@ namespace alloc
 {
 	using byte = unsigned char;
 
-	// TODO: Saving this for later,
-	// Will be testing to see how page alignemnt/coloring helps performance
-	// Will make portable if I find it's working
+	// TODO: Linux #ifdef
 	inline size_t pageSize()
 	{
-		SYSTEM_INFO systemInfo;
-		GetSystemInfo(&systemInfo);
-		return systemInfo.dwPageSize;
+		static SYSTEM_INFO systemInfo;
+		auto l = [&]() 
+		{
+			GetSystemInfo(&systemInfo); 
+			return systemInfo.dwPageSize;
+		};
+		static size_t pgSz = l();
+		
+		return pgSz;
 	}
 
 	template<class T>

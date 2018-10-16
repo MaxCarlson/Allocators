@@ -11,11 +11,31 @@ struct DefaultAlloc
 	void deallocate(T* ptr) { operator delete(ptr); }
 };
 
+inline static int TestV = 0;
+
 struct PartialInit
 {
 	PartialInit(const std::string& name) : name(name) 
 	{
+		TestV += name[0];
 	}
 
 	std::string name;
+};
+
+struct FullInit
+{
+	FullInit() = default;
+	FullInit(int count) : count(count)
+	{
+		others = new FullInit[count];
+	}
+
+	~FullInit()
+	{
+		delete[] others;
+	}
+
+	int count;
+	FullInit* others;
 };
