@@ -201,11 +201,11 @@ namespace alloc
 
 		iterator insertAt(Node* n, iterator it)
 		{
-			Node* prev = it.ptr->prev;
-			prev->next = n;
-			n->next = it.ptr;
-			n->prev = prev;
-			it.ptr->prev = n;
+			Node* prev		= it.ptr->prev;
+			prev->next		= n;
+			n->next			= it.ptr;
+			n->prev			= prev;
+			it.ptr->prev	= n;
 
 			++MySize;
 			return iterator{ n };

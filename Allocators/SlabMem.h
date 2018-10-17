@@ -12,7 +12,7 @@ namespace SlabMemImpl
 	private:
 		using size_type = size_t;
 
-		byte* mem;
+		byte* mem = nullptr;
 		size_type objSize;
 		size_type count;
 		std::vector<uint16_t> availible;
@@ -30,7 +30,8 @@ namespace SlabMemImpl
 		// and having the Caches stored in a vector. FIX IT!
 		~Slab()
 		{
-			operator delete(mem);
+			if(mem)
+				operator delete(mem);
 		}
 		
 		bool full()			const noexcept { return availible.empty(); }
@@ -300,19 +301,12 @@ namespace SlabMemImpl
 				}
 		}
 
-		// Free all memory of all caches
-		// If cacheSize is specified, only 
-		// free the memory of that cache (if it exists)
-		//
-		// Note: Do NOT call this if you have objects
-		// that haven't been destructed that need to be,
-		// you'll have a memory leak if you do.
-		void freeAll(size_t cacheSize = 0)
+		void freeAll(size_t cacheSize)
 		{
 			freeFunc<true>(cacheSize);
 		}
 
-		void freeEmpty(size_t cacheSize = 0)
+		void freeEmpty(size_t cacheSize)
 		{
 			freeFunc<false>(cacheSize);
 		}

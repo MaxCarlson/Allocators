@@ -111,7 +111,7 @@ namespace SlabObjImpl
 	template<class T, class Cache, class Xtors>
 	struct Slab
 	{
-		byte*					mem;
+		byte*					mem = nullptr;
 		size_t					count;
 		std::vector<uint16_t>	availible;
 		
@@ -130,6 +130,9 @@ namespace SlabObjImpl
 
 		~Slab()
 		{
+			if (!mem)
+				return;
+
 			for (auto i = 0; i < count; ++i)
 				reinterpret_cast<T*>(mem + sizeof(T) * i)->~T();
 

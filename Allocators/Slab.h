@@ -49,12 +49,19 @@ namespace alloc
 			memStore.addCache(sizeof(T), count);
 		}
 
-		void freeAll(size_type cacheSize)
+		// Free all memory of all caches
+		// If cacheSize is specified, only 
+		// free the memory of that cache (if it exists)
+		//
+		// Note: Do NOT call this if you have objects
+		// that haven't been destructed that need to be,
+		// you'll have a memory leak if you do.
+		void freeAll(size_type cacheSize = 0)
 		{
 			memStore.freeAll(cacheSize);
 		}
 
-		void freeEmpty(size_type cacheSize)
+		void freeEmpty(size_type cacheSize = 0)
 		{
 			memStore.freeEmpty(cacheSize);
 		}
@@ -103,7 +110,7 @@ namespace alloc
 		}
 
 		template<class T = Type, class Xtors = SlabObjImpl::DefaultXtor<>>
-		static CacheInfo objInfo() const noexcept
+		static CacheInfo objInfo() 
 		{
 			return SlabObjImpl::Interface::info<T, Xtors>();
 		}

@@ -121,7 +121,7 @@ int main()
 
 	alloc::SlabObj<PartialInit>::freeAll();
 	alloc::SlabObj<SimpleStruct>::freeAll();
-
+	slabM.freeAll();
 
 	std::cout << "\nOptimization var: " << TestV << '\n';
 	return 0;
