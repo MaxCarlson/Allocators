@@ -52,6 +52,22 @@ struct IdvTestInit
 };
 
 template<class Init>
+decltype(auto) allocateMax(Init& init)
+{
+	using T = typename Init::MyType;
+	std::vector<T*> ptrs;
+	ptrs.reserve(maxAllocs);
+
+	for (auto i = 0; i < maxAllocs; ++i)
+	{
+		ptrs.emplace_back(init.alloc());
+		if (init.construct)
+			init.ctor.construct(ptrs.back());
+	}
+	return ptrs;
+}
+
+template<class Init>
 void basicAlloc(Init init)
 {
 	using T = typename Init::MyType;
@@ -122,17 +138,9 @@ void randomAlDe(Init init)
 
 	static constexpr int IN_ROW = 5;
 	
-	std::vector<T*> ptrs;
-	ptrs.reserve(maxAllocs);
-	
-	for (auto i = 0; i < maxAllocs; ++i)
-	{
-		ptrs.emplace_back(init.alloc());
-		if (init.construct)
-			init.ctor.construct(ptrs.back());
-	}
+	auto ptrs = allocateMax(init);
 
-	std::shuffle(std::begin(ptrs), std::end(ptrs), init.re); // TODO: Should be same shuffle for each test type!
+	std::shuffle(std::begin(ptrs), std::end(ptrs), init.re); 
 	
 	auto start = Clock::now();
 
@@ -172,7 +180,16 @@ void randomAlDe(Init init)
 	std::cout << init.name << " Time: " << std::chrono::duration_cast<TimeType>(end - start).count() << '\n';
 }
 
-// Find a good way to test things like lots of local access,
+// TODO: Should we make functions to handle different
+// types of allocation, then use those in other functions with more specific benchmarks,
+// to reduce need to re-write randomized allocation/deallocatin code for example?
+template<class Init>
+void randomAlDe(Init& init)
+{
+
+}
+
+// TODO: Find a good way to test things like lots of local access,
 // accessing different caches in the alloc if applicable, etc
 template<class Init>
 void memUsageAl(Init init)
@@ -180,6 +197,10 @@ void memUsageAl(Init init)
 	using T			= typename Init::MyType;
 	using TimeType	= std::chrono::milliseconds;
 
+	auto ptrs = allocateMax(init);
+	std::shuffle(std::begin(ptrs), std::end(ptrs), init.re); 
+
+	auto start = Clock::now();
 
 }
 
