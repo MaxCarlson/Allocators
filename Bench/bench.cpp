@@ -81,18 +81,21 @@ template<class T, class Ctor>
 void callTests(TestInit<T>& init, Ctor& ctor)
 {
 	using FuncType = IdvTestInit<T, Ctor>;
-	runTest("Basic Alloc", init,		 &basicAlloc<FuncType>,  ctor);
-	runTest("Basic Alloc/Dealloc", init, &basicAlDeal<FuncType>, ctor);
-	runTest("Random Al/De", init,		 &randomAlDe<FuncType>,  ctor);
+	runTest("Basic Alloc", init,	&basicAlloc<FuncType>,  ctor);
+	runTest("Basic Al/De", init,	&basicAlDeal<FuncType>, ctor);
+	runTest("Random Al/De", init,	&randomAlDe<FuncType>,  ctor);
 }
 
+//
+// TODO: NEED to clear caches after each test/type
+// to free memory from Allocs that pool mem/objects
+//
 int main()
 {
 	// Add caches for slab allocator
 	// Note: Less caches will make it faster
-	for(int i = 6; i < 13; ++i)
-		slabM.addCache(1 << i, cacheSz);
-	slabM.addCache<PartialInit>(cacheSz);
+	for(int i = 5; i < 13; ++i)
+		slabM.addCache(1 << i, cacheSz); 
 
 	// Custom ctor for slabObj PartilInit
 	alloc::CtorArgs piCtor(std::string("Init Test String"));
@@ -115,5 +118,11 @@ int main()
 	TestInit<SimpleStruct> testSS(names, construct, defSkips, allocWrappers<SimpleStruct, ssCtorT>());
 	callTests<SimpleStruct, ssCtorT>(testSS, ssCtor);
 
+
+	alloc::SlabObj<PartialInit>::freeAll();
+	alloc::SlabObj<SimpleStruct>::freeAll();
+
+
+	std::cout << "\nOptimization var: " << TestV << '\n';
 	return 0;
 }

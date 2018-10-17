@@ -25,7 +25,7 @@ struct PartialInit
 
 struct SimpleStruct
 {
-	SimpleStruct(int a, int b, size_t e, size_t f) : a(a), b(b), c(a), d(b), e(e), f(f) {}
+	SimpleStruct(int a, int b, size_t e, size_t f) : a(a), b(b), c(a), d(b), e(e), f(f) { TestV += a + b + c + d + e + f; }
 
 	int a;
 	int b;

@@ -141,9 +141,9 @@ namespace alloc
 
 		void otherMove(List&& other)
 		{
-			MySize			= other.MySize;
-			MyHead			= other.MyHead;
-			MyEnd			= other.MyEnd;
+			MySize			= std::move(other.MySize);
+			MyHead			= std::move(other.MyHead);
+			MyEnd			= std::move(other.MyEnd);
 			other.MyHead	= nullptr;
 			other.MyEnd		= nullptr;
 		}
@@ -174,6 +174,15 @@ namespace alloc
 		//TODO:  How do we square this with keeping it in a vector in SlabMem?
 		~List()
 		{
+			if (MyHead && MySize)
+			{
+				for (iterator it = begin(); it != end();)
+				{
+					Node* p = it.ptr;
+					++it;
+					delete p;
+				}
+			}
 			delete MyHead;
 			delete MyEnd;
 		}

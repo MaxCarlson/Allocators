@@ -119,8 +119,8 @@ namespace SlabObjImpl
 		Slab(size_t count) : count(count), availible(count)
 		{
 			//mem = alloc::allocatePage<byte>(sizeof(T) * count);
-			//mem = reinterpret_cast<byte*>(operator new(sizeof(T) * count));
-			mem = reinterpret_cast<byte*>(operator new(sizeof(T) * count, static_cast<std::align_val_t>(alloc::pageSize())));
+			mem = reinterpret_cast<byte*>(operator new(sizeof(T) * count));
+			//mem = reinterpret_cast<byte*>(operator new(sizeof(T) * count, static_cast<std::align_val_t>(alloc::pageSize())));
 
 			std::iota(std::rbegin(availible), std::rend(availible), 0);
 
@@ -134,8 +134,8 @@ namespace SlabObjImpl
 				reinterpret_cast<T*>(mem + sizeof(T) * i)->~T();
 
 			//alloc::alignedFree(mem);
-			//operator delete(reinterpret_cast<void*>(mem));
-			operator delete(mem, static_cast<std::align_val_t>(alloc::pageSize()));
+			operator delete(reinterpret_cast<void*>(mem));
+			//operator delete(mem, static_cast<std::align_val_t>(alloc::pageSize()));
 		}
 
 		bool full()			const noexcept { return availible.empty(); }
