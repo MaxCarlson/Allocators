@@ -4,12 +4,13 @@
 #include <chrono>
 #include <iostream>
 #include <random>
+#include <iomanip>
 
 using Clock = std::chrono::high_resolution_clock;
 
 constexpr auto cacheSz		= 1024;
-constexpr auto iterations	= 1000;
-//constexpr auto iterations	= 5000000;
+//constexpr auto iterations	= 1000;
+constexpr auto iterations	= 5000000;
 constexpr auto maxAllocs	= 22000;
 
 // Holds arguments for all tests of a type
@@ -56,7 +57,6 @@ void basicAlloc(Init init)
 	using T = typename Init::MyType;
 	using TimeType = std::chrono::milliseconds;
 
-	size_t num = 0;
 	size_t idx = 0;
 	size_t deallocTime = 0;
 	std::vector<T*> ptrs;
@@ -91,7 +91,8 @@ void basicAlloc(Init init)
 	for (auto ptr : ptrs)
 		init.dealloc(ptr);
 
-	std::cout << init.name << " Time: " << std::chrono::duration_cast<TimeType>(end - start).count() - deallocTime << '\n';
+	std::cout << init.name << " Alloc time: " << std::setw(3) << std::chrono::duration_cast<TimeType>(end - start).count() - deallocTime << ' ';
+	std::cout << "Dealloc time: " << deallocTime << "\n\n";
 }
 
 template<class Init>
@@ -168,5 +169,18 @@ void randomAlDe(Init init)
 	for (auto& ptr : ptrs)
 		init.dealloc(ptr);
 
-	std::cout << init.name << " Time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << '\n';
+	std::cout << init.name << " Time: " << std::chrono::duration_cast<TimeType>(end - start).count() << '\n';
 }
+
+// Find a good way to test things like lots of local access,
+// accessing different caches in the alloc if applicable, etc
+template<class Init>
+void memUsageAl(Init init)
+{
+	using T			= typename Init::MyType;
+	using TimeType	= std::chrono::milliseconds;
+
+
+}
+
+// TODO: Concurrency Benchmarks

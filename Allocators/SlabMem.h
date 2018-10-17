@@ -12,15 +12,16 @@ namespace SlabMemImpl
 	private:
 		using size_type = size_t;
 
-		byte* mem = nullptr;
-		size_type objSize;
-		size_type count;
-		std::vector<uint16_t> availible;
+		byte*					mem;
+		size_type				objSize;
+		size_type				count;
+		std::vector<uint16_t>	availible;
 
 	public:
 
-		Slab() = default;
-		Slab(size_t objSize, size_t count) : objSize(objSize), count(count), availible(count)
+		Slab() : mem{ nullptr } {}
+		Slab(size_t objSize, size_t count) 
+			: objSize{ objSize }, count{ count }, availible(count)
 		{
 			mem = reinterpret_cast<byte*>(operator new(objSize * count));
 			std::iota(std::rbegin(availible), std::rend(availible), 0);

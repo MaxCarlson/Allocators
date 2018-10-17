@@ -10,7 +10,7 @@ alloc::SlabMem<int> slabM;
 alloc::SlabObj<int> slabO;
 
 DefaultAlloc defaultAl;
-constexpr auto FreeListBytes = (sizeof(PartialInit) + sizeof(alloc::FreeList<PartialInit, 999999999>::OurHeader)) * (maxAllocs + 5550);
+constexpr auto FreeListBytes = (sizeof(PartialInit) + sizeof(alloc::FreeList<PartialInit, 999999999>::OurHeader)) * (maxAllocs * 2);
 
 enum WrapIdx
 {
@@ -81,9 +81,9 @@ template<class T, class Ctor>
 void callTests(TestInit<T>& init, Ctor& ctor)
 {
 	using FuncType = IdvTestInit<T, Ctor>;
-	runTest("Basic Alloc", init,	&basicAlloc<FuncType>,  ctor);
-	runTest("Basic Al/De", init,	&basicAlDeal<FuncType>, ctor);
-	runTest("Random Al/De", init,	&randomAlDe<FuncType>,  ctor);
+	runTest("Basic Alloc",   init,	&basicAlloc<FuncType>,  ctor);
+	runTest("Basic Al/De",   init,	&basicAlDeal<FuncType>, ctor);
+	runTest("Random Al/De",  init,	&randomAlDe<FuncType>,  ctor);
 }
 
 //
@@ -97,10 +97,11 @@ int main()
 	for(int i = 5; i < 13; ++i)
 		slabM.addCache(1 << i, cacheSz); 
 
-	// Custom ctor for slabObj PartilInit
+	// Custom ctor for slabObj test structs
 	alloc::CtorArgs piCtor(std::string("Init Test String"));
-	using piCtorT = decltype(piCtor);
 	alloc::CtorArgs ssCtor(1, 2, 3ULL, 4ULL);
+	
+	using piCtorT = decltype(piCtor);
 	using ssCtorT = decltype(ssCtor);
 
 	slabO.addCache<PartialInit, piCtorT>(cacheSz, piCtor);
@@ -119,9 +120,9 @@ int main()
 	callTests<SimpleStruct, ssCtorT>(testSS, ssCtor);
 
 
-	alloc::SlabObj<PartialInit>::freeAll();
-	alloc::SlabObj<SimpleStruct>::freeAll();
-	slabM.freeAll();
+	//alloc::SlabObj<PartialInit>::freeAll();
+	//alloc::SlabObj<SimpleStruct>::freeAll();
+	//slabM.freeAll();
 
 	std::cout << "\nOptimization var: " << TestV << '\n';
 	return 0;

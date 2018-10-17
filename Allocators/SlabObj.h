@@ -111,12 +111,12 @@ namespace SlabObjImpl
 	template<class T, class Cache, class Xtors>
 	struct Slab
 	{
-		byte*					mem = nullptr;
+		byte*					mem;
 		size_t					count;
 		std::vector<uint16_t>	availible;
 		
-		Slab() = default;
-		Slab(size_t count) : count(count), availible(count)
+		Slab() : mem{ nullptr } {}
+		Slab(size_t count) : count{ count }, availible(count)
 		{
 			//mem = alloc::allocatePage<byte>(sizeof(T) * count);
 			mem = reinterpret_cast<byte*>(operator new(sizeof(T) * count));
