@@ -6,7 +6,8 @@
 #include <random>
 #include <iomanip>
 
-using Clock = std::chrono::high_resolution_clock;
+using Clock		= std::chrono::high_resolution_clock;
+using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
 
 constexpr auto cacheSz		= 1024;
 //constexpr auto iterations	= 1000;
@@ -67,14 +68,23 @@ decltype(auto) allocateMax(Init& init)
 	return ptrs;
 }
 
+template<class TimeType>
+void printTime(TimePoint start, TimePoint end, std::string str, int delta = 0, bool newLine = true)
+{
+	auto dt = std::chrono::duration_cast<TimeType>(end - start).count() + delta;
+	std::cout << std::right << std::setw(4) << str << std::setw(5) << dt << ' ';
+	if (newLine)
+		std::cout << '\n';
+}
+
 template<class Init>
 void basicAlloc(Init init)
 {
 	using T = typename Init::MyType;
 	using TimeType = std::chrono::milliseconds;
 
-	size_t idx = 0;
-	size_t deallocTime = 0;
+	int idx = 0;
+	int deallocTime = 0;
 	std::vector<T*> ptrs;
 	ptrs.reserve(maxAllocs);
 
@@ -106,9 +116,12 @@ void basicAlloc(Init init)
 
 	for (auto ptr : ptrs)
 		init.dealloc(ptr);
+	
+	//printTime<TimeType>(start, end, init.name + " Al: ", -deallocTime, false);
+	//printTime<TimeType>(TimePoint{}, TimePoint{}, "De: ");
 
-	std::cout << init.name << " Alloc time: " << std::setw(3) << std::chrono::duration_cast<TimeType>(end - start).count() - deallocTime << ' ';
-	std::cout << "Dealloc time: " << deallocTime << "\n\n";
+	std::cout << init.name << std::setw(3) << " Al: " << std::setw(5) << std::chrono::duration_cast<TimeType>(end - start).count() - deallocTime << ' ';
+	std::cout << "De: "  << std::setw(5) << deallocTime << "\n";
 }
 
 template<class Init>
@@ -184,7 +197,7 @@ void randomAlDe(Init init)
 // types of allocation, then use those in other functions with more specific benchmarks,
 // to reduce need to re-write randomized allocation/deallocatin code for example?
 template<class Init>
-void randomAlDe(Init& init)
+void randomAlDeImpl(Init& init)
 {
 
 }
@@ -192,7 +205,7 @@ void randomAlDe(Init& init)
 // TODO: Find a good way to test things like lots of local access,
 // accessing different caches in the alloc if applicable, etc
 template<class Init>
-void memUsageAl(Init init)
+void memAccess(Init init)
 {
 	using T			= typename Init::MyType;
 	using TimeType	= std::chrono::milliseconds;
@@ -200,8 +213,23 @@ void memUsageAl(Init init)
 	auto ptrs = allocateMax(init);
 	std::shuffle(std::begin(ptrs), std::end(ptrs), init.re); 
 
+
+	auto dis = std::uniform_int_distribution<int>(0, ptrs.size() - 1);
+
 	auto start = Clock::now();
 
+	for (auto i = 0; i < iterations; ++i)
+	{
+		auto idx = dis(init.re);
+		ptrs[idx]->meddle();
+	}
+
+	auto end = Clock::now();
+
+	for (auto& ptr : ptrs)
+		init.dealloc(ptr);
+
+	printTime<TimeType>(start, end, init.name);
 }
 
 // TODO: Concurrency Benchmarks

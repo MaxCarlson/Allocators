@@ -20,12 +20,29 @@ struct PartialInit
 		TestV += name[0];
 	}
 
+	void meddle()
+	{
+		name[1] += name[3];
+		TestV += name[0] + name[1] + name[2] + name[3];
+	}
+
 	std::string name;
 };
 
 struct SimpleStruct
 {
 	SimpleStruct(int a, int b, size_t e, size_t f) : a(a), b(b), c(a), d(b), e(e), f(f) { TestV += a + b + c + d + e + f; }
+
+	void meddle()
+	{
+		a = d + b;
+		b = c + c;
+		c = a + b;
+		d = e + f;
+		e = f + a;
+		f = a + e;
+		TestV += a + b + c + d + e + f;
+	}
 
 	int a;
 	int b;

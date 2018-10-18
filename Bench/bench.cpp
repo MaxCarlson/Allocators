@@ -84,11 +84,15 @@ void callTests(TestInit<T>& init, Ctor& ctor)
 	runTest("Basic Alloc",   init,	&basicAlloc<FuncType>,  ctor);
 	runTest("Basic Al/De",   init,	&basicAlDeal<FuncType>, ctor);
 	runTest("Random Al/De",  init,	&randomAlDe<FuncType>,  ctor);
+	runTest("Random Access", init,	&memAccess<FuncType>,	ctor);
+
 }
 
 //
 // TODO: NEED to clear caches after each test/type
 // to free memory from Allocs that pool mem/objects
+//
+// TODO: Reduce test complexity, especially init objects
 //
 int main()
 {
