@@ -230,7 +230,7 @@ void memAccess(Init& init, bool seq)
 	for (auto& ptr : ptrs)
 		init.dealloc(ptr);
 
-	printTime<TimeType>(start, end, init.name);
+	printTime<TimeType>(start, end, init.name + ' ');
 }
 
 template<class Init>

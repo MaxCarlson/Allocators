@@ -88,6 +88,8 @@ void callTests(TestInit<T>& init, Ctor& ctor)
 	runTest("Seq Access",	 init,	&sMemAccess<FuncType>,	ctor);
 }
 
+// TOP TODO: NEED to redo bench format so allocators can be rebound
+// so we can test multiple type/size allocations at once
 //
 // TODO: NEED to clear caches after each test/type
 // to free memory from Allocs that pool mem/objects

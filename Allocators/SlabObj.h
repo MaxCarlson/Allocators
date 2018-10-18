@@ -118,12 +118,14 @@ namespace SlabObjImpl
 		Slab() : mem{ nullptr } {}
 		Slab(size_t count) : count{ count }, availible(count)
 		{
-			//mem = alloc::allocatePage<byte>(sizeof(T) * count);
 			mem = reinterpret_cast<byte*>(operator new(sizeof(T) * count));
+			//mem = alloc::alignedAlloc<byte>(sizeof(T) * count, alloc::pageSize());
 			//mem = reinterpret_cast<byte*>(operator new(sizeof(T) * count, static_cast<std::align_val_t>(alloc::pageSize())));
 
 			std::iota(std::rbegin(availible), std::rend(availible), 0);
 
+			// TODO: Coloring alingment here for different slabs
+			// to prevent slabs from crowding cachelines
 			for (auto i = 0; i < count; ++i)
 				Cache::xtors->construct(reinterpret_cast<T*>(mem + sizeof(T) * i));
 		}
@@ -136,8 +138,8 @@ namespace SlabObjImpl
 			for (auto i = 0; i < count; ++i)
 				reinterpret_cast<T*>(mem + sizeof(T) * i)->~T();
 
-			//alloc::alignedFree(mem);
 			operator delete(reinterpret_cast<void*>(mem));
+			//alloc::alignedFree(mem);
 			//operator delete(mem, static_cast<std::align_val_t>(alloc::pageSize()));
 		}
 
