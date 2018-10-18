@@ -84,8 +84,8 @@ void callTests(TestInit<T>& init, Ctor& ctor)
 	runTest("Basic Alloc",   init,	&basicAlloc<FuncType>,  ctor);
 	runTest("Basic Al/De",   init,	&basicAlDeal<FuncType>, ctor);
 	runTest("Random Al/De",  init,	&randomAlDe<FuncType>,  ctor);
-	runTest("Random Access", init,	&memAccess<FuncType>,	ctor);
-
+	runTest("Random Access", init,	&rMemAccess<FuncType>,	ctor);
+	runTest("Seq Access",	 init,	&sMemAccess<FuncType>,	ctor);
 }
 
 //

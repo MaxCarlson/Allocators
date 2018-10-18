@@ -202,26 +202,27 @@ void randomAlDeImpl(Init& init)
 
 }
 
-// TODO: Find a good way to test things like lots of local access,
-// accessing different caches in the alloc if applicable, etc
+// TODO: Probably make the structs meddle functions
+// less intensive to give more descrepency in benching
 template<class Init>
-void memAccess(Init init)
+void memAccess(Init& init, bool seq)
 {
 	using T			= typename Init::MyType;
-	using TimeType	= std::chrono::milliseconds;
+	using TimeType	= std::chrono::microseconds;
 
 	auto ptrs = allocateMax(init);
-	std::shuffle(std::begin(ptrs), std::end(ptrs), init.re); 
 
-
-	auto dis = std::uniform_int_distribution<int>(0, ptrs.size() - 1);
+	if(!seq)
+		std::shuffle(std::begin(ptrs), std::end(ptrs), init.re); 
 
 	auto start = Clock::now();
 
+	int idx = 0;
 	for (auto i = 0; i < iterations; ++i)
 	{
-		auto idx = dis(init.re);
-		ptrs[idx]->meddle();
+		if (idx >= maxAllocs - 1)
+			idx = 0;
+		ptrs[idx++]->meddle();
 	}
 
 	auto end = Clock::now();
@@ -231,5 +232,11 @@ void memAccess(Init init)
 
 	printTime<TimeType>(start, end, init.name);
 }
+
+template<class Init>
+void rMemAccess(Init init) { memAccess(init, false); }
+
+template<class Init>
+void sMemAccess(Init init) { memAccess(init, true); }
 
 // TODO: Concurrency Benchmarks
