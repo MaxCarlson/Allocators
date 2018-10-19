@@ -32,6 +32,12 @@ namespace alloc
 			return memStore.allocate<T>();
 		}
 
+		template<class T = Type>
+		T* allocate(size_t count)
+		{
+			return memStore.allocate<T>(count);
+		}
+
 		template<class T>
 		void deallocate(T* ptr)
 		{

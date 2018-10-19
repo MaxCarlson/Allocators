@@ -124,7 +124,7 @@ namespace SlabObjImpl
 
 			std::iota(std::rbegin(availible), std::rend(availible), 0);
 
-			// TODO: Coloring alingment here for different slabs
+			// TODO: Test coloring alingment here 
 			// to prevent slabs from crowding cachelines
 			for (auto i = 0; i < count; ++i)
 				Cache::xtors->construct(reinterpret_cast<T*>(mem + sizeof(T) * i));

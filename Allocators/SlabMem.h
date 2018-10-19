@@ -253,16 +253,23 @@ namespace SlabMemImpl
 		}
 
 		template<class T>
-		T* allocate()
+		T* allocate(size_t count)
 		{
+			auto bytes = count * sizeof(T);
 			for (It it = std::begin(caches); it != std::end(caches); ++it)
-				if (sizeof(T) <= it->objSize)
+				if (bytes <= it->objSize)
 				{
 					return it->allocate<T>();
 				}
 
 			throw std::bad_alloc();
 			return nullptr;
+		}
+
+		template<class T>
+		T* allocate()
+		{
+			return allocate<T>(sizeof(T));
 		}
 
 		template<class T>
