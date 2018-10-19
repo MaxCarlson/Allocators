@@ -88,6 +88,40 @@ void callTests(TestInit<T>& init, Ctor& ctor)
 	runTest("Seq Access",	 init,	&sMemAccess<FuncType>,	ctor);
 }
 
+template<class Init, class Alloc, class Ctor>
+std::vector<double> benchAlT(Init& init, Alloc& al, Ctor& ctor, int count)
+{
+	std::vector<double> averages(1, 0.0);
+
+	int i;
+	for (i = 0; i < count; ++i)
+	{
+		averages[0] += basicAlloc(init, al);
+
+	}
+
+	for (auto& s : averages)
+		s /= i;
+	return averages;
+}
+
+decltype(auto) defWrappers()
+{
+	auto al = [](auto t, auto cnt = 1) { return defaultAl.allocate<decltype(t)>(cnt); };
+	auto de = [](auto ptr) { defaultAl.deallocate(ptr); };
+
+	return std::pair(al, de);
+}
+
+template<class T, class Ctor>
+void benchAllocs(Ctor& ctor, int count)
+{
+
+	auto[dAl, dDe] = defWrappers();
+	TestT<T, Ctor, decltype(dAl), decltype(dDe)> init(ctor, dAl, dDe);
+	auto defaultScores = benchAlT(init, defaultAl, ctor, count);
+}
+
 // TOP TODO: NEED to redo bench format so allocators can be rebound
 // so we can test multiple type/size allocations at once
 //
@@ -112,6 +146,8 @@ int main()
 
 	slabO.addCache<PartialInit, piCtorT>(cacheSz, piCtor);
 	slabO.addCache<SimpleStruct, ssCtorT>(cacheSz, ssCtor);
+
+	benchAllocs<SimpleStruct, ssCtorT>(ssCtor, 10);
 
 	// Some basic test properties
 	std::vector<bool> defSkips(4, false); // TODO: Not functioning correctly with new test format

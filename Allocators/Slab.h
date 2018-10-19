@@ -32,6 +32,7 @@ namespace alloc
 			return memStore.allocate<T>();
 		}
 
+		// Allocate space for count objects of type T
 		template<class T = Type>
 		T* allocate(size_t count)
 		{

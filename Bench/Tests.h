@@ -193,14 +193,6 @@ void randomAlDe(Init init)
 	std::cout << init.name << " Time: " << std::chrono::duration_cast<TimeType>(end - start).count() << '\n';
 }
 
-// TODO: Should we make functions to handle different
-// types of allocation, then use those in other functions with more specific benchmarks,
-// to reduce need to re-write randomized allocation/deallocatin code for example?
-template<class Init>
-void randomAlDeImpl(Init& init)
-{
-
-}
 
 // TODO: Probably make the structs meddle functions
 // less intensive to give more descrepency in benching
@@ -240,3 +232,66 @@ template<class Init>
 void sMemAccess(Init init) { memAccess(init, true); }
 
 // TODO: Concurrency Benchmarks
+
+template<class T, class Ctor, class Al, class De>
+struct TestT
+{
+	using MyType = T;
+
+	TestT(Ctor& ctor, Al& al, De& de, bool singleAl = false, bool useCtor = true) 
+		: ctor(ctor), al(al), de(de), singleAl(singleAl), useCtor(useCtor) {}
+
+	Ctor& ctor;
+	Al& al;
+	De& de;
+	bool singleAl;
+	bool useCtor;
+};
+
+template<class Init, class Alloc>
+double basicAlloc(Init& init, Alloc& al)
+{
+	using T = typename Init::MyType;
+	using TimeType = std::chrono::milliseconds;
+
+	T* t = reinterpret_cast<T*>(operator new(sizeof(T)));
+	init.ctor.construct(t);
+
+	int idx = 0;
+	int deallocTime = 0;
+	std::vector<T*> ptrs;
+	ptrs.reserve(maxAllocs);
+
+	auto start = Clock::now();
+
+	for (int i = 0; i < iterations; ++i)
+	{
+		if (i % maxAllocs == 0)
+		{
+			idx = 0;
+			auto start = Clock::now();
+
+			for (auto& ptr : ptrs)
+				init.de(ptr);
+			ptrs.clear();
+
+			auto end = Clock::now();
+			deallocTime += std::chrono::duration_cast<TimeType>(end - start).count();
+		}
+
+		ptrs.emplace_back(init.al(*t, 1));
+
+		if (init.useCtor)
+			init.ctor.construct(ptrs[idx]);
+		++idx;
+	}
+
+	auto end = Clock::now();
+
+	init.ctor.destruct(t);
+	operator delete(t);
+	for (auto ptr : ptrs)
+		init.de(ptr);
+
+	return std::chrono::duration_cast<TimeType>(end - start).count() - deallocTime;
+}

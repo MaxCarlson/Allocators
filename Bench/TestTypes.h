@@ -8,6 +8,9 @@ struct DefaultAlloc
 	T* allocate() { return reinterpret_cast<T*>(operator new(sizeof(T))); }
 
 	template<class T>
+	T* allocate(size_t count) { return reinterpret_cast<T*>(operator new(sizeof(T) * count)); }
+
+	template<class T>
 	void deallocate(T* ptr) { operator delete(ptr); }
 };
 

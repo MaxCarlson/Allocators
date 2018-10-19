@@ -90,8 +90,9 @@ namespace SlabMemImpl
 
 
 		Cache() = default;
-		Cache(size_type objSize, size_type count) : objSize(objSize), count(count)
+		Cache(size_type objSize, size_type num) : objSize(objSize), count(num)
 		{
+			//count = alloc::nearestPageSz(num * objSize) / objSize; // This might increase random access times
 			newSlab();
 		}
 
@@ -255,12 +256,10 @@ namespace SlabMemImpl
 		template<class T>
 		T* allocate(size_t count)
 		{
-			auto bytes = count * sizeof(T);
+			const auto bytes = count * sizeof(T);
 			for (It it = std::begin(caches); it != std::end(caches); ++it)
 				if (bytes <= it->objSize)
-				{
 					return it->allocate<T>();
-				}
 
 			throw std::bad_alloc();
 			return nullptr;
@@ -269,7 +268,7 @@ namespace SlabMemImpl
 		template<class T>
 		T* allocate()
 		{
-			return allocate<T>(sizeof(T));
+			return allocate<T>(1);
 		}
 
 		template<class T>
@@ -281,6 +280,7 @@ namespace SlabMemImpl
 					it->deallocate(ptr);
 					return;
 				}
+			// TODO: Throw exception if it reaches here
 		}
 
 		template<bool all>
