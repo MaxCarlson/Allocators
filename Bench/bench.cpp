@@ -118,10 +118,10 @@ decltype(auto) sObjWrappers()
 }
 
 template<class Init, class Alloc, class Ctor>
-std::vector<double> benchAlT(Init& init, Alloc& al, Ctor& ctor, int count)
+decltype(auto) benchAlT(Init& init, Alloc& al, Ctor& ctor, int count)
 {
 	// TODO: make vec of pair<string, double> to name tests
-	std::vector<double> averages(1, 0.0);
+	std::vector<double> averages{ 1, 0.0 };
 
 	int i;
 	for (i = 0; i < count; ++i)
@@ -129,32 +129,46 @@ std::vector<double> benchAlT(Init& init, Alloc& al, Ctor& ctor, int count)
 		averages[0] += basicAlloc(init, al);
 
 	}
-
+	
 	for (auto& s : averages)
 		s /= i;
+
 	return averages;
+}
+
+// TODO: Label scores
+void printScores(std::vector<std::vector<double>>& scores)
+{
+	for (auto& v : scores)
+	{
+		for (const auto& s : v)
+			std::cout << std::setw(6) << std::fixed << std::setprecision(1) << s;
+		std::cout << '\n';
+	}
 }
 
 template<class T, class Ctor>
 void benchAllocs(Ctor& ctor, int count)
 {
-
+	std::vector<std::vector<double>> scores;
 
 	auto[dAl, dDe] = defWrappers();
 	TestT initD(T{}, ctor, dAl, dDe);
-	auto defScores = benchAlT(initD, defaultAl, ctor, count);
+	scores.emplace_back(benchAlT(initD, defaultAl, ctor, count));
 
 	auto[fAl, fDe] = flWrappers();
 	TestT initF(T{}, ctor, fAl, fDe);
-	auto freeScores = benchAlT(initF, freeAl, ctor, count);
+	scores.emplace_back(benchAlT(initF, freeAl, ctor, count));
 
 	auto[memAl, memDe] = sMemWrappers();
 	TestT initM(T{}, ctor, memAl, memDe);
-	auto memScores = benchAlT(initM, slabM, ctor, count);
+	scores.emplace_back(benchAlT(initM, slabM, ctor, count));
 
 	auto[objAl, objDe] = sObjWrappers<Ctor>();
 	TestT initO(T{}, ctor, objAl, objDe);
-	auto objScores = benchAlT(initO, slabO, ctor, count);
+	scores.emplace_back(benchAlT(initO, slabO, ctor, count));
+
+	printScores(scores);
 }
 
 // TOP TODO: NEED to redo bench format so allocators can be rebound
