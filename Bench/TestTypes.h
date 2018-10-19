@@ -18,6 +18,7 @@ inline static int TestV = 0;
 
 struct PartialInit
 {
+	PartialInit() = default;
 	PartialInit(const std::string& name) : name(name) 
 	{
 		TestV += name[0];
@@ -34,6 +35,7 @@ struct PartialInit
 
 struct SimpleStruct
 {
+	SimpleStruct() = default;
 	SimpleStruct(int a, int b, size_t e, size_t f) : a(a), b(b), c(a), d(b), e(e), f(f) { TestV += a + b + c + d + e + f; }
 
 	void meddle()

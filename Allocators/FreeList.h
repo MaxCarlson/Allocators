@@ -283,18 +283,19 @@ namespace alloc
 		struct rebind { using other = FreeList<U, bytes, Policy>; };
 
 		template<class T = Type>
-		Type* allocate(size_type count)
+		T* allocate(size_type count)
 		{
 			return storage.allocate<T>(static_cast<size_type>(count));
 		}
 
 		template<class T = Type>
-		Type* allocate()
+		T* allocate()
 		{
 			return storage.allocate<T>(static_cast<size_type>(1));
 		}
 
-		void deallocate(Type* ptr)
+		template<class T = Type>
+		void deallocate(T* ptr)
 		{
 			storage.deallocate(ptr);
 		}

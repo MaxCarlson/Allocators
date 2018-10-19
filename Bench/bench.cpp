@@ -11,6 +11,7 @@ alloc::SlabObj<int> slabO;
 
 DefaultAlloc defaultAl;
 constexpr auto FreeListBytes = (sizeof(PartialInit) + sizeof(alloc::FreeList<PartialInit, 999999999>::OurHeader)) * (maxAllocs * 2);
+alloc::FreeList<int, FreeListBytes> freeAl;
 
 enum WrapIdx
 {
@@ -81,16 +82,45 @@ template<class T, class Ctor>
 void callTests(TestInit<T>& init, Ctor& ctor)
 {
 	using FuncType = IdvTestInit<T, Ctor>;
-	runTest("Basic Alloc",   init,	&basicAlloc<FuncType>,  ctor);
-	runTest("Basic Al/De",   init,	&basicAlDeal<FuncType>, ctor);
-	runTest("Random Al/De",  init,	&randomAlDe<FuncType>,  ctor);
-	runTest("Random Access", init,	&rMemAccess<FuncType>,	ctor);
-	runTest("Seq Access",	 init,	&sMemAccess<FuncType>,	ctor);
+	runTest("Basic Alloc", init, &basicAlloc<FuncType>, ctor);
+	runTest("Basic Al/De", init, &basicAlDeal<FuncType>, ctor);
+	runTest("Random Al/De", init, &randomAlDe<FuncType>, ctor);
+	runTest("Random Access", init, &rMemAccess<FuncType>, ctor);
+	runTest("Seq Access", init, &sMemAccess<FuncType>, ctor);
+}
+
+decltype(auto) defWrappers()
+{
+	auto al = [](auto t, auto cnt = 1) { return defaultAl.allocate<decltype(t)>(cnt); };
+	auto de = [](auto ptr) { defaultAl.deallocate(ptr); };
+	return std::pair(al, de);
+}
+
+decltype(auto) flWrappers()
+{
+	auto al = [&](auto t, auto cnt) { return freeAl.allocate<decltype(t)>(cnt); };
+	auto de = [&](auto ptr) { freeAl.deallocate(ptr); };
+	return std::pair(al, de);
+}
+decltype(auto) sMemWrappers()
+{
+	auto al = [&](auto t, auto cnt) { return slabM.allocate<decltype(t)>(cnt); };
+	auto de = [&](auto ptr) { slabM.deallocate(ptr); };
+	return std::pair(al, de);
+}
+template<class Xtors>
+decltype(auto) sObjWrappers()
+{
+	// Slab obj functions 
+	auto al = [&](auto t, auto cnt) { return slabO.allocate<decltype(t), Xtors>(); };
+	auto de = [&](auto ptr) { slabO.deallocate<typename std::remove_pointer<decltype(ptr)>::type, Xtors>(ptr); };
+	return std::pair(al, de);
 }
 
 template<class Init, class Alloc, class Ctor>
 std::vector<double> benchAlT(Init& init, Alloc& al, Ctor& ctor, int count)
 {
+	// TODO: make vec of pair<string, double> to name tests
 	std::vector<double> averages(1, 0.0);
 
 	int i;
@@ -105,21 +135,26 @@ std::vector<double> benchAlT(Init& init, Alloc& al, Ctor& ctor, int count)
 	return averages;
 }
 
-decltype(auto) defWrappers()
-{
-	auto al = [](auto t, auto cnt = 1) { return defaultAl.allocate<decltype(t)>(cnt); };
-	auto de = [](auto ptr) { defaultAl.deallocate(ptr); };
-
-	return std::pair(al, de);
-}
-
 template<class T, class Ctor>
 void benchAllocs(Ctor& ctor, int count)
 {
 
+
 	auto[dAl, dDe] = defWrappers();
-	TestT<T, Ctor, decltype(dAl), decltype(dDe)> init(ctor, dAl, dDe);
-	auto defaultScores = benchAlT(init, defaultAl, ctor, count);
+	TestT initD(T{}, ctor, dAl, dDe);
+	auto defScores = benchAlT(initD, defaultAl, ctor, count);
+
+	auto[fAl, fDe] = flWrappers();
+	TestT initF(T{}, ctor, fAl, fDe);
+	auto freeScores = benchAlT(initF, freeAl, ctor, count);
+
+	auto[memAl, memDe] = sMemWrappers();
+	TestT initM(T{}, ctor, memAl, memDe);
+	auto memScores = benchAlT(initM, slabM, ctor, count);
+
+	auto[objAl, objDe] = sObjWrappers<Ctor>();
+	TestT initO(T{}, ctor, objAl, objDe);
+	auto objScores = benchAlT(initO, slabO, ctor, count);
 }
 
 // TOP TODO: NEED to redo bench format so allocators can be rebound

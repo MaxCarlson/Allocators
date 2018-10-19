@@ -238,7 +238,7 @@ struct TestT
 {
 	using MyType = T;
 
-	TestT(Ctor& ctor, Al& al, De& de, bool singleAl = false, bool useCtor = true) 
+	TestT(T t, Ctor& ctor, Al& al, De& de, bool singleAl = false, bool useCtor = true) 
 		: ctor(ctor), al(al), de(de), singleAl(singleAl), useCtor(useCtor) {}
 
 	Ctor& ctor;
@@ -253,9 +253,6 @@ double basicAlloc(Init& init, Alloc& al)
 {
 	using T = typename Init::MyType;
 	using TimeType = std::chrono::milliseconds;
-
-	T* t = reinterpret_cast<T*>(operator new(sizeof(T)));
-	init.ctor.construct(t);
 
 	int idx = 0;
 	int deallocTime = 0;
@@ -279,7 +276,7 @@ double basicAlloc(Init& init, Alloc& al)
 			deallocTime += std::chrono::duration_cast<TimeType>(end - start).count();
 		}
 
-		ptrs.emplace_back(init.al(*t, 1));
+		ptrs.emplace_back(init.al(T{}, 1));
 
 		if (init.useCtor)
 			init.ctor.construct(ptrs[idx]);
@@ -288,8 +285,6 @@ double basicAlloc(Init& init, Alloc& al)
 
 	auto end = Clock::now();
 
-	init.ctor.destruct(t);
-	operator delete(t);
 	for (auto ptr : ptrs)
 		init.de(ptr);
 
