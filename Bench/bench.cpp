@@ -79,14 +79,15 @@ decltype(auto) benchAlT(Init& init, Alloc& al, Ctor& ctor, int count)
 
 // TODO: Label scores
 template<class T>
-void printScores(std::vector<std::vector<double>>& scores)
+void printScores(std::vector<std::vector<double>>& scores, bool isStruct = true)
 {
 	static constexpr int printWidth = 10;
 	static const std::vector<std::string> benchNames = { "Alloc", "Al/De", "R Al/De", "SeqRead", "RandRead" };
 	static const std::vector<std::string> alNames = { "Default: ", "FreeList: ", "SlabMem: ", "SlabObj: " };
-
 	
-	std::cout << &(typeid(T).name()[7]) << ' ' << "scores: \n";
+	// Print the struct name, without struct
+	auto* name = isStruct ? &(typeid(T).name()[7]) : &typeid(T).name()[0];
+	std::cout << name << ' ' << "scores: \n";
 
 	for (const auto& name : benchNames)
 	{
@@ -111,7 +112,8 @@ void printScores(std::vector<std::vector<double>>& scores)
 	std::cout << '\n';
 }
 
-template<class T, class Ctor>
+// TODO: If we're ever allocing simple types here: Ctor = SlabObjImpl::DefaultXtor
+template<class T, class Ctor> 
 decltype(auto) benchAllocs(Ctor& ctor, int runs)
 {
 	std::default_random_engine re{ 1 };
@@ -146,6 +148,7 @@ inline void addScores(std::vector<std::vector<double>>& first,
 			first[i][j] += second[i][j];
 }
 
+// Benchmark the allocators
 int main()
 {
 	constexpr int numTests = 4;
@@ -156,6 +159,7 @@ int main()
 		slabM.addCache(1 << i, cacheSz); 
 
 	// Custom ctor for slabObj test structs
+	// Note: Ctor is also used to construct the object for other allocators in tests
 	alloc::CtorArgs piCtor(std::string("Init Test String"));
 	alloc::CtorArgs ssCtor(1, 2, 3ULL, 4ULL);
 	
@@ -165,14 +169,17 @@ int main()
 	slabO.addCache<PartialInit, piCtorT>(cacheSz, piCtor);
 	slabO.addCache<SimpleStruct, ssCtorT>(cacheSz, ssCtor);
 
-	std::vector<std::vector<double>> scores;
 
+	// Run benchmarks
+	std::vector<std::vector<double>> scores;
 	scores			= benchAllocs<SimpleStruct, ssCtorT>(ssCtor, numTests);
 	addScores(scores, benchAllocs<PartialInit,  piCtorT>(piCtor, numTests));
 
+
+	// Print the average of all benchmark scores for 
+	// the allocators
 	for (auto& v : scores)
 		avgScores(v, 2);
-
 	printScores<AveragedScores>(scores);
 
 	std::cout << "\nOptimization var: " << TestV << '\n';
