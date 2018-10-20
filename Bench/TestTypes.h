@@ -13,7 +13,6 @@ struct DefaultAlloc
 	template<class T>
 	void deallocate(T* ptr) 
 	{
-		ptr->~T();
 		operator delete(ptr); 
 	}
 };

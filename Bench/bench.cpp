@@ -12,26 +12,33 @@ alloc::SlabObj<int> slabO;
 constexpr auto FreeListBytes = (sizeof(PartialInit) + sizeof(alloc::FreeList<PartialInit, 999999999>::OurHeader)) * (maxAllocs * 2);
 alloc::FreeList<int, FreeListBytes> freeAl;
 
-// Allocator allocate/deallocate wrappers
+// Allocator allocate/deallocate wrappers.
 // Needed so tests don't complain about compile time stuff 
 // on benches where we can't use a particular allocator
+template<class Al, class Ptr>
+void destroyDealloc(Al& al, Ptr* ptr)
+{
+	ptr->~Ptr();
+	al.deallocate(ptr);
+}
+
 decltype(auto) defWrappers()
 {
 	auto al = [](auto t, auto cnt = 1) { return defaultAl.allocate<decltype(t)>(cnt); };
-	auto de = [](auto ptr) { defaultAl.deallocate(ptr); };
+	auto de = [](auto ptr) { destroyDealloc(defaultAl, ptr); };
 	return std::pair(al, de);
 }
 
 decltype(auto) flWrappers()
 {
 	auto al = [&](auto t, auto cnt) { return freeAl.allocate<decltype(t)>(cnt); };
-	auto de = [&](auto ptr) { freeAl.deallocate(ptr); };
+	auto de = [&](auto ptr) { destroyDealloc(freeAl, ptr); };
 	return std::pair(al, de);
 }
 decltype(auto) sMemWrappers()
 {
 	auto al = [&](auto t, auto cnt) { return slabM.allocate<decltype(t)>(cnt); };
-	auto de = [&](auto ptr) { slabM.deallocate(ptr); };
+	auto de = [&](auto ptr) { destroyDealloc(slabM, ptr); };
 	return std::pair(al, de);
 }
 template<class Xtors>
@@ -105,14 +112,6 @@ void benchAllocs(Ctor& ctor, int runs)
 	printScores<T>(scores);
 }
 
-// TOP TODO: NEED to redo bench format so allocators can be rebound
-// so we can test multiple type/size allocations at once
-//
-// TODO: NEED to clear caches after each test/type
-// to free memory from Allocs that pool mem/objects
-//
-// TODO: Reduce test complexity, especially init objects
-//
 int main()
 {
 	constexpr int numTests = 6;
