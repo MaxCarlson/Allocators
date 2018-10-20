@@ -24,6 +24,8 @@ struct PartialInit
 		TestV += name[0];
 	}
 
+	// TODO: Probably make the structs meddle functions
+	// less intensive to give more descrepency in benching
 	void meddle()
 	{
 		name[1] += name[3];

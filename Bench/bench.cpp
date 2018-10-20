@@ -6,13 +6,15 @@
 #include "Tests.h"
 
 // Allocators
+DefaultAlloc defaultAl;
 alloc::SlabMem<int> slabM;
 alloc::SlabObj<int> slabO;
-
-DefaultAlloc defaultAl;
 constexpr auto FreeListBytes = (sizeof(PartialInit) + sizeof(alloc::FreeList<PartialInit, 999999999>::OurHeader)) * (maxAllocs * 2);
 alloc::FreeList<int, FreeListBytes> freeAl;
 
+// Allocator allocate/deallocate wrappers
+// Needed so tests don't complain about compile time stuff 
+// on benches where we can't use a particular allocator
 decltype(auto) defWrappers()
 {
 	auto al = [](auto t, auto cnt = 1) { return defaultAl.allocate<decltype(t)>(cnt); };
@@ -45,14 +47,16 @@ template<class Init, class Alloc, class Ctor>
 decltype(auto) benchAlT(Init& init, Alloc& al, Ctor& ctor, int count)
 {
 	// TODO: make vec of pair<string, double> to name tests
-	std::vector<double> averages(3, 0.0);
+	std::vector<double> averages(5, 0.0);
 
 	int i;
 	for (i = 0; i < count; ++i)
 	{
 		averages[0] += basicAlloc(init, al);
-		averages[1] += sMemAccess(init, al);
-		averages[2] += rMemAccess(init, al);
+		averages[1] += basicAlDea(init, al);
+		averages[2] += randomAlDe(init, al);
+		averages[3] += sMemAccess(init, al);
+		averages[4] += rMemAccess(init, al);
 	}
 	
 	for (auto& s : averages)
@@ -126,8 +130,8 @@ int main()
 	slabO.addCache<PartialInit, piCtorT>(cacheSz, piCtor);
 	slabO.addCache<SimpleStruct, ssCtorT>(cacheSz, ssCtor);
 
-	benchAllocs<SimpleStruct, ssCtorT>(ssCtor, 1);
-	benchAllocs<PartialInit,  piCtorT>(piCtor, 1);
+	benchAllocs<SimpleStruct, ssCtorT>(ssCtor, 6);
+	benchAllocs<PartialInit,  piCtorT>(piCtor, 6);
 
 
 	std::cout << "\nOptimization var: " << TestV << '\n';
