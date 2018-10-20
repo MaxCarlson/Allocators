@@ -2,6 +2,11 @@
 #include <array>
 #include <string>
 
+// Helper struct for printing average 
+// scores over all test
+struct AveragedScores {};
+
+
 struct DefaultAlloc
 {
 	template<class T>

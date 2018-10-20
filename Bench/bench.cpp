@@ -9,12 +9,10 @@
 DefaultAlloc defaultAl;
 alloc::SlabMem<int> slabM;
 alloc::SlabObj<int> slabO;
-constexpr auto FreeListBytes = (sizeof(PartialInit) + sizeof(alloc::FreeList<PartialInit, 999999999>::OurHeader)) * (maxAllocs * 2);
+constexpr auto FreeListBytes = (sizeof(PartialInit) + sizeof(alloc::FreeList<PartialInit, 999999999>::OurHeader)) * (maxAllocs * 2); // TODO: Better size needs prediciton
 alloc::FreeList<int, FreeListBytes> freeAl;
 
-// Allocator allocate/deallocate wrappers.
-// Needed so tests don't complain about compile time stuff 
-// on benches where we can't use a particular allocator
+// Wrapper for common dtor/deallocation in benchmarks
 template<class Al, class Ptr>
 void destroyDealloc(Al& al, Ptr* ptr)
 {
@@ -22,6 +20,9 @@ void destroyDealloc(Al& al, Ptr* ptr)
 	al.deallocate(ptr);
 }
 
+// Allocator allocate/deallocate wrappers.
+// Needed so tests don't complain about compile time stuff 
+// on benches where we can't use a particular allocator
 decltype(auto) defWrappers()
 {
 	auto al = [](auto t, auto cnt = 1) { return defaultAl.allocate<decltype(t)>(cnt); };
@@ -76,19 +77,38 @@ decltype(auto) benchAlT(Init& init, Alloc& al, Ctor& ctor, int count)
 template<class T>
 void printScores(std::vector<std::vector<double>>& scores)
 {
-	std::cout << typeid(T).name() << ' ' << "scores: \n";
+	static constexpr int printWidth = 10;
+	static const std::vector<std::string> benchNames = { "Alloc", "Al/De", "R Al/De", "SeqRead", "RandRead" };
+	static const std::vector<std::string> alNames = { "Default: ", "FreeList: ", "SlabMem: ", "SlabObj: " };
 
+	
+	std::cout << &(typeid(T).name()[6]) << ' ' << "scores: \n";
+
+	for (const auto& name : benchNames)
+	{
+		if(name == benchNames[0])
+			std::cout << std::setw(printWidth * 2) << name << ' ';
+		else
+			std::cout << std::setw(printWidth) << name << ' ';
+	}
+	std::cout << '\n';
+
+	int i = 0;
 	for (auto& v : scores)
 	{
+		std::cout << std::left << std::setw(printWidth) << alNames[i];
 		for (const auto& s : v)
-			std::cout << std::setw(8) << std::fixed << std::setprecision(1) << s << ' ';
+		{
+			std::cout << std::right << std::setw(printWidth) << std::fixed << std::setprecision(1) << s << ' ';
+		}
 		std::cout << '\n';
+		++i;
 	}
 	std::cout << '\n';
 }
 
 template<class T, class Ctor>
-void benchAllocs(Ctor& ctor, int runs)
+decltype(auto) benchAllocs(Ctor& ctor, int runs)
 {
 	std::default_random_engine re{ 1 };
 	std::vector<std::vector<double>> scores;
@@ -108,13 +128,23 @@ void benchAllocs(Ctor& ctor, int runs)
 	auto[objAl, objDe] = sObjWrappers<Ctor>();
 	BenchT initO(T{}, ctor, objAl, objDe, re, true, false);
 	scores.emplace_back(benchAlT(initO, slabO, ctor, runs));
+	slabO.freeAll<T, Ctor>(); // Needed to destroy cache of objects (as it's an object pool)
 
 	printScores<T>(scores);
+	return scores;
+}
+
+inline void addScores(std::vector<std::vector<double>>& first,
+	std::vector<std::vector<double>> second)
+{
+	for (int i = 0; i < first.size(); ++i)
+		for (int j = 0; j < first[i].size(); ++j)
+			first[i][j] += second[i][j];
 }
 
 int main()
 {
-	constexpr int numTests = 6;
+	constexpr int numTests = 4;
 
 	// Add caches for slab allocator
 	// Note: Less caches will make it faster
@@ -131,8 +161,12 @@ int main()
 	slabO.addCache<PartialInit, piCtorT>(cacheSz, piCtor);
 	slabO.addCache<SimpleStruct, ssCtorT>(cacheSz, ssCtor);
 
-	//benchAllocs<SimpleStruct, ssCtorT>(ssCtor, numTests);
-	benchAllocs<PartialInit,  piCtorT>(piCtor, numTests);
+	std::vector<std::vector<double>> scores;
+
+	scores = benchAllocs<SimpleStruct, ssCtorT>(ssCtor, 1);
+	addScores(scores, benchAllocs<PartialInit,  piCtorT>(piCtor, numTests));
+
+	printScores<AveragedScores>(scores);
 
 	std::cout << "\nOptimization var: " << TestV << '\n';
 	return 0;
