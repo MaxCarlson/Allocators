@@ -23,9 +23,6 @@ namespace alloc
 
 		using size_type = size_t;
 
-		// Note: When allocating memory you must remember that
-		// no object of type T has been constructed here. Therfore you should
-		// use placement new to create one!
 		template<class T = Type>
 		T* allocate()
 		{

@@ -11,7 +11,11 @@ struct DefaultAlloc
 	T* allocate(size_t count) { return reinterpret_cast<T*>(operator new(sizeof(T) * count)); }
 
 	template<class T>
-	void deallocate(T* ptr) { operator delete(ptr); }
+	void deallocate(T* ptr) 
+	{
+		ptr->~T();
+		operator delete(ptr); 
+	}
 };
 
 inline static int TestV = 0;

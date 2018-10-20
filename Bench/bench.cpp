@@ -115,6 +115,8 @@ void benchAllocs(Ctor& ctor, int runs)
 //
 int main()
 {
+	constexpr int numTests = 6;
+
 	// Add caches for slab allocator
 	// Note: Less caches will make it faster
 	for(int i = 5; i < 13; ++i)
@@ -130,9 +132,8 @@ int main()
 	slabO.addCache<PartialInit, piCtorT>(cacheSz, piCtor);
 	slabO.addCache<SimpleStruct, ssCtorT>(cacheSz, ssCtor);
 
-	benchAllocs<SimpleStruct, ssCtorT>(ssCtor, 6);
-	benchAllocs<PartialInit,  piCtorT>(piCtor, 6);
-
+	//benchAllocs<SimpleStruct, ssCtorT>(ssCtor, numTests);
+	benchAllocs<PartialInit,  piCtorT>(piCtor, numTests);
 
 	std::cout << "\nOptimization var: " << TestV << '\n';
 	return 0;
