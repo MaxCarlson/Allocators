@@ -51,6 +51,12 @@ decltype(auto) sObjWrappers()
 	return std::pair(al, de);
 }
 
+inline void avgScores(std::vector<double>& scores, int cnt)
+{
+	for (auto& s : scores)
+		s /= cnt;
+}
+
 template<class Init, class Alloc, class Ctor>
 decltype(auto) benchAlT(Init& init, Alloc& al, Ctor& ctor, int count)
 {
@@ -67,9 +73,7 @@ decltype(auto) benchAlT(Init& init, Alloc& al, Ctor& ctor, int count)
 		averages[4] += rMemAccess(init, al);
 	}
 	
-	for (auto& s : averages)
-		s /= i;
-
+	avgScores(averages, i);
 	return averages;
 }
 
@@ -82,7 +86,7 @@ void printScores(std::vector<std::vector<double>>& scores)
 	static const std::vector<std::string> alNames = { "Default: ", "FreeList: ", "SlabMem: ", "SlabObj: " };
 
 	
-	std::cout << &(typeid(T).name()[6]) << ' ' << "scores: \n";
+	std::cout << &(typeid(T).name()[7]) << ' ' << "scores: \n";
 
 	for (const auto& name : benchNames)
 	{
@@ -163,8 +167,11 @@ int main()
 
 	std::vector<std::vector<double>> scores;
 
-	scores = benchAllocs<SimpleStruct, ssCtorT>(ssCtor, 1);
+	scores			= benchAllocs<SimpleStruct, ssCtorT>(ssCtor, numTests);
 	addScores(scores, benchAllocs<PartialInit,  piCtorT>(piCtor, numTests));
+
+	for (auto& v : scores)
+		avgScores(v, 2);
 
 	printScores<AveragedScores>(scores);
 
