@@ -10,8 +10,8 @@ using Clock		= std::chrono::high_resolution_clock;
 using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
 
 constexpr auto cacheSz		= 1024;
-//constexpr auto iterations	= 1000;
-constexpr auto iterations	= 5000000;
+constexpr auto iterations	= 1000;
+//constexpr auto iterations	= 5000000;
 constexpr auto maxAllocs	= 22000;
 
 // Holds arguments for all tests of a type
@@ -51,6 +51,38 @@ struct IdvTestInit
 	Ctor& ctor;
 	std::default_random_engine re;
 };
+
+template<class T, class Ctor, class Al, class De>
+struct BenchT
+{
+	using MyType = T;
+
+	BenchT(T t, Ctor& ctor, Al& al, De& de, std::default_random_engine& re, bool singleAl = false, bool useCtor = true)
+		: ctor(ctor), al(al), de(de), re(re), singleAl(singleAl), useCtor(useCtor) {}
+
+	Ctor& ctor;
+	Al& al;
+	De& de;
+	std::default_random_engine re;
+	bool singleAl;
+	bool useCtor;
+};
+
+template<class Init>
+decltype(auto) allocMax(Init& init)
+{
+	using T = typename Init::MyType;
+	std::vector<T*> ptrs;
+	ptrs.reserve(maxAllocs);
+
+	for (auto i = 0; i < maxAllocs; ++i)
+	{
+		ptrs.emplace_back(init.al(T{}, 1));
+		if (init.useCtor)
+			init.ctor.construct(ptrs.back());
+	}
+	return ptrs;
+}
 
 template<class Init>
 decltype(auto) allocateMax(Init& init)
@@ -233,21 +265,6 @@ void sMemAccess(Init init) { memAccess(init, true); }
 
 // TODO: Concurrency Benchmarks
 
-template<class T, class Ctor, class Al, class De>
-struct TestT
-{
-	using MyType = T;
-
-	TestT(T t, Ctor& ctor, Al& al, De& de, bool singleAl = false, bool useCtor = true) 
-		: ctor(ctor), al(al), de(de), singleAl(singleAl), useCtor(useCtor) {}
-
-	Ctor& ctor;
-	Al& al;
-	De& de;
-	bool singleAl;
-	bool useCtor;
-};
-
 template<class Init, class Alloc>
 double basicAlloc(Init& init, Alloc& al)
 {
@@ -290,3 +307,40 @@ double basicAlloc(Init& init, Alloc& al)
 
 	return std::chrono::duration_cast<TimeType>(end - start).count() - deallocTime;
 }
+
+// TODO: Probably make the structs meddle functions
+// less intensive to give more descrepency in benching
+template<class Init, class Alloc>
+double memAccess(Init& init, Alloc& al, bool seq)
+{
+	using T = typename Init::MyType;
+	using TimeType = std::chrono::microseconds;
+
+	auto ptrs = allocMax(init);
+
+	if (!seq)
+		std::shuffle(std::begin(ptrs), std::end(ptrs), init.re);
+
+	auto start = Clock::now();
+
+	int idx = 0;
+	for (auto i = 0; i < iterations; ++i)
+	{
+		if (idx >= maxAllocs - 1)
+			idx = 0;
+		ptrs[idx++]->meddle();
+	}
+
+	auto end = Clock::now();
+
+	for (auto& ptr : ptrs)
+		init.de(ptr);
+
+	return std::chrono::duration_cast<TimeType>(end - start).count();
+}
+
+template<class Init, class Alloc>
+double rMemAccess(Init& init, Alloc& al) { return memAccess(init, al, false); }
+
+template<class Init, class Alloc>
+double sMemAccess(Init& init, Alloc& al) { return memAccess(init, al, true); }

@@ -78,6 +78,7 @@ namespace alloc
 		size_t objPerSlab;
 	};
 
+	// TODO: Write tests for this list
 	template<class T>
 	class List
 	{
@@ -171,7 +172,6 @@ namespace alloc
 			return *this;
 		}
 		
-		//TODO:  How do we square this with keeping it in a vector in SlabMem?
 		~List()
 		{
 			if (MyHead && MySize)
