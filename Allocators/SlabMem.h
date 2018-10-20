@@ -182,7 +182,7 @@ namespace SlabMemImpl
 			}
 
 			if (it == slabsPart.end())
-				throw std::bad_alloc(); // TODO: Is this the right exception?
+				throw alloc::BadDealloc; 
 
 			it->deallocate(ptr);
 
@@ -261,6 +261,8 @@ namespace SlabMemImpl
 				if (bytes <= it->objSize)
 					return it->allocate<T>();
 
+			// TODO: Should we grow the pool here instead of throwing?
+			// OR set a flag to grow/throw?
 			throw std::bad_alloc();
 			return nullptr;
 		}
@@ -280,7 +282,7 @@ namespace SlabMemImpl
 					it->deallocate(ptr);
 					return;
 				}
-			// TODO: Throw exception if it reaches here
+			throw alloc::BadDealloc;
 		}
 
 		template<bool all>

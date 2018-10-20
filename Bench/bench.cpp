@@ -82,8 +82,8 @@ template<class T>
 void printScores(std::vector<std::vector<double>>& scores, bool isStruct = true)
 {
 	static constexpr int printWidth = 10;
-	static const std::vector<std::string> benchNames = { "Alloc", "Al/De", "R Al/De", "SeqRead", "RandRead" };
-	static const std::vector<std::string> alNames = { "Default: ", "FreeList: ", "SlabMem: ", "SlabObj: " };
+	static const std::vector<std::string> benchNames	= { "Alloc", "Al/De", "R Al/De", "SeqRead", "RandRead" };
+	static const std::vector<std::string> alNames		= { "Default: ", "FreeList: ", "SlabMem: ", "SlabObj: " };
 	
 	// Print the struct name, without struct
 	auto* name = isStruct ? &(typeid(T).name()[7]) : &typeid(T).name()[0];

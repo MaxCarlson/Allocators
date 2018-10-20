@@ -280,7 +280,7 @@ namespace SlabObjImpl
 			}
 
 			if (it == slabsPart.end())
-				throw std::bad_alloc(); // TODO: Is this the right exception?
+				throw alloc::BadDealloc; 
 
 			it->deallocate(ptr);
 

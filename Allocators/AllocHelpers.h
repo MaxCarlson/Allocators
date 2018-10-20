@@ -8,7 +8,8 @@
 
 namespace alloc
 {
-	using byte = unsigned char;
+	using byte			= unsigned char;
+	using BadDealloc	= std::out_of_range;
 
 	// TODO: Linux #ifdef
 	inline size_t pageSize()
