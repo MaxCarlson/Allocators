@@ -274,9 +274,9 @@ namespace alloc
 		}
 	};
 
-	template<class T>
-	using List = std::list<T, std::allocator<T>>; 
-
 	//template<class T>
-	//using List = ListT<T>;
+	//using List = std::list<T, std::allocator<T>>; 
+
+	template<class T>
+	using List = ListT<T>;
 }

@@ -1,6 +1,7 @@
 #pragma once
 #include <list>
-#include <array>
+#include <vector>
+#include <algorithm>
 #include "AllocHelpers.h"
 
 
@@ -48,15 +49,71 @@ namespace alloc
 		class Interface>
 	struct FlatPolicy
 	{
-		using Storage	= std::array<std::pair<byte*, size_type>, bytes>;
+		using Storage	= std::vector<std::pair<byte*, size_type>>;
 		using It		= typename Storage::iterator; 
 		using Ib		= std::pair<It, bool>;
 		using Header	= typename Interface::Header;
 
 		Storage availible;
+		FlatPolicy() { availible.reserve(bytes); }
 
 		void add(byte* start, size_type size)
-		{}
+		{
+			if (availible.empty())
+			{
+				availible.emplace_back(start, size);
+				return;
+			}
+
+			auto it = std::lower_bound(std::begin(availible), std::end(availible), start, [](auto& it1, auto& it2)
+			{
+				return it1.first < it2;
+			});
+
+			if (it->first > start)
+				it = availible.emplace(it, start, size + Interface::headerSize);
+
+			// Perform coalescence of adjacent blocks
+			It next = it, prev = it;
+			++next;
+
+			if (next != std::end(availible) &&
+				it->first + it->second == next->first)
+			{
+				it->second += next->second;
+				availible.erase(next);
+			}
+			if (prev != std::begin(availible) &&
+				(--prev)->first + prev->second == it->first)
+			{
+				prev->second += it->second;
+				availible.erase(it);
+			}
+		}
+
+		Ib firstFit(size_t reqBytes)
+		{
+			for (auto it = std::begin(availible);
+				it != std::end(availible); ++it)
+			{
+				// Found a section of memory large enough to hold
+				// what we want to allocate
+				if (it->second >= reqBytes)
+					return { it, true };
+			}
+			return { It{}, false };
+		}
+
+		void erase(It it)
+		{
+			availible.erase(it);
+		}
+
+		void freeAll(byte* MyBegin)
+		{
+			availible.clear();
+			availible.emplace_back(MyBegin, bytes);
+		}
 	};
 
 	template<size_t bytes, class size_type,

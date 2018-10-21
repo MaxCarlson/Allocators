@@ -151,7 +151,7 @@ inline void addScores(std::vector<std::vector<double>>& first,
 // Benchmark the allocators
 int main()
 {
-	constexpr int numTests = 10;
+	constexpr int numTests = 8;
 
 	// Add caches for slab allocator
 	// Note: Less caches will make it faster

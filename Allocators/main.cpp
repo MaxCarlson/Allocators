@@ -49,30 +49,9 @@ struct Large
 // Allocator w/ thread private heaps like Intel's tbb::scalable_allocator<T>
 int main()
 {
-	alloc::SlabMem<int> slabM;
-	alloc::SlabObj<Large> slabO;
+	alloc::FreeList<int, 50000, alloc::FlatPolicy> al;
 
-	//int* iptr = alloc::allocatePage<int>(50000);
-	//alloc::alignedFree(iptr);
-
-	slabO.addCache<Large>(100);
-
-	for (int i = 0; i < 1000000; ++i)
-	{
-		Large* ptrs[500];
-		for (int i = 0; i < 500; ++i)
-			ptrs[i] = slabO.allocate();
-
-		slabO.freeAll();
-	}
-
-
-	slabM.addCache(sizeof(char), count);
-	slabM.addCache(sizeof(uint16_t), count);
-	slabM.addCache(sizeof(uint32_t), count);
-	slabM.addCache(sizeof(uint64_t), count);
-	slabM.addCache<Large>(count);
-
+	auto ptr = al.allocate(1);
 
 	return 0;
 }

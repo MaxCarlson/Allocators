@@ -41,5 +41,8 @@
     <ClInclude Include="SlabMem.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Buddy.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

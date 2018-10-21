@@ -15,67 +15,79 @@ namespace Tests
 
 		using lType					= int; // Allocator allocation type for list pol
 		static const lType alSize	= 512;
-		using Allocator				= alloc::FreeList<int, alSize, alloc::ListPolicy>;
-		using lsType				= Allocator::size_type; // Allocator size type for list pol
-		using ListPol				= typename Allocator::OurPolicy::OurPolicy;
-		using Header				= typename Allocator::OurPolicy::Header;
+		using LAllocator			= alloc::FreeList<int, alSize, alloc::ListPolicy>;
+		using FAllocator			= alloc::FreeList<int, alSize, alloc::FlatPolicy>;
+		using lsType				= LAllocator::size_type; // Allocator size type for list pol
+		using LPol					= typename LAllocator::OurPolicy::OurPolicy;
+		using FPol					= typename FAllocator::OurPolicy::OurPolicy;
+		using Header				= typename LAllocator::OurPolicy::Header;
 
-		Allocator allist;
+		LAllocator allist;
+		FAllocator fallist;
 		// This is the policy interface that interfaces with
 		// different allocator policies
-		Allocator::OurPolicy listItf;
+		LAllocator::OurPolicy lItf;
+		FAllocator::OurPolicy fItf;
 		// A particular allocator policy. From here we can access
 		// the list of free mem blocks, etc
-		ListPol listPol;
+		LPol lPol;
+		FPol fPol;
 
-		TEST_METHOD(AllocationList)
+		template<class Al, class Itf, class Pol>
+		void testAlloc(Al& al, Itf& itf, Pol& pol)
 		{
-			// Should be able to allocate full size, 
+			// Shouldn't be able to allocate full size, 
 			// we need to store header info
 			bool failed = false;
 			try
 			{
-				lType* p = allist.allocate(alSize);
+				lType* p = al.allocate(alSize);
 			}
-			catch (std::bad_alloc b)
+			catch (const std::bad_alloc& b)
 			{
 				failed = true;
 			}
 
-			Assert::IsTrue(static_cast<lType>(listItf.bytesFree) == alSize);
+			Assert::IsTrue(static_cast<lType>(itf.bytesFree) == alSize);
 			Assert::IsTrue(failed);
 
 			// Allocate close to the total amount possible
 			constexpr lType perAl = 2;
 			constexpr lType count = alSize / (sizeof(lType) + sizeof(Header)) / perAl;
 			lType* ptrs[count];
-			
+
 			for (int i = 0; i < count; ++i)
 			{
-				ptrs[i] = allist.allocate(perAl);
+				ptrs[i] = al.allocate(perAl);
 				for (int j = 0; j < perAl; ++j)
 					ptrs[i][j] = j;
 			}
-			
+
 			// Remaining bytes(what it should be) equal to what was allocated
 			const lsType remainingBytes = alSize - static_cast<lsType>(count * (sizeof(Header) + sizeof(lType) * perAl));
 
 			// Check byte count is correct
-			Assert::IsTrue(listItf.bytesFree == remainingBytes);
+			Assert::IsTrue(itf.bytesFree == remainingBytes);
 			// Check remaining chunk mem size is matching our count
-			Assert::IsTrue(listPol.availible.front().second == remainingBytes);
+			Assert::IsTrue(pol.availible.front().second == remainingBytes);
 
 			// And test to make sure nothing is overwritten
 			for (int i = 0; i < count; ++i)
 				for (int j = 0; j < perAl; ++j)
 					Assert::IsTrue(ptrs[i][j] == j);
 
-			allist.freeAll();
+			al.freeAll();
+		}
+
+		TEST_METHOD(AllocationList)
+		{
+			testAlloc(allist, lItf, lPol);
+			testAlloc(fallist, fItf, fPol);
 		}
 
 		TEST_METHOD(DeallocationList)
 		{
-			Assert::IsTrue(static_cast<lType>(listItf.bytesFree) == alSize);
+			Assert::IsTrue(static_cast<lType>(lItf.bytesFree) == alSize);
 
 			// Allocate close to the total amount possible
 			constexpr lType perAl = 2;
@@ -98,13 +110,13 @@ namespace Tests
 				allist.deallocate(ptrs[it]);
 
 			// Check byte count is correct
-			Assert::IsTrue(listItf.bytesFree == static_cast<lsType>(alSize));
+			Assert::IsTrue(lItf.bytesFree == static_cast<lsType>(alSize));
 
 			// Should only be one large block
-			Assert::IsTrue(listPol.availible.size() == 1);
+			Assert::IsTrue(lPol.availible.size() == 1);
 
 			// Check remaining chunk mem size is matching our count
-			Assert::IsTrue(listPol.availible.front().second == static_cast<lsType>(alSize));
+			Assert::IsTrue(lPol.availible.front().second == static_cast<lsType>(alSize));
 		}
 
 		TEST_METHOD(FreeAllList)
@@ -116,9 +128,9 @@ namespace Tests
 
 			allist.freeAll();
 
-			Assert::IsTrue(listItf.bytesFree == alSize);
-			Assert::IsTrue(listPol.availible.size() == 1);
-			Assert::IsTrue(listPol.availible.front().second == alSize);
+			Assert::IsTrue(lItf.bytesFree == alSize);
+			Assert::IsTrue(lPol.availible.size() == 1);
+			Assert::IsTrue(lPol.availible.front().second == alSize);
 		}
 
 	};
