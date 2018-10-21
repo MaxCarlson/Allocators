@@ -79,15 +79,16 @@ namespace Tests
 			al.freeAll();
 		}
 
-		TEST_METHOD(AllocationList)
+		TEST_METHOD(Allocation)
 		{
 			testAlloc(listAl, lItf,  lPol);
 			testAlloc(flatAl, fItf, fPol);
 		}
 
-		TEST_METHOD(DeallocationList)
+		template<class Al, class Itf, class Pol>
+		void testDealloc(Al& al, Itf& itf, Pol& pol)
 		{
-			Assert::IsTrue(static_cast<lType>(lItf.bytesFree) == alSize);
+			Assert::IsTrue(static_cast<lType>(itf.bytesFree) == alSize);
 
 			// Allocate close to the total amount possible
 			constexpr lType perAl = 2;
@@ -98,7 +99,7 @@ namespace Tests
 			for (int i = 0; i < count; ++i)
 			{
 				idxs.emplace_back(i);
-				ptrs[i] = listAl.allocate(perAl);
+				ptrs[i] = al.allocate(perAl);
 				for (int j = 0; j < perAl; ++j)
 					ptrs[i][j] = j;
 			}
@@ -107,30 +108,43 @@ namespace Tests
 			std::shuffle(std::begin(idxs), std::end(idxs), std::default_random_engine(1));
 
 			for (const auto it : idxs)
-				listAl.deallocate(ptrs[it]);
+				al.deallocate(ptrs[it]);
 
 			// Check byte count is correct
-			Assert::IsTrue(lItf.bytesFree == static_cast<lsType>(alSize));
+			Assert::IsTrue(itf.bytesFree == static_cast<lsType>(alSize));
 
 			// Should only be one large block
-			Assert::IsTrue(lPol.availible.size() == 1);
+			Assert::IsTrue(pol.availible.size() == 1);
 
 			// Check remaining chunk mem size is matching our count
-			Assert::IsTrue(lPol.availible.front().second == static_cast<lsType>(alSize));
+			Assert::IsTrue(pol.availible.front().second == static_cast<lsType>(alSize));
 		}
 
-		TEST_METHOD(FreeAllList)
+		TEST_METHOD(Deallocation)
+		{
+			testDealloc(listAl, lItf, lPol);
+			testDealloc(flatAl, fItf, fPol);
+		}
+
+		template<class Al, class Itf, class Pol>
+		void testFreeAll(Al& al, Itf& itf, Pol& pol)
 		{
 			constexpr lType perAl = 2;
 			constexpr lType count = alSize / (sizeof(lType) + sizeof(Header)) / perAl;
 			for (int i = 0; i < count; ++i)
-				listAl.allocate(perAl);
+				al.allocate(perAl);
 
-			listAl.freeAll();
+			al.freeAll();
 
-			Assert::IsTrue(lItf.bytesFree == alSize);
-			Assert::IsTrue(lPol.availible.size() == 1);
-			Assert::IsTrue(lPol.availible.front().second == alSize);
+			Assert::IsTrue(itf.bytesFree				== alSize);
+			Assert::IsTrue(pol.availible.size()			==		1);
+			Assert::IsTrue(pol.availible.front().second == alSize);
+		}
+
+		TEST_METHOD(FreeAll)
+		{
+			testFreeAll(listAl, lItf, lPol);
+			testFreeAll(flatAl, fItf, fPol);
 		}
 
 	};
