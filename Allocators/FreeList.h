@@ -65,7 +65,9 @@ namespace alloc
 				return;
 			}
 
-			auto it = std::lower_bound(std::begin(availible), std::end(availible), start, [](auto& it1, auto& it2)
+			auto it = std::lower_bound(
+				std::begin(availible), std::end(availible), 
+				start, [](auto& it1, auto& it2)
 			{
 				return it1.first < it2;
 			});

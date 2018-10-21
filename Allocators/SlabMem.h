@@ -290,10 +290,11 @@ namespace SlabMemImpl
 		}
 
 		template<class T>
-		void deallocate(T* ptr)
+		void deallocate(T* ptr, size_t cnt = 1)
 		{
+			const auto bytes = cnt * sizeof(T);
 			for (auto it = std::begin(caches); it != std::end(caches); ++it)
-				if (sizeof(T) <= it->objSize)
+				if (bytes <= it->objSize)
 				{
 					it->deallocate(ptr);
 					return;

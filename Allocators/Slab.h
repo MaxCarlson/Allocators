@@ -37,9 +37,9 @@ namespace alloc
 		}
 
 		template<class T>
-		void deallocate(T* ptr)
+		void deallocate(T* ptr, size_t cnt = 1)
 		{
-			memStore.deallocate(ptr);
+			memStore.deallocate(ptr, cnt);
 		}
 
 		void addCache(size_type objSize, size_type count)
