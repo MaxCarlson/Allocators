@@ -3,13 +3,55 @@
 
 ## Implemented (so far)
 1. [Slab allocator](https://en.wikipedia.org/wiki/Slab_allocation) 
+    - SlabMem holds caches of n bytes
+    - SlabObj holds a cache of objects
 2. [Free List allocator](https://en.wikipedia.org/wiki/Free_list)
 3. [Linear allocator](https://nfrechette.github.io/2015/05/21/linear_allocator/)
 
 ### Slab Allocator
-The slab allocator breaks from the C++ std::allocator_traits format that the other allocators adhear to. It does this so that it can act as both a multi-object pool, as well as a cache of different (runtime determined) sized memory blocks. Memory caches can be added at runtime and are instatiated by calling ```slab.addCache(objSize, count);```. This creates a contiguous memory block (objSize * cache) in size that is portioned out in objSize increments.
+#### SlabMem
+SlabMem is used by creating a variable number of caches of different sizes. Each cache holds Slabs (contiguous chunks of memory) of a particular size that are divided into blocks
+```cpp
+// This is the type this allocator will default to, but it can be overridden
+alloc::SlabMem<int> slabM;
 
-Memory may be allocated by calling either ```slab.allocateMem(objSize);``` or ```slab.allocateMem<objectType <= objSize>();```. Memory may only be requested one allocation at at time. If the requested memory is larger than any cache added, ```std::bad_alloc()``` will be thrown.
+// Create a cache of 1024, 512 byte blocks
+SlabM.addCache(512, 1024);
+// Create another cache
+SlabM.addCache(1024, 1024);
+
+// Finds the smallest cache that has slabs divided into blocks
+// of atleast (sizeof(int) * 128) bytes in size. In this case, the first Cache
+int* ptrI = SlabM.allocate(128);
+
+// Do NOT add another Cache after allocations start,
+// you run the risk of deallocations failing
+
+// Returns a uint16_t pointer to enough spaces for 257
+// uint16_t's. In this case, since it's just barely larger
+// than our first cache, the space taken from the cache is actually 1024 bytes
+// instead of 514
+uint16_t* ptrS = SlabM.allocate<uint16_t>(257);
+
+// If allocation included a count, that number must be 
+// included in the deallocation. Otherwise the allocator
+// could look in the wrong cache
+slabM.deallocate(ptrI, 128);
+slabM.deallocate(ptrS, 257);
+
+slabM.freeEmpty();    // Frees every empty Slab in every Cache
+slabM.freeEmpty(512); // Frees every empty Slab in the 512 byte Cache
+slabM.freeAll();      // Frees every Slab in every Cache (does NOT destruct anything)
+slabM.freeAll(1024);  // Frees every Slab in the 1024 byte Cache
+slabM.info();         // Returns a std::vector<CacheInfo> which holds stats about that Caches
+```
+
+#### SlabObj
+```cpp
+alloc::SlabObj<int> slabO;
+
+
+```
 
 ### Free List Allocator
 
