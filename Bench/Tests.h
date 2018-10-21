@@ -163,7 +163,7 @@ double randomAlDe(Init& init, Alloc& al)
 	return std::chrono::duration_cast<TimeType>(end - start).count();
 }
 
-// Measure memory access times, both randomly and sequentially
+// Measure memory access times, both randomly and sequentially 
 template<class Init, class Alloc>
 double memAccess(Init& init, Alloc& al, bool seq)
 {

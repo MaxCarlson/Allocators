@@ -10,7 +10,9 @@ DefaultAlloc defaultAl;
 alloc::SlabMem<int> slabM;
 alloc::SlabObj<int> slabO;
 constexpr auto FreeListBytes = (sizeof(PartialInit) + sizeof(alloc::FreeList<PartialInit, 999999999>::OurHeader)) * (maxAllocs * 2); // TODO: Better size needs prediciton
-alloc::FreeList<int, FreeListBytes> freeAl;
+alloc::FreeList<int, FreeListBytes, alloc::ListPolicy> freeAlList;
+alloc::FreeList<int, FreeListBytes, alloc::FlatPolicy> freeAlFlat;
+
 
 // Wrapper for common dtor/deallocation in benchmarks
 template<class Al, class Ptr>
@@ -30,11 +32,12 @@ decltype(auto) defWrappers()
 	return std::pair(al, de);
 }
 
-decltype(auto) flWrappers()
+template<class Al>
+decltype(auto) flWrappers(Al& al)
 {
-	auto al = [&](auto t, auto cnt) { return freeAl.allocate<decltype(t)>(cnt); };
-	auto de = [&](auto ptr) { destroyDealloc(freeAl, ptr); };
-	return std::pair(al, de);
+	auto all = [&](auto t, auto cnt) { return al.allocate<decltype(t)>(cnt); };
+	auto de  = [&](auto ptr) { destroyDealloc(al, ptr); };
+	return std::pair(all, de);
 }
 decltype(auto) sMemWrappers()
 {
@@ -83,7 +86,7 @@ void printScores(std::vector<std::vector<double>>& scores, bool isStruct = true)
 {
 	static constexpr int printWidth = 10;
 	static const std::vector<std::string> benchNames	= { "Alloc", "Al/De", "R Al/De", "SeqRead", "RandRead" };
-	static const std::vector<std::string> alNames		= { "Default: ", "FreeList: ", "SlabMem: ", "SlabObj: " };
+	static const std::vector<std::string> alNames		= { "Default: ", "FLstList: ", "FLstFlat: ", "SlabMem: ", "SlabObj: " };
 	
 	// Print the struct name, without struct
 	auto* name = isStruct ? &(typeid(T).name()[7]) : &typeid(T).name()[0];
@@ -123,9 +126,13 @@ decltype(auto) benchAllocs(Ctor& ctor, int runs)
 	BenchT initD(T{}, ctor, dAl, dDe, re);
 	scores.emplace_back(benchAlT(initD, defaultAl, ctor, runs));
 
-	auto[fAl, fDe] = flWrappers();
-	BenchT initF(T{}, ctor, fAl, fDe, re);
-	scores.emplace_back(benchAlT(initF, freeAl, ctor, runs));
+	auto[flAl, flDe] = flWrappers(freeAlList);
+	BenchT initFl(T{}, ctor, flAl, flDe, re);
+	scores.emplace_back(benchAlT(initFl, freeAlList, ctor, runs));
+
+	auto[ffAl, ffDe] = flWrappers(freeAlFlat);
+	BenchT initFf(T{}, ctor, ffAl, ffDe, re);
+	scores.emplace_back(benchAlT(initFf, freeAlFlat, ctor, runs));
 
 	auto[memAl, memDe] = sMemWrappers();
 	BenchT initM(T{}, ctor, memAl, memDe, re);
