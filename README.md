@@ -21,7 +21,7 @@ SlabM.addCache(512, 1024);
 SlabM.addCache(1024, 1024);
 
 // Finds the smallest cache that has slabs divided into blocks
-// of atleast (sizeof(int) * 128) bytes in size. In this case, the first Cache
+// of at least (sizeof(int) * 128) bytes in size. In this case, the first Cache
 int* ptrI = SlabM.allocate(128);
 
 // Do NOT add another Cache after allocations start,
@@ -47,10 +47,64 @@ slabM.info();         // Returns a std::vector<CacheInfo> which holds stats abou
 ```
 
 #### SlabObj
+SlabObj acts similarly to SlabMem, but instead of holding caches of un-initialized memory SlabObj creates caches of constructed objects. How those objects are constructed, as well as how they are handled when they are 'deallocated' and sent back to the object pool is completely customizable through template specializations (with either argument forwarding or lambda's). 
 ```cpp
+
+// Example struct
+struct Large
+{
+    Large() = default;
+    Large(int a, const std::vector<int>& vec) : a(a), b(vec)
+    {
+        std::fill(std::begin(vec), std::end(vec), a);
+    }
+    int a;
+    std::vector<int> vec;
+};
+
+// Create a SlabObj allocator
 alloc::SlabObj<int> slabO;
 
+// Create a cache of Large objects using Large's default Ctor. 
+// Will default to the closest (rounding up) page size bytes of objects per cache
+slabO.addCache<Large>(1); 
 
+// If you want the objects to be initialized using
+// custom arguments you can use alloc::CtorArgs.
+// This also allows for multiple specialized caches of the same
+// object type through template specialization
+std::vector<int> initVec(1, 100);
+alloc::CtorArgs ctorLA(5, initVec);
+
+// Create a Cache of Large objects, constructed like so:
+// Large{5, initVec};
+slabO.addCache<Large, decltype(ctorLA)>(100);
+
+// You can also use lambda's as both
+// Ctors as well as functions to apply to your objects
+// when they're 'deallocated' (returned to the Cache)
+auto lDtor = [&](Large& lrg)
+{
+    if(lrg.vec.size() > 100)
+        lrg.vec.shrink_to_fit();
+};
+
+alloc::Xtors xtors(ctorLA, lDtor);
+using XtorT = decltype(xtors);
+
+// Create a Cache of Large objects that uses the Ctor above
+// and also applies the lDtor function on object 'deallocation'
+slabO.addCache<Large, XtorT>(5000);
+
+// In order to allocate an object from a Cache that
+// uses custom Ctors/Dtors you must include the type of the Xtors
+// in the allocation/deallocation commands
+// This returns a pointer to a Large object constructed with the Ctor above
+Large* p = slabO.allocate<Large, XtorT>();
+
+// Returns the object back to the pool, and applies
+// the lambda above shrinking the vector to fit if size > 100
+slabO.deallocate<Large, XtorT>(p);
 ```
 
 ### Free List Allocator
