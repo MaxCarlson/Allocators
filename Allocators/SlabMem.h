@@ -27,8 +27,28 @@ namespace SlabMemImpl
 			std::iota(std::rbegin(availible), std::rend(availible), 0);
 		}
 
-		// TODO: There's a huge issue here with using this
-		// and having the Caches stored in a vector. FIX IT!
+		void otherMove(Slab&& other) noexcept
+		{
+			mem			= std::move(other.mem);
+			other.mem	= nullptr;
+			objSize		= std::move(other.objSize);
+			count		= std::move(other.count);
+			availible	= std::move(other.availible);
+		}
+
+		Slab(const Slab& other) = delete;
+
+		Slab& operator=(Slab&& other) noexcept
+		{
+			otherMove(std::move(other));
+			return *this;
+		}
+
+		Slab(Slab&& other) noexcept
+		{
+			otherMove(std::move(other));
+		}
+
 		~Slab()
 		{
 			if(mem)
@@ -95,6 +115,9 @@ namespace SlabMemImpl
 			//count = alloc::nearestPageSz(num * objSize) / objSize; // This might increase random access times
 			newSlab();
 		}
+
+		Cache(Cache&& other)			= default;
+		Cache& operator=(Cache&& other) = default;
 
 		size_type size()						const noexcept { return mySize; }
 		size_type capacity()					const noexcept { return myCapacity; }
@@ -220,7 +243,6 @@ namespace SlabMemImpl
 
 		inline static SmallStore caches;
 
-		// TODO: Make whole class static
 		Interface() = default;
 
 		// Add a dynamic cache that stores count 
@@ -230,13 +252,7 @@ namespace SlabMemImpl
 		// (or just any smaller than largest) caches after first allocation for safety?
 		void addCache(size_type objSize, size_type count)
 		{
-			if (caches.empty())
-			{
-				caches.emplace_back(objSize, count);
-				return;
-			}
-
-			for (It it = std::begin(caches); it != std::end(caches); ++it)
+			for (auto it = std::begin(caches); it != std::end(caches); ++it)
 				if (objSize < it->objSize)
 				{
 					caches.emplace(it, objSize, count);
@@ -257,7 +273,7 @@ namespace SlabMemImpl
 		T* allocate(size_t count)
 		{
 			const auto bytes = count * sizeof(T);
-			for (It it = std::begin(caches); it != std::end(caches); ++it)
+			for (auto it = std::begin(caches); it != std::end(caches); ++it)
 				if (bytes <= it->objSize)
 					return it->allocate<T>();
 
@@ -276,7 +292,7 @@ namespace SlabMemImpl
 		template<class T>
 		void deallocate(T* ptr)
 		{
-			for (It it = std::begin(caches); it != std::end(caches); ++it)
+			for (auto it = std::begin(caches); it != std::end(caches); ++it)
 				if (sizeof(T) <= it->objSize)
 				{
 					it->deallocate(ptr);
@@ -290,7 +306,7 @@ namespace SlabMemImpl
 		{
 			if (cacheSize == 0)
 			{
-				for (It it = std::begin(caches); it != std::end(caches); ++it)
+				for (auto it = std::begin(caches); it != std::end(caches); ++it)
 				{
 					if constexpr (all)
 						it->freeAll();
@@ -300,7 +316,7 @@ namespace SlabMemImpl
 				return;
 			}
 
-			for (It it = std::begin(caches); it != std::end(caches); ++it)
+			for (auto it = std::begin(caches); it != std::end(caches); ++it)
 				if (it->objSize == cacheSize)
 				{
 					if constexpr (all)

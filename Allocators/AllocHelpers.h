@@ -2,6 +2,7 @@
 #include <memory>
 #include <stdexcept>
 #include <Windows.h>
+#include <list>
 
 #include <cstdlib>
 #include <stdlib.h>
@@ -80,8 +81,10 @@ namespace alloc
 	};
 
 	// TODO: Write tests for this list
+	// TODO: std::list actually has splice,
+	// think about switching?
 	template<class T>
-	class List
+	class ListT
 	{
 	public:
 
@@ -141,7 +144,7 @@ namespace alloc
 
 	private:
 
-		void otherMove(List&& other) noexcept
+		void otherMove(ListT&& other) noexcept
 		{
 			MySize			= std::move(other.MySize);
 			MyHead			= std::move(other.MyHead);
@@ -152,7 +155,7 @@ namespace alloc
 
 	public:
 
-		List()
+		ListT()
 		{
 			MyHead			= new Node{};
 			MyEnd			= new Node{};
@@ -162,18 +165,18 @@ namespace alloc
 			MyEnd->prev		= MyHead;
 		}
 
-		List(List&& other) noexcept
+		ListT(ListT&& other) noexcept
 		{
 			otherMove(std::move(other));
 		}
 
-		List& operator=(List&& other) noexcept
+		ListT& operator=(ListT&& other) noexcept
 		{
 			otherMove(std::move(other));
 			return *this;
 		}
 		
-		~List()
+		~ListT()
 		{
 			if (MyHead && MySize)
 			{
@@ -220,13 +223,8 @@ namespace alloc
 		size_t size() const noexcept { return MySize; }
 		bool empty() const noexcept { return !MySize; }
 
-		// TODO: std::list actually has this as splice,
-		// think about switching?
-		//
-		// Give another list our node and insert it
-		// before pos. Don't deallocate the memory,
-		// just pass it to another list to handle
-		void splice(iterator pos, List& other, iterator it) noexcept
+		
+		void splice(iterator pos, ListT& other, iterator it) noexcept
 		{
 			Node* n = it.ptr;
 			n->prev->next = n->next;
@@ -234,12 +232,6 @@ namespace alloc
 			--other.MySize;
 
 			insertAt(it.ptr, pos);
-
-			//--MySize;
-			//Node* n		= pos.ptr;
-			//n->prev->next	= n->next;
-			//n->next->prev	= n->prev;
-			//other.insertAt(pos.ptr, it);
 		}
 
 		template<class... Args>
@@ -281,4 +273,10 @@ namespace alloc
 			MyEnd->prev		= MyHead;
 		}
 	};
+
+	template<class T>
+	using List = std::list<T, std::allocator<T>>; 
+
+	//template<class T>
+	//using List = ListT<T>;
 }
