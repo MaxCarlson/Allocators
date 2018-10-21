@@ -65,8 +65,8 @@ struct Large
 // Create a SlabObj allocator
 alloc::SlabObj<int> slabO;
 
-// Create a cache of Large objects using Large's default Ctor. 
-// Will default to the closest (rounding up) page size bytes of objects per cache
+// Create a cache of of atleast 1 Large object using Large's default Ctor.
+// However, SlabObj will default to the closest (rounding up) page size bytes of objects per cache
 slabO.addCache<Large>(1); 
 
 // If you want the objects to be initialized using
@@ -78,7 +78,7 @@ alloc::CtorArgs ctorLA(5, initVec);
 
 // Create a Cache of Large objects, constructed like so:
 // Large{5, initVec};
-slabO.addCache<Large, decltype(ctorLA)>(100);
+slabO.addCache<Large, decltype(ctorLA)>(100, ctorLa);
 
 // You can also use lambda's as both
 // Ctors as well as functions to apply to your objects
@@ -92,9 +92,9 @@ auto lDtor = [&](Large& lrg)
 alloc::Xtors xtors(ctorLA, lDtor);
 using XtorT = decltype(xtors);
 
-// Create a Cache of Large objects that uses the Ctor above
+// Create a Cache of atleast 5000 (per Slab) Large objects that uses the Ctor above
 // and also applies the lDtor function on object 'deallocation'
-slabO.addCache<Large, XtorT>(5000);
+slabO.addCache<Large, XtorT>(5000, xtors);
 
 // In order to allocate an object from a Cache that
 // uses custom Ctors/Dtors you must include the type of the Xtors
