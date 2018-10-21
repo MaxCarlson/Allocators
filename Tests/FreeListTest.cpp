@@ -22,8 +22,8 @@ namespace Tests
 		using FPol					= typename FAllocator::OurPolicy::OurPolicy;
 		using Header				= typename LAllocator::OurPolicy::Header;
 
-		LAllocator allist;
-		FAllocator fallist;
+		LAllocator listAl;
+		FAllocator flatAl;
 		// This is the policy interface that interfaces with
 		// different allocator policies
 		LAllocator::OurPolicy lItf;
@@ -81,8 +81,8 @@ namespace Tests
 
 		TEST_METHOD(AllocationList)
 		{
-			testAlloc(allist, lItf, lPol);
-			testAlloc(fallist, fItf, fPol);
+			testAlloc(listAl, lItf,  lPol);
+			testAlloc(flatAl, fItf, fPol);
 		}
 
 		TEST_METHOD(DeallocationList)
@@ -98,7 +98,7 @@ namespace Tests
 			for (int i = 0; i < count; ++i)
 			{
 				idxs.emplace_back(i);
-				ptrs[i] = allist.allocate(perAl);
+				ptrs[i] = listAl.allocate(perAl);
 				for (int j = 0; j < perAl; ++j)
 					ptrs[i][j] = j;
 			}
@@ -107,7 +107,7 @@ namespace Tests
 			std::shuffle(std::begin(idxs), std::end(idxs), std::default_random_engine(1));
 
 			for (const auto it : idxs)
-				allist.deallocate(ptrs[it]);
+				listAl.deallocate(ptrs[it]);
 
 			// Check byte count is correct
 			Assert::IsTrue(lItf.bytesFree == static_cast<lsType>(alSize));
@@ -124,9 +124,9 @@ namespace Tests
 			constexpr lType perAl = 2;
 			constexpr lType count = alSize / (sizeof(lType) + sizeof(Header)) / perAl;
 			for (int i = 0; i < count; ++i)
-				allist.allocate(perAl);
+				listAl.allocate(perAl);
 
-			allist.freeAll();
+			listAl.freeAll();
 
 			Assert::IsTrue(lItf.bytesFree == alSize);
 			Assert::IsTrue(lPol.availible.size() == 1);

@@ -54,7 +54,7 @@ namespace alloc
 		using Ib		= std::pair<It, bool>;
 		using Header	= typename Interface::Header;
 
-		Storage availible;
+		inline static Storage availible;
 		FlatPolicy() { availible.reserve(bytes); }
 
 		void add(byte* start, size_type size)
