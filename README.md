@@ -2,11 +2,11 @@
 
 
 ## Implemented (so far)
-1. [Slab allocator](https://en.wikipedia.org/wiki/Slab_allocation) 
-    - SlabMem holds caches of n bytes
-    - SlabObj holds a cache of objects
-2. [Free List allocator](https://en.wikipedia.org/wiki/Free_list)
-3. [Linear allocator](https://nfrechette.github.io/2015/05/21/linear_allocator/)
+1. Slab allocators [Wiki](https://en.wikipedia.org/wiki/Slab_allocation) 
+    - [SlabMem](#slabmem) holds m caches of Slabs divided into n byte blocks
+    - [SlabObj](#slabobj) holds a cache of any type of objects. Type determined through template specialization
+2. [Free List allocator](#freelist-allocator) [Wiki](https://en.wikipedia.org/wiki/Free_list)
+3. [Linear allocator](#linear-allocator) [Wiki](https://nfrechette.github.io/2015/05/21/linear_allocator/)
 
 ### Slab Allocator
 #### SlabMem
@@ -107,6 +107,6 @@ Large* p = slabO.allocate<Large, XtorT>();
 slabO.deallocate<Large, XtorT>(p);
 ```
 
-### Free List Allocator
+### FreeList Allocator
 
 ### Linear Allocator
