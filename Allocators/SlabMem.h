@@ -138,12 +138,12 @@ namespace SlabMemImpl
 			// If we're taking memory from a free slab
 			// add it to the list of partially full slabs
 			if (store == &slabsFree)
-				store->giveNode(it, slabsPart, std::begin(slabsPart));
+				slabsPart.splice(std::begin(slabsPart), *store, it);
 
 			// Give the slab storage to the 
 			// full list if it has no more room
 			if (full)
-				store->giveNode(it, slabsFull, std::begin(slabsFull));
+				slabsFull.splice(std::begin(slabsFull), *store, it);
 
 			++mySize;
 			return reinterpret_cast<T*>(mem);
@@ -171,7 +171,7 @@ namespace SlabMemImpl
 			auto[store, it] = searchStore(slabsFull, ptr);
 			// Need to move slab back into partials
 			if (it != slabsFull.end())
-				slabsFull.giveNode(it, slabsPart, slabsPart.begin());
+				slabsPart.splice(std::begin(slabsPart), slabsFull, it);
 			
 			else
 			{
@@ -182,13 +182,13 @@ namespace SlabMemImpl
 			}
 
 			if (it == slabsPart.end())
-				throw alloc::BadDealloc; 
+				throw alloc::bad_dealloc(); 
 
 			it->deallocate(ptr);
 
 			// Return slab to free list if it's empty
 			if (it->empty())
-				store->giveNode(it, slabsFree, std::begin(slabsFree));
+				slabsFree.splice(std::begin(slabsFree), *store, it);
 
 			--mySize;
 		}
@@ -282,7 +282,7 @@ namespace SlabMemImpl
 					it->deallocate(ptr);
 					return;
 				}
-			throw alloc::BadDealloc;
+			throw alloc::bad_dealloc();
 		}
 
 		template<bool all>

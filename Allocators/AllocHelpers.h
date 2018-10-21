@@ -9,7 +9,7 @@
 namespace alloc
 {
 	using byte			= unsigned char;
-	using BadDealloc	= std::out_of_range;
+	using bad_dealloc	= std::bad_alloc;
 
 	// TODO: Linux #ifdef
 	inline size_t pageSize()
@@ -141,7 +141,7 @@ namespace alloc
 
 	private:
 
-		void otherMove(List&& other)
+		void otherMove(List&& other) noexcept
 		{
 			MySize			= std::move(other.MySize);
 			MyHead			= std::move(other.MyHead);
@@ -162,12 +162,12 @@ namespace alloc
 			MyEnd->prev		= MyHead;
 		}
 
-		List(List&& other)
+		List(List&& other) noexcept
 		{
 			otherMove(std::move(other));
 		}
 
-		List& operator=(List&& other)
+		List& operator=(List&& other) noexcept
 		{
 			otherMove(std::move(other));
 			return *this;
@@ -200,7 +200,7 @@ namespace alloc
 			return new Node{ std::forward<Args>(args)... };
 		}
 
-		iterator insertAt(Node* n, iterator it)
+		iterator insertAt(Node* n, iterator it) noexcept
 		{
 			Node* prev		= it.ptr->prev;
 			prev->next		= n;
@@ -220,17 +220,26 @@ namespace alloc
 		size_t size() const noexcept { return MySize; }
 		bool empty() const noexcept { return !MySize; }
 
+		// TODO: std::list actually has this as splice,
+		// think about switching?
+		//
 		// Give another list our node and insert it
 		// before pos. Don't deallocate the memory,
 		// just pass it to another list to handle
-		void giveNode(iterator& ourNode, List& other, iterator pos)
+		void splice(iterator pos, List& other, iterator it) noexcept
 		{
-			--MySize;
-			Node* n			= ourNode.ptr;
-			n->prev->next	= n->next;
-			n->next->prev	= n->prev;
+			Node* n = it.ptr;
+			n->prev->next = n->next;
+			n->next->prev = n->prev;
+			--other.MySize;
 
-			other.insertAt(ourNode.ptr, pos);
+			insertAt(it.ptr, pos);
+
+			//--MySize;
+			//Node* n		= pos.ptr;
+			//n->prev->next	= n->next;
+			//n->next->prev	= n->prev;
+			//other.insertAt(pos.ptr, it);
 		}
 
 		template<class... Args>
