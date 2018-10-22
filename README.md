@@ -63,11 +63,17 @@ struct Large
 };
 
 // Create a SlabObj allocator
-alloc::SlabObj<int> slabO;
+alloc::SlabObj<int> slabO; 
+
+// Note: The only difference between this and SlabObj<Large> is that the former will default to allocating 
+// ints if a type isn't specified, everything is statically stored by type
 
 // Create a cache of Slabs that hold at least 1 Large object (per Slab) using Large's default Ctor.
 // However, SlabObj will default to Slab sizes closest (rounding up) to the nearest page size
-slabO.addCache<Large>(1); 
+alloc::SlabObj<Large>::addCache(1); 
+
+// Another syntax 
+slabO.addCache<Large>(1);
 
 // If you want the objects to be initialized using
 // custom arguments you can use alloc::CtorArgs.
