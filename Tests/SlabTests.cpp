@@ -48,12 +48,15 @@ namespace Tests
 		alloc::SlabMem<int> slabM;
 		alloc::SlabObj<Large> slabO;
 
+		static const int MEM_CACHES = 3;
+
 		TEST_CLASS_INITIALIZE(init)
 		{
 			// SlabMem Init
 			alloc::SlabMem<int> slabM;
 			slabM.addCache(sizeof(int), maxAllocs);
 			slabM.addCache<Large>(maxAllocs);
+			slabM.addCache(sizeof(Large) * 100, 100); // TODO: THIS BREAKS TESTS, FIND OUT WHY
 
 			// SlabObj Init
 			alloc::SlabObj<Large> slabO;
@@ -93,18 +96,29 @@ namespace Tests
 			}
 		}
 
+		template<class Al>
+		void checkMemStats(Al& al, int cmp, const wchar_t * str = nullptr)
+		{
+			const auto info = al.info();
+			for (int i = 0; i < MEM_CACHES - 1; ++i)
+				Assert::IsTrue(info[i].size == cmp, str);
+		}
+
 		TEST_METHOD(Alloc_Mem)
 		{
 			std::vector<int> order;
 			auto [iptrs, lptrs] = allocMem(order, 1);
 
-			auto infos = slabM.info();
-
-			for (const auto& i : infos)
-				Assert::IsTrue(i.size == maxAllocs);
+			checkMemStats(slabM, maxAllocs);
 
 			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(22));
 			deallocMem(iptrs, lptrs, order);
+		}
+
+		TEST_METHOD(AllocMulti_Mem) // TODO: Test for multiple count of object allocations
+		{
+			//auto* lrg10 = slabM.allocate<Large>(10);
+			//slabM.deallocate(lrg10, 10);
 		}
 
 		TEST_METHOD(Dealloc_Mem)
@@ -112,18 +126,12 @@ namespace Tests
 			std::vector<int> order;
 			auto[iptrs, lptrs] = allocMem(order, 2);
 
-			auto infos = slabM.info();
-
-			for(const auto& i : infos)
-				Assert::IsTrue(i.size == maxAllocs, L"Info incorrect!");
+			checkMemStats(slabM, maxAllocs, L"Info incorrect!");
 
 			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(88));
 			deallocMem(iptrs, lptrs, order);
 
-			infos = slabM.info();
-
-			for (const auto& i : infos)
-				Assert::IsTrue(i.size == 0, L"Non-zero size after deallocation!");
+			checkMemStats(slabM, 0, L"Info incorrect!");
 		}
 
 		TEST_METHOD(FreeAll_Mem)
@@ -131,10 +139,7 @@ namespace Tests
 			std::vector<int> order;
 			auto[iptrs, lptrs] = allocMem(order, 2);
 
-			auto infos = slabM.info();
-	
-			for (const auto& i : infos)
-				Assert::IsTrue(i.size == maxAllocs, L"Info incorrect!");
+			checkMemStats(slabM, maxAllocs, L"Info incorrect!");
 
 			auto preDeallocCnt = LargeDtorCounter;
 			slabM.freeAll(sizeof(int));
@@ -143,7 +148,7 @@ namespace Tests
 			// SlabMem.freeAll does NOT call dtors (how could it know what fills what?)
 			Assert::IsTrue(LargeDtorCounter == preDeallocCnt);
 
-			infos = slabM.info();
+			auto infos = slabM.info();
 			Assert::IsTrue(infos[0].size == 0);
 			Assert::IsTrue(infos[1].size == 0);
 			Assert::IsTrue(infos[0].capacity == 0);

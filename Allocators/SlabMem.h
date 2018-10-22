@@ -284,12 +284,6 @@ namespace SlabMemImpl
 		}
 
 		template<class T>
-		T* allocate()
-		{
-			return allocate<T>(1);
-		}
-
-		template<class T>
 		void deallocate(T* ptr, size_t cnt = 1)
 		{
 			const auto bytes = cnt * sizeof(T);

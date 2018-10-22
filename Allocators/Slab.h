@@ -26,8 +26,10 @@ namespace alloc
 		template<class T = Type>
 		T* allocate()
 		{
-			return memStore.allocate<T>();
+			return memStore.allocate<T>(1);
 		}
+
+		// TODO: Add an allocate by bytes?
 
 		// Allocate space for count objects of type T
 		template<class T = Type>
