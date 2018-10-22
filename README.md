@@ -2,11 +2,11 @@
 
 
 ## Implemented (so far)
-1. [Slab allocator](https://en.wikipedia.org/wiki/Slab_allocation) 
-    - SlabMem holds caches of n bytes
-    - SlabObj holds a cache of objects
-2. [Free List allocator](https://en.wikipedia.org/wiki/Free_list)
-3. [Linear allocator](https://nfrechette.github.io/2015/05/21/linear_allocator/)
+1. Slab allocators [Wiki](https://en.wikipedia.org/wiki/Slab_allocation) 
+    - [SlabMem](#slabmem) holds m caches of Slabs divided into n byte blocks
+    - [SlabObj](#slabobj) holds a cache of any type of objects. Type determined through template specialization
+2. [Free List allocator](#freelist-allocator) [Wiki](https://en.wikipedia.org/wiki/Free_list)
+3. [Linear allocator](#linear-allocator) [Wiki](https://nfrechette.github.io/2015/05/21/linear_allocator/)
 
 ### Slab Allocator
 #### SlabMem
@@ -65,8 +65,8 @@ struct Large
 // Create a SlabObj allocator
 alloc::SlabObj<int> slabO;
 
-// Create a cache of Large objects using Large's default Ctor. 
-// Will default to the closest (rounding up) page size bytes of objects per cache
+// Create a cache of of atleast 1 Large object using Large's default Ctor.
+// However, SlabObj will default to the closest (rounding up) page size bytes of objects per cache
 slabO.addCache<Large>(1); 
 
 // If you want the objects to be initialized using
@@ -78,7 +78,7 @@ alloc::CtorArgs ctorLA(5, initVec);
 
 // Create a Cache of Large objects, constructed like so:
 // Large{5, initVec};
-slabO.addCache<Large, decltype(ctorLA)>(100);
+slabO.addCache<Large, decltype(ctorLA)>(100, ctorLa);
 
 // You can also use lambda's as both
 // Ctors as well as functions to apply to your objects
@@ -92,9 +92,9 @@ auto lDtor = [&](Large& lrg)
 alloc::Xtors xtors(ctorLA, lDtor);
 using XtorT = decltype(xtors);
 
-// Create a Cache of Large objects that uses the Ctor above
+// Create a Cache of atleast 5000 (per Slab) Large objects that uses the Ctor above
 // and also applies the lDtor function on object 'deallocation'
-slabO.addCache<Large, XtorT>(5000);
+slabO.addCache<Large, XtorT>(5000, xtors);
 
 // In order to allocate an object from a Cache that
 // uses custom Ctors/Dtors you must include the type of the Xtors
@@ -107,6 +107,6 @@ Large* p = slabO.allocate<Large, XtorT>();
 slabO.deallocate<Large, XtorT>(p);
 ```
 
-### Free List Allocator
+### FreeList Allocator
 
 ### Linear Allocator
