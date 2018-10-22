@@ -65,19 +65,19 @@ struct Large
 // Create a SlabObj allocator
 alloc::SlabObj<int> slabO;
 
-// Create a cache of of atleast 1 Large object using Large's default Ctor.
-// However, SlabObj will default to the closest (rounding up) page size bytes of objects per cache
+// Create a cache of Slabs that hold at least 1 Large object (per Slab) using Large's default Ctor.
+// However, SlabObj will default to Slab sizes closest (rounding up) to the nearest page size
 slabO.addCache<Large>(1); 
 
 // If you want the objects to be initialized using
 // custom arguments you can use alloc::CtorArgs.
 // This also allows for multiple specialized caches of the same
 // object type through template specialization
-std::vector<int> initVec(1, 100);
+std::vector<int> initVec(1, 100); 
 alloc::CtorArgs ctorLA(5, initVec);
 
-// Create a Cache of Large objects, constructed like so:
-// Large{5, initVec};
+// Create a Cache of at least 100 Large objects per Slab, 
+// constructed like so: Large{ 5, initVec };
 slabO.addCache<Large, decltype(ctorLA)>(100, ctorLa);
 
 // You can also use lambda's as both
@@ -89,6 +89,8 @@ auto lDtor = [&](Large& lrg)
         lrg.vec.shrink_to_fit();
 };
 
+// alloc::Xtors allows for custom Ctor/lambda ctor
+// to be coupled with a lambda 'dtor'
 alloc::Xtors xtors(ctorLA, lDtor);
 using XtorT = decltype(xtors);
 
