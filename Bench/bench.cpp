@@ -204,7 +204,9 @@ inline void addScores(std::vector<std::vector<double>>& first,
 // Benchmark the allocators
 int main()
 {
-	constexpr int numTests = 3;
+	constexpr size_t testToBench	= 0;			// TODO: Implement this same way as allocsToBench! (So we can turn off tests and look at specific ones)
+	constexpr size_t allocsToBench	= ALL_ALLOCS;	// TODO: Make this function with the printout!
+	constexpr int numTests			= 2;
 
 	// Add caches for slab allocator
 	// Note: Less caches will make it faster
@@ -225,8 +227,8 @@ int main()
 
 	// Run benchmarks
 	std::vector<std::vector<double>> scores;
-	scores			= benchAllocs<SimpleStruct, ssCtorT>(ssCtor, numTests);
-	addScores(scores, benchAllocs<PartialInit,  piCtorT>(piCtor, numTests));
+	scores			= benchAllocs<SimpleStruct, ssCtorT>(ssCtor, numTests, allocsToBench);
+	addScores(scores, benchAllocs<PartialInit,  piCtorT>(piCtor, numTests, allocsToBench));
 
 
 	// Print the average of all benchmark scores for 
