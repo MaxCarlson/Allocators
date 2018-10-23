@@ -151,8 +151,8 @@ double randomAlDe(Init& init, Alloc& al)
 		{
 			auto disDe	= std::uniform_int_distribution<int>(0, ptrs.size() - 1);
 			auto idx	= disDe(init.re);
-			init.de(ptrs[idx]);
 			std::swap(ptrs[idx], ptrs.back());
+			init.de(ptrs.back());
 			ptrs.pop_back();
 			--deallocs;
 		}

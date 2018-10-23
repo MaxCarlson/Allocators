@@ -11,14 +11,6 @@ namespace alloc
 	template<class Type>
 	class SlabMem
 	{
-		// NOTE: as it stands, all of memstores caches need to be instantiated
-		// BEFORE any memory is allocated due the way deallocation works. If any smaller 
-		// caches are added after an object has been allocated that the allocated object fits
-		// in it will result in undefined behavior on attempted deallocation!
-		//
-		// Useable for memory sizes up to... (per cache) count <= std::numeric_limits<uint16_t>::max()
-		inline static SlabMemImpl::Interface memStore;
-
 	public:
 
 		using size_type = size_t;
@@ -26,31 +18,31 @@ namespace alloc
 		template<class T = Type>
 		static T* allocate()
 		{
-			return memStore.allocate<T>(1);
+			return SlabMemImpl::Interface::allocate<T>(1);
 		}
 
 		// Allocate space for count objects of type T
 		template<class T = Type>
 		static T* allocate(size_t count)
 		{
-			return memStore.allocate<T>(count);
+			return SlabMemImpl::Interface::allocate<T>(count);
 		}
 
 		template<class T>
 		static void deallocate(T* ptr, size_t cnt = 1)
 		{
-			memStore.deallocate(ptr, cnt);
+			SlabMemImpl::Interface::deallocate(ptr, cnt);
 		}
 
 		static void addCache(size_type objSize, size_type count)
 		{
-			memStore.addCache(objSize, count);
+			SlabMemImpl::Interface::addCache(objSize, count);
 		}
 
 		template<class T = Type>
 		static void addCache(size_type count)
 		{
-			memStore.addCache(sizeof(T), count);
+			SlabMemImpl::Interface::addCache(sizeof(T), count);
 		}
 
 		// Free all memory of all caches
@@ -62,17 +54,17 @@ namespace alloc
 		// you'll have a memory leak if you do.
 		static void freeAll(size_type cacheSize = 0)
 		{
-			memStore.freeAll(cacheSize);
+			SlabMemImpl::Interface::freeAll(cacheSize);
 		}
 
 		static void freeEmpty(size_type cacheSize = 0)
 		{
-			memStore.freeEmpty(cacheSize);
+			SlabMemImpl::Interface::freeEmpty(cacheSize);
 		}
 
 		static std::vector<CacheInfo> info() noexcept
 		{
-			return memStore.info();
+			return SlabMemImpl::Interface::info();
 		}
 	};
 
