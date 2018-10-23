@@ -59,7 +59,7 @@ namespace SlabMemImpl
 		size_type size()	const noexcept { return count - availible.size(); }
 		bool empty()		const noexcept { return availible.size() == count; }
 
-		std::pair<byte*, bool> allocate()
+		std::pair<byte*, bool> allocate() 
 		{
 			if (availible.empty()) // TODO: This should never happen?
 				return { nullptr, false };
@@ -243,14 +243,12 @@ namespace SlabMemImpl
 
 		inline static SmallStore caches;
 
-		Interface() = default;
-
 		// Add a dynamic cache that stores count 
 		// number of objSize memory chunks
 		//
 		// TODO: Add a debug check so this function won't add any 
 		// (or just any smaller than largest) caches after first allocation for safety?
-		void addCache(size_type objSize, size_type count)
+		static void addCache(size_type objSize, size_type count)
 		{
 			for (auto it = std::begin(caches); it != std::end(caches); ++it)
 				if (objSize < it->objSize)
@@ -261,7 +259,7 @@ namespace SlabMemImpl
 			caches.emplace_back(objSize, count);
 		}
 
-		std::vector<alloc::CacheInfo> info() const noexcept
+		static std::vector<alloc::CacheInfo> info() noexcept
 		{
 			std::vector<alloc::CacheInfo> stats;
 			for (const auto& ch : caches)
@@ -270,21 +268,21 @@ namespace SlabMemImpl
 		}
 
 		template<class T>
-		T* allocate(size_t count)
+		static T* allocate(size_t count)
 		{
 			const auto bytes = count * sizeof(T);
 			for (auto it = std::begin(caches); it != std::end(caches); ++it)
 				if (bytes <= it->objSize)
 					return it->allocate<T>();
 
-			// TODO: Should we grow the pool here instead of throwing?
+			// TODO: Should we add another Cache instead of throwing?
 			// OR set a flag to grow/throw?
 			throw std::bad_alloc();
 			return nullptr;
 		}
 
 		template<class T>
-		void deallocate(T* ptr, size_t cnt = 1)
+		static void deallocate(T* ptr, size_t cnt = 1)
 		{
 			const auto bytes = cnt * sizeof(T);
 			for (auto it = std::begin(caches); it != std::end(caches); ++it)
@@ -297,7 +295,7 @@ namespace SlabMemImpl
 		}
 
 		template<bool all>
-		void freeFunc(size_t cacheSize)
+		static void freeFunc(size_t cacheSize)
 		{
 			if (cacheSize == 0)
 			{
@@ -322,16 +320,14 @@ namespace SlabMemImpl
 				}
 		}
 
-		void freeAll(size_t cacheSize)
+		static void freeAll(size_t cacheSize)
 		{
 			freeFunc<true>(cacheSize);
 		}
 
-		void freeEmpty(size_t cacheSize)
+		static void freeEmpty(size_t cacheSize)
 		{
 			freeFunc<false>(cacheSize);
 		}
-
-
 	};
 }

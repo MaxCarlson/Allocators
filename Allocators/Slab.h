@@ -24,33 +24,31 @@ namespace alloc
 		using size_type = size_t;
 
 		template<class T = Type>
-		T* allocate()
+		static T* allocate()
 		{
 			return memStore.allocate<T>(1);
 		}
 
-		// TODO: Add an allocate by bytes?
-
 		// Allocate space for count objects of type T
 		template<class T = Type>
-		T* allocate(size_t count)
+		static T* allocate(size_t count)
 		{
 			return memStore.allocate<T>(count);
 		}
 
 		template<class T>
-		void deallocate(T* ptr, size_t cnt = 1)
+		static void deallocate(T* ptr, size_t cnt = 1)
 		{
 			memStore.deallocate(ptr, cnt);
 		}
 
-		void addCache(size_type objSize, size_type count)
+		static void addCache(size_type objSize, size_type count)
 		{
 			memStore.addCache(objSize, count);
 		}
 
 		template<class T = Type>
-		void addCache(size_type count)
+		static void addCache(size_type count)
 		{
 			memStore.addCache(sizeof(T), count);
 		}
@@ -62,17 +60,17 @@ namespace alloc
 		// Note: Do NOT call this if you have objects
 		// that haven't been destructed that need to be,
 		// you'll have a memory leak if you do.
-		void freeAll(size_type cacheSize = 0)
+		static void freeAll(size_type cacheSize = 0)
 		{
 			memStore.freeAll(cacheSize);
 		}
 
-		void freeEmpty(size_type cacheSize = 0)
+		static void freeEmpty(size_type cacheSize = 0)
 		{
 			memStore.freeEmpty(cacheSize);
 		}
 
-		std::vector<CacheInfo> info() const noexcept
+		static std::vector<CacheInfo> info() noexcept
 		{
 			return memStore.info();
 		}

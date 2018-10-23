@@ -167,8 +167,8 @@ double randomAlDe(Init& init, Alloc& al)
 template<class Init, class Alloc>
 double memAccess(Init& init, Alloc& al, bool seq)
 {
-	using T = typename Init::MyType;
-	using TimeType = std::chrono::microseconds;
+	using T			= typename Init::MyType;
+	using TimeType	= std::chrono::milliseconds;
 
 	auto ptrs = allocMax(init);
 
