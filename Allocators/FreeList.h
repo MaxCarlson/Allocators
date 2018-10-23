@@ -1,4 +1,5 @@
 #pragma once
+#include <map>
 #include <list>
 #include <vector>
 #include <algorithm>
@@ -34,46 +35,57 @@ namespace alloc
 	};
 
 	template<size_t bytes, class size_type,
-		class Interface>
-	struct TreePolicy
+		class Interface, class Storage>
+	struct PolicyT
 	{
-		using It = typename std::list<std::pair<byte*, size_type>>::iterator; // A placeholder until one exists
-		using Ib = std::pair<It, bool>;
-		using Header = typename Interface::Header;
-
-		void add(byte* start, size_type size)
-		{}
-	};
-
-	template<size_t bytes, class size_type,
-		class Interface>
-	struct FlatPolicy
-	{
-		using Storage	= std::vector<std::pair<byte*, size_type>>;
+		//using Storage	= std::vector<std::pair<byte*, size_type>>;
 		using It		= typename Storage::iterator; 
 		using Ib		= std::pair<It, bool>;
 		using Header	= typename Interface::Header;
 
 		inline static Storage availible;
-		FlatPolicy() { availible.reserve(bytes); }
+
+		template<class K, class V, class ...Args>
+		It emplace(std::map<K, V>& m, It it, Args&& ...args)
+		{
+			return m.emplace(std::forward<Args>(args)...).first;
+		}
+
+		template<class K, class V, class ...Args>
+		It emplace(std::vector<std::pair<K, V>>& v, It it, Args&& ...args)
+		{
+			return v.emplace(it, std::forward<Args>(args)...);
+		}
+
+		template<class K, class V, class P>
+		It lower_bound(std::vector<std::pair<K, V>>& v, P* ptr)
+		{
+			return std::lower_bound(
+				std::begin(v), std::end(v),
+				ptr, [](auto& it1, auto& it2)
+			{
+				return it1.first < it2;
+			});
+		}
+
+		template<class K, class V, class P>
+		It lower_bound(std::map<K, V>& m, P* ptr)
+		{
+			return m.lower_bound(ptr);
+		}
 
 		void add(byte* start, size_type size)
 		{
 			if (availible.empty())
 			{
-				availible.emplace_back(start, size);
+				emplace(availible, std::end(availible), start, size);
 				return;
 			}
 
-			auto it = std::lower_bound(
-				std::begin(availible), std::end(availible), 
-				start, [](auto& it1, auto& it2)
-			{
-				return it1.first < it2;
-			});
+			auto it = lower_bound(availible, start);
 
 			if (it->first > start)
-				it = availible.emplace(it, start, size + Interface::headerSize);
+				it = emplace(availible, it, start, size + Interface::headerSize);
 
 			// Perform coalescence of adjacent blocks
 			It next = it, prev = it;
@@ -114,9 +126,23 @@ namespace alloc
 		void freeAll(byte* MyBegin)
 		{
 			availible.clear();
-			availible.emplace_back(MyBegin, bytes);
+			emplace(availible, std::end(availible), MyBegin, bytes);
 		}
 	};
+
+	template<size_t bytes, class size_type,
+		class Interface>
+		struct FlatPolicy 
+		: public PolicyT<bytes, size_type, Interface, 
+		  std::vector<std::pair<byte*, size_type>>>
+	{
+	};
+
+	template<size_t bytes, class size_type,
+		class Interface> 
+		struct TreePolicy : public PolicyT<bytes, size_type, Interface,
+		std::map<byte*, size_type>>
+	{};
 
 	template<size_t bytes, class size_type,
 		class Interface>
@@ -128,7 +154,6 @@ namespace alloc
 		using Header	= typename Interface::Header;
 
 		inline static Storage availible;
-
 
 		void add(byte* start, size_type size)
 		{
@@ -200,6 +225,8 @@ namespace alloc
 		// size_type to keep overhead as low as possible
 		using size_type = typename FindSizeT<bytes, 0>::size_type;
 
+		// TODO: The footers size field can be removed and replaced
+		// with 1bit denoting free/empty
 		struct Header
 		{
 			size_type size;
@@ -219,9 +246,9 @@ namespace alloc
 		inline static byte* MyBegin;
 		inline static byte* MyEnd;
 
-		inline static bool init						= 1;
+		inline static bool init						= true;
 		inline static AlSearch search				= FIRST_FIT;
-		inline static size_type bytesFree;
+		inline static size_type bytesFree			= bytes;
 		inline static constexpr size_t headerSize	= sizeof(Header);
 
 		static_assert(bytes > headerSize + 1, "Allocator size is smaller than minimum required.");
@@ -235,7 +262,6 @@ namespace alloc
 				init		= false;
 				MyBegin		= reinterpret_cast<byte*>(operator new (bytes));
 				MyEnd		= MyBegin + bytes;
-				bytesFree	= bytes;
 				policy.add(MyBegin, bytes);
 			}
 		}
@@ -268,9 +294,7 @@ namespace alloc
 		// pointer to user memory
 		byte* writeHeader(byte* start, size_type size)
 		{
-			//auto* header = reinterpret_cast<Header*>(start);
 			*reinterpret_cast<Header*>(start) = Header{ size };
-
 			return start + headerSize;
 		}
 

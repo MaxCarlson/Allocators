@@ -49,9 +49,11 @@ struct Large
 // Allocator w/ thread private heaps like Intel's tbb::scalable_allocator<T>
 int main()
 {
-	alloc::FreeList<int, 50000, alloc::FlatPolicy> al;
+	alloc::FreeList<int, 50000, alloc::TreePolicy> al;
 
 	auto ptr = al.allocate(1);
+
+
 
 	return 0;
 }

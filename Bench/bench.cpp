@@ -12,6 +12,7 @@ alloc::SlabObj<int> slabO;
 constexpr auto FreeListBytes = (sizeof(PartialInit) + sizeof(alloc::FreeList<PartialInit, 999999999>::OurHeader)) * (maxAllocs * 2); // TODO: Better size needs prediciton
 alloc::FreeList<int, FreeListBytes, alloc::ListPolicy> freeAlList;
 alloc::FreeList<int, FreeListBytes, alloc::FlatPolicy> freeAlFlat;
+alloc::FreeList<int, FreeListBytes, alloc::TreePolicy> freeAlTree;
 
 
 // Wrapper for common dtor/deallocation in benchmarks
@@ -86,7 +87,7 @@ void printScores(std::vector<std::vector<double>>& scores, bool isStruct = true)
 {
 	static constexpr int printWidth = 10;
 	static const std::vector<std::string> benchNames	= { "Alloc", "Al/De", "R Al/De", "SeqRead", "RandRead" };
-	static const std::vector<std::string> alNames		= { "Default: ", "FLstList: ", "FLstFlat: ", "SlabMem: ", "SlabObj: " };
+	static const std::vector<std::string> alNames		= { "Default: ", "FLstList: ", "FLstFlat: ", "FLstTree: ", "SlabMem: ", "SlabObj: " };
 	
 	// Print the struct name, without struct
 	auto* name = isStruct ? &(typeid(T).name()[7]) : &typeid(T).name()[0];
@@ -133,6 +134,10 @@ decltype(auto) benchAllocs(Ctor& ctor, int runs)
 	auto[ffAl, ffDe] = flWrappers(freeAlFlat);
 	BenchT initFf(T{}, ctor, ffAl, ffDe, re);
 	scores.emplace_back(benchAlT(initFf, freeAlFlat, ctor, runs));
+
+	auto[ftAl, ftDe] = flWrappers(freeAlTree);
+	BenchT initFt(T{}, ctor, ftAl, ftDe, re);
+	scores.emplace_back(benchAlT(initFt, freeAlTree, ctor, runs));
 
 	auto[memAl, memDe] = sMemWrappers();
 	BenchT initM(T{}, ctor, memAl, memDe, re);
