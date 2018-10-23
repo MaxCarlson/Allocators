@@ -130,20 +130,22 @@ namespace alloc
 		}
 	};
 
+	// Store the 'list' of free nods in std::vector
 	template<size_t bytes, class size_type,
 		class Interface>
 		struct FlatPolicy 
 		: public PolicyT<bytes, size_type, Interface, 
 		  std::vector<std::pair<byte*, size_type>>>
-	{
-	};
+	{};
 
+	// Store the 'list' of free nods in std::map
 	template<size_t bytes, class size_type,
 		class Interface> 
 		struct TreePolicy : public PolicyT<bytes, size_type, Interface,
 		std::map<byte*, size_type>>
 	{};
 
+	// TODO: Move this into the general code above in PolicyT
 	template<size_t bytes, class size_type,
 		class Interface>
 	struct ListPolicy
@@ -320,8 +322,8 @@ namespace alloc
 		template<class T>
 		void deallocate(T* ptr)
 		{
-			Header* header = reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) - headerSize);
-			bytesFree += header->size + headerSize;
+			Header* header	= reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) - headerSize);
+			bytesFree		+= header->size + headerSize;
 
 			policy.add(reinterpret_cast<byte*>(header), header->size);
 		}

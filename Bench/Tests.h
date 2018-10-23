@@ -13,8 +13,8 @@ using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
 
 constexpr auto cacheSz		= 1024;
 //constexpr auto iterations	= 1000;
-constexpr auto iterations	= 5000000;
-constexpr auto maxAllocs	= 22000;
+constexpr auto iterations	= 3000000;
+constexpr auto maxAllocs	= 150000;
 
 template<class T, class Ctor, class Al, class De>
 struct BenchT

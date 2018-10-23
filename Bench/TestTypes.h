@@ -3,7 +3,7 @@
 #include <string>
 
 // Helper struct for printing average 
-// scores over all test
+// scores over all test ( Must be outside of main for good printing)
 struct AveragedScores {};
 
 

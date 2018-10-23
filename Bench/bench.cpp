@@ -46,6 +46,7 @@ decltype(auto) sMemWrappers()
 	auto de = [&](auto ptr) { destroyDealloc(slabM, ptr); };
 	return std::pair(al, de);
 }
+
 template<class Xtors>
 decltype(auto) sObjWrappers()
 {
@@ -81,7 +82,6 @@ decltype(auto) benchAlT(Init& init, Alloc& al, Ctor& ctor, int count)
 	return averages;
 }
 
-// TODO: Label scores
 template<class T>
 void printScores(std::vector<std::vector<double>>& scores, bool isStruct = true)
 {
@@ -116,37 +116,74 @@ void printScores(std::vector<std::vector<double>>& scores, bool isStruct = true)
 	std::cout << '\n';
 }
 
+
+enum AllocIdx
+{
+	DEFAULT		= 1,
+	FL_LIST		= 1 << 1,
+	FL_FLAT		= 1 << 2,
+	FL_TREE		= 1 << 3,
+	SLAB_MEM	= 1 << 4,
+	SLAB_OBJ	= 1 << 5,
+	ALL_ALLOCS	= (1 << 6) - 1
+};
+
+
 // TODO: If we're ever allocing simple types here: Ctor = SlabObjImpl::DefaultXtor
 template<class T, class Ctor> 
-decltype(auto) benchAllocs(Ctor& ctor, int runs)
+decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t testIdx = ALL_ALLOCS)
 {
 	std::default_random_engine re{ 1 };
 	std::vector<std::vector<double>> scores;
 
-	auto[dAl, dDe] = defWrappers();
-	BenchT initD(T{}, ctor, dAl, dDe, re);
-	scores.emplace_back(benchAlT(initD, defaultAl, ctor, runs));
+	// Default allocator
+	if (testIdx & DEFAULT)
+	{
+		auto[Al, De] = defWrappers();
+		BenchT init(T{}, ctor, Al, De, re);
+		scores.emplace_back(benchAlT(init, defaultAl, ctor, runs));
+	}
+	
+	// FreeList: ListPolicy
+	if (testIdx & FL_LIST)
+	{
+		auto[Al, De] = flWrappers(freeAlList);
+		BenchT init(T{}, ctor, Al, De, re);
+		scores.emplace_back(benchAlT(init, freeAlList, ctor, runs));
+	}
 
-	auto[flAl, flDe] = flWrappers(freeAlList);
-	BenchT initFl(T{}, ctor, flAl, flDe, re);
-	scores.emplace_back(benchAlT(initFl, freeAlList, ctor, runs));
+	// FreeList: FlatPolicy
+	if (testIdx & FL_FLAT)
+	{
+		auto[Al, De] = flWrappers(freeAlFlat);
+		BenchT init(T{}, ctor, Al, De, re);
+		scores.emplace_back(benchAlT(init, freeAlFlat, ctor, runs));
+	}
 
-	auto[ffAl, ffDe] = flWrappers(freeAlFlat);
-	BenchT initFf(T{}, ctor, ffAl, ffDe, re);
-	scores.emplace_back(benchAlT(initFf, freeAlFlat, ctor, runs));
+	// FreeList: TreePolicy
+	if (testIdx & FL_TREE)
+	{
+		auto[Al, De] = flWrappers(freeAlTree);
+		BenchT init(T{}, ctor, Al, De, re);
+		scores.emplace_back(benchAlT(init, freeAlTree, ctor, runs));
+	}
 
-	auto[ftAl, ftDe] = flWrappers(freeAlTree);
-	BenchT initFt(T{}, ctor, ftAl, ftDe, re);
-	scores.emplace_back(benchAlT(initFt, freeAlTree, ctor, runs));
+	// SlabMem
+	if (testIdx & SLAB_MEM)
+	{
+		auto[Al, De] = sMemWrappers();
+		BenchT init(T{}, ctor, Al, De, re);
+		scores.emplace_back(benchAlT(init, slabM, ctor, runs));
+	}
 
-	auto[memAl, memDe] = sMemWrappers();
-	BenchT initM(T{}, ctor, memAl, memDe, re);
-	scores.emplace_back(benchAlT(initM, slabM, ctor, runs));
-
-	auto[objAl, objDe] = sObjWrappers<Ctor>();
-	BenchT initO(T{}, ctor, objAl, objDe, re, true, false);
-	scores.emplace_back(benchAlT(initO, slabO, ctor, runs));
-	slabO.freeAll<T, Ctor>(); // Needed to destroy cache of objects (as it's an object pool)
+	// SlabObj
+	if (testIdx & SLAB_OBJ)
+	{
+		auto[Al, De] = sObjWrappers<Ctor>();
+		BenchT init(T{}, ctor, Al, De, re, true, false);
+		scores.emplace_back(benchAlT(init, slabO, ctor, runs));
+		slabO.freeAll<T, Ctor>(); // Needed to destroy cache of objects (as it's an object pool)
+	}
 
 	printScores<T>(scores);
 	return scores;
@@ -160,10 +197,14 @@ inline void addScores(std::vector<std::vector<double>>& first,
 			first[i][j] += second[i][j];
 }
 
+// TODO: As it stands now, SlabObj and SlabMem's internal Slab's
+// lists get changed and never reset after the first test, affecting future results (especially locality tests)
+//
+//
 // Benchmark the allocators
 int main()
 {
-	constexpr int numTests = 8;
+	constexpr int numTests = 3;
 
 	// Add caches for slab allocator
 	// Note: Less caches will make it faster
@@ -192,7 +233,8 @@ int main()
 	// the allocators
 	for (auto& v : scores)
 		avgScores(v, 2);
-	printScores<AveragedScores>(scores);
+
+	printScores<AveragedScores> (scores);
 
 	std::cout << "\nOptimization var: " << TestV << '\n';
 	return 0;
