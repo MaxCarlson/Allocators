@@ -12,25 +12,31 @@
 #### SlabMem
 SlabMem is used by creating a variable number of caches of different sizes. Each cache holds Slabs (contiguous chunks of memory) of a particular size that are divided into blocks
 ```cpp
-// This is the type this allocator will default to, but it can be overridden
+// int is the type this allocator will default to, but it can be overridden
 alloc::SlabMem<int> slabM;
 
-// Create a cache of 1024, 512 byte blocks
+// Create a cache of Slabs divided into 1024, 512 byte blocks
 SlabM.addCache(512, 1024);
 // Create another cache
 SlabM.addCache(1024, 1024);
 
-// Finds the smallest cache that has slabs divided into blocks
+// In allocating space for one int the smallest block size
+// we find is 512 bytes. What a waste!
+int* ptrI = SlabM.allocate();
+
+// All alloc::SlabMem's are the same except for their default type (the template parameter)
+// as they all use the same storage in a static interface
+alloc::SlabMem<size_t>::deallocate(ptrI);
+
+// Finds the smallest Cache that has Slabs divided into blocks
 // of at least (sizeof(int) * 128) bytes in size. In this case, the first Cache
-int* ptrI = SlabM.allocate(128);
+ptrI = SlabM.allocate(128);
 
-// Do NOT add another Cache after allocations start,
-// you run the risk of deallocations failing
+// Do NOT add another (smaller than the largest) Cache after allocations start,
+// you run the risk of deallocations failing (will fail)
 
-// Returns a uint16_t pointer to enough spaces for 257
-// uint16_t's. In this case, since it's just barely larger
-// than our first cache, the space taken from the cache is actually 1024 bytes
-// instead of 514
+// Allocate enough space for 257 uint16_t's,
+// uses the second cache as allocation would take atleast 514 bytes
 uint16_t* ptrS = SlabM.allocate<uint16_t>(257);
 
 // If allocation included a count, that number must be 
@@ -38,6 +44,12 @@ uint16_t* ptrS = SlabM.allocate<uint16_t>(257);
 // could look in the wrong cache
 slabM.deallocate(ptrI, 128);
 slabM.deallocate(ptrS, 257);
+
+// Aside from a memory leak, during the attempted
+// 1025 allocation SlabMem will find it is out of room and grow
+// the 512 byte cache by adding another Slab of 512 * 1024 bytes
+for(int i = 0; i < 1026; ++i)
+    alloc::SlabMem<uint32_t>::allocate();
 
 slabM.freeEmpty();    // Frees every empty Slab in every Cache
 slabM.freeEmpty(512); // Frees every empty Slab in the 512 byte Cache
