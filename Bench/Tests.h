@@ -149,7 +149,10 @@ double randomAlDe(Init& init, Alloc& al)
 		}
 		else if (deallocs || ptrs.size() + allocs >= maxAllocs)
 		{
-			init.de(ptrs.back());
+			auto disDe	= std::uniform_int_distribution<int>(0, ptrs.size() - 1);
+			auto idx	= disDe(init.re);
+			init.de(ptrs[idx]);
+			std::swap(ptrs[idx], ptrs.back());
 			ptrs.pop_back();
 			--deallocs;
 		}
@@ -178,7 +181,7 @@ double memAccess(Init& init, Alloc& al, bool seq)
 	auto start = Clock::now();
 
 	int idx = 0;
-	for (auto i = 0; i < iterations; ++i)
+	for (auto i = 0; i < iterations * 4; ++i)
 	{
 		if (idx >= maxAllocs - 1)
 			idx = 0;

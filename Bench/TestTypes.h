@@ -16,10 +16,7 @@ struct DefaultAlloc
 	T* allocate(size_t count) { return reinterpret_cast<T*>(operator new(sizeof(T) * count)); }
 
 	template<class T>
-	void deallocate(T* ptr) 
-	{
-		operator delete(ptr); 
-	}
+	void deallocate(T* ptr) { operator delete(ptr); }
 };
 
 inline static int TestV = 0;
@@ -51,11 +48,8 @@ struct SimpleStruct
 	void meddle()
 	{
 		a = d + b;
-		b = c + c;
 		c = a + b;
-		d = e + f;
 		e = f + a;
-		f = a + e;
 		TestV += a + b + c + d + e + f;
 	}
 
