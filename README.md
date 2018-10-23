@@ -46,7 +46,7 @@ slabM.deallocate(ptrI, 128);
 slabM.deallocate(ptrS, 257);
 
 // Aside from a memory leak, during the attempted
-// 1025 allocation SlabMem will find it is out of room and grow
+// 1025th allocation SlabMem will find it is out of room and grow
 // the 512 byte cache by adding another Slab of 512 * 1024 bytes
 for(int i = 0; i < 1026; ++i)
     alloc::SlabMem<uint32_t>::allocate();
