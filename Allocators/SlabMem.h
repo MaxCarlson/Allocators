@@ -289,10 +289,11 @@ namespace SlabMemImpl
 		//	func(caches);
 		//}
 
-		// Add Caches starting at startSz
-		static void addCache2(size_type startSz, size_type count)
+		// Add Caches of count elements starting at 
+		// startSz that double in size until <= maxSz
+		static void addCache2(size_type startSz, size_type maxSz, size_type count)
 		{
-			for (auto i = 0; i < count; ++i, startSz <<= 1)
+			for (auto i = 0; startSz <= maxSz; ++i, startSz <<= 1)
 				caches.emplace_back(startSz, count);
 		}
 
@@ -316,26 +317,23 @@ namespace SlabMemImpl
 				if (bytes <= it->blockSize)
 					return it->allocate<T>();
 
-			// TODO: Should we add another Cache instead of throwing?
-			// OR set a flag to grow/throw?
-			throw std::bad_alloc();
-			return nullptr;
+			// If the allocation is too large go ahead and allocate from new
+			byte* ptr = reinterpret_cast<byte*>(operator new((sizeof(T) + sizeof(Header)) * count));
+			reinterpret_cast<Header*>(ptr)->cacheIdx = Header::NO_CACHE;
+			return reinterpret_cast<T*>(ptr + sizeof(Header));
 		}
 
 		template<class T>
 		static void deallocate(T* ptr)
 		{
-			const auto hIdx = Slab::getHeader(ptr)->cacheIdx;
-			if (hIdx != Header::NO_CACHE)
+			const auto hPtr = Slab::getHeader(ptr);
+			if (hPtr->cacheIdx != Header::NO_CACHE)
 			{
-				caches[hIdx].deallocate(ptr);
+				caches[hPtr->cacheIdx].deallocate(ptr);
 				return;
 			}
 
-			// TODO: Handle allocations from the default allocator here
-			// once implemented
-
-			throw alloc::bad_dealloc();
+			operator delete(ptr);
 		}
 
 		static std::vector<alloc::CacheInfo> info() noexcept
