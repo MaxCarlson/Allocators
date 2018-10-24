@@ -17,7 +17,7 @@ namespace SlabMemImpl
 	{
 		enum
 		{
-			NO_CACHE = 1
+			NO_CACHE = MAX_CACHES + 1
 		};
 
 		using size_type = typename alloc::FindSizeT<MAX_CACHES, 1>::size_type;
@@ -104,6 +104,12 @@ namespace SlabMemImpl
 		}
 
 		template<class P>
+		static Header* getHeader(P* ptr)
+		{
+			return reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) - sizeof(Header));
+		}
+
+		template<class P>
 		bool containsMem(P* ptr) const noexcept
 		{
 			return (reinterpret_cast<byte*>(ptr) >= mem
@@ -117,6 +123,9 @@ namespace SlabMemImpl
 	struct Cache
 	{
 		// TODOLIST:
+		// TODO: Perhaps keep storage in sorted memory order? Would make finding
+		// deallocations super fast?
+		// TODO: Also, look into using a vector as storage instead of list
 		// TODO: Better indexing of memory (Coloring offsets to search slabs faster, etc)
 		// TODO: Locking mechanism
 		// TODO: Exception Safety 
@@ -274,25 +283,34 @@ namespace SlabMemImpl
 
 		inline static SmallStore caches;
 
-		// Add a dynamic cache that stores count 
-		// number of objSize memory chunks
-		//
+		//template<class Func>
+		//static void addCache(Func&& func)
+		//{
+		//	func(caches);
+		//}
+
+		// Add Caches starting at startSz
+		static void addCache2(size_type startSz, size_type count)
+		{
+			for (auto i = 0; i < count; ++i, startSz <<= 1)
+				caches.emplace_back(startSz, count);
+		}
+
 		// TODO: Add a debug check so this function won't add any 
 		// (or just any smaller than largest) caches after first allocation for safety?
+		//
+		// Add a dynamic cache that stores count 
+		// number of objSize memory chunks
 		static void addCache(size_type blockSize, size_type count)
 		{
-			for (auto it = std::begin(caches); it != std::end(caches); ++it)
-				if (blockSize < it->blockSize)
-				{
-					caches.emplace(it, blockSize, count);
-					return;
-				}
 			caches.emplace_back(blockSize, count);
 		}
 
 		template<class T>
 		static T* allocate(size_t count)
 		{
+			// TODO: Binary search if caches is large enough?
+
 			const auto bytes = count * sizeof(T);
 			for (auto it = std::begin(caches); it != std::end(caches); ++it)
 				if (bytes <= it->blockSize)
@@ -305,15 +323,18 @@ namespace SlabMemImpl
 		}
 
 		template<class T>
-		static void deallocate(T* ptr, size_t cnt = 1)
+		static void deallocate(T* ptr)
 		{
-			const auto bytes = cnt * sizeof(T);
-			for (auto it = std::begin(caches); it != std::end(caches); ++it)
-				if (bytes <= it->blockSize)
-				{
-					it->deallocate(ptr);
-					return;
-				}
+			const auto hIdx = Slab::getHeader(ptr)->cacheIdx;
+			if (hIdx != Header::NO_CACHE)
+			{
+				caches[hIdx].deallocate(ptr);
+				return;
+			}
+
+			// TODO: Handle allocations from the default allocator here
+			// once implemented
+
 			throw alloc::bad_dealloc();
 		}
 

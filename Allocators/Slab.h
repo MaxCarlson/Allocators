@@ -29,9 +29,9 @@ namespace alloc
 		}
 
 		template<class T>
-		static void deallocate(T* ptr, size_t cnt = 1)
+		static void deallocate(T* ptr)
 		{
-			SlabMemImpl::Interface::deallocate(ptr, cnt);
+			SlabMemImpl::Interface::deallocate(ptr);
 		}
 
 		static void addCache(size_type blockSize, size_type count)
