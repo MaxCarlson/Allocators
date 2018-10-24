@@ -34,9 +34,9 @@ namespace alloc
 			SlabMemImpl::Interface::deallocate(ptr, cnt);
 		}
 
-		static void addCache(size_type objSize, size_type count)
+		static void addCache(size_type blockSize, size_type count)
 		{
-			SlabMemImpl::Interface::addCache(objSize, count);
+			SlabMemImpl::Interface::addCache(blockSize, count);
 		}
 
 		template<class T = Type>

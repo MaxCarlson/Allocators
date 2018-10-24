@@ -31,25 +31,33 @@ namespace SlabMemImpl
 		using size_type = size_t;
 
 		byte*					mem;
-		size_type				objSize;
+		size_type				blockSize;
 		size_type				count;
 		std::vector<uint16_t>	availible;
 
 	public:
 
 		Slab() : mem{ nullptr } {}
-		Slab(size_t objSize, size_t count) 
-			: objSize{ objSize }, count{ count }, availible(count)
+		Slab(size_t blockSize, size_t count, Header::size_type index) 
+			: blockSize{ blockSize }, count{ count }, availible(count)
 		{
-			mem = reinterpret_cast<byte*>(operator new(objSize * count));
+			mem = reinterpret_cast<byte*>(operator new((blockSize + sizeof(Header)) * count));
 			std::iota(std::rbegin(availible), std::rend(availible), 0);
+
+			//
+			// TODO: Header messes up alignment here right?
+			//
+			// Set all the indicies. This only has to be done once
+			// and will allow us to find this Cache (quickly) again on deallocation
+			for (auto i = 0; i < count; ++i)
+				reinterpret_cast<Header*>(mem + (blockSize + sizeof(Header)) * i)->cacheIdx = index;
 		}
 
 		void otherMove(Slab&& other) noexcept
 		{
 			mem			= std::move(other.mem);
 			other.mem	= nullptr;
-			objSize		= std::move(other.objSize);
+			blockSize	= std::move(other.blockSize);
 			count		= std::move(other.count);
 			availible	= std::move(other.availible);
 		}
@@ -84,13 +92,13 @@ namespace SlabMemImpl
 
 			auto idx = availible.back();
 			availible.pop_back();
-			return { mem + (idx * objSize), availible.empty() };
+			return { mem + (idx * (blockSize + sizeof(Header))) + sizeof(Header), availible.empty() };
 		}
 
 		template<class P>
 		void deallocate(P* ptr)
 		{
-			auto idx = static_cast<size_type>((reinterpret_cast<byte*>(ptr) - mem) / objSize);
+			auto idx = static_cast<size_type>((reinterpret_cast<byte*>(ptr) - sizeof(Header) - mem) / (blockSize + sizeof(Header)));
 			availible.emplace_back(idx);
 			ptr->~P();
 		}
@@ -99,7 +107,7 @@ namespace SlabMemImpl
 		bool containsMem(P* ptr) const noexcept
 		{
 			return (reinterpret_cast<byte*>(ptr) >= mem
-				 && reinterpret_cast<byte*>(ptr) < (mem + (objSize * count)));
+				 && reinterpret_cast<byte*>(ptr) < (mem + ((blockSize + sizeof(Header)) * count)));
 		}
 	};
 
@@ -117,20 +125,25 @@ namespace SlabMemImpl
 		using SlabStore = alloc::List<Slab>;
 		using It		= SlabStore::iterator;
 
-		size_type objSize;
+		inline static Header::size_type nextIndex = 0;
+
+		Header::size_type index; // Index of this cache, used for deallocation
+
 		size_type count;
-		size_type myCapacity = 0;
-		size_type mySize = 0;
+		size_type blockSize;
+		size_type myCapacity	= 0;
+		size_type mySize		= 0;
 
 		SlabStore slabsFree;
 		SlabStore slabsPart;
 		SlabStore slabsFull;
 
 
-		Cache() = default;
-		Cache(size_type objSize, size_type num) : objSize(objSize), count(num)
+		//Cache() = default;
+		Cache(size_type blockSize, size_type num) : count(num), blockSize(blockSize)
 		{
 			//count = alloc::nearestPageSz(num * objSize) / objSize; // This might increase random access times
+			index = nextIndex++;
 			newSlab();
 		}
 
@@ -140,11 +153,11 @@ namespace SlabMemImpl
 		size_type size()						const noexcept { return mySize; }
 		size_type capacity()					const noexcept { return myCapacity; }
 		bool operator<(const Cache& other)		const noexcept { return size() < other.size(); }
-		alloc::CacheInfo info()					const noexcept { return { size(), capacity(), objSize, count }; }
+		alloc::CacheInfo info()					const noexcept { return { size(), capacity(), blockSize, count }; }
 
 		void newSlab()
 		{
-			slabsFree.emplace_back(objSize, count);
+			slabsFree.emplace_back(blockSize, count, index);
 			myCapacity += count;
 		}
 
@@ -245,7 +258,7 @@ namespace SlabMemImpl
 
 		void freeEmpty()
 		{
-			myCapacity -= slabsFree.size() * objSize;
+			myCapacity -= slabsFree.size() * blockSize;
 			slabsFree.clear();
 		}
 
@@ -266,15 +279,15 @@ namespace SlabMemImpl
 		//
 		// TODO: Add a debug check so this function won't add any 
 		// (or just any smaller than largest) caches after first allocation for safety?
-		static void addCache(size_type objSize, size_type count)
+		static void addCache(size_type blockSize, size_type count)
 		{
 			for (auto it = std::begin(caches); it != std::end(caches); ++it)
-				if (objSize < it->objSize)
+				if (blockSize < it->blockSize)
 				{
-					caches.emplace(it, objSize, count);
+					caches.emplace(it, blockSize, count);
 					return;
 				}
-			caches.emplace_back(objSize, count);
+			caches.emplace_back(blockSize, count);
 		}
 
 		template<class T>
@@ -282,7 +295,7 @@ namespace SlabMemImpl
 		{
 			const auto bytes = count * sizeof(T);
 			for (auto it = std::begin(caches); it != std::end(caches); ++it)
-				if (bytes <= it->objSize)
+				if (bytes <= it->blockSize)
 					return it->allocate<T>();
 
 			// TODO: Should we add another Cache instead of throwing?
@@ -296,7 +309,7 @@ namespace SlabMemImpl
 		{
 			const auto bytes = cnt * sizeof(T);
 			for (auto it = std::begin(caches); it != std::end(caches); ++it)
-				if (bytes <= it->objSize)
+				if (bytes <= it->blockSize)
 				{
 					it->deallocate(ptr);
 					return;
@@ -328,7 +341,7 @@ namespace SlabMemImpl
 			}
 
 			for (auto it = std::begin(caches); it != std::end(caches); ++it)
-				if (it->objSize == cacheSize)
+				if (it->blockSize == cacheSize)
 				{
 					if constexpr (all)
 						it->freeAll();
