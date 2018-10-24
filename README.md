@@ -20,9 +20,16 @@ SlabM.addCache(512, 1024);
 // Create another cache
 SlabM.addCache(1024, 1024);
 
+// Will add Caches at power of 2 multiples of 2048
+// until <= the max size 10000. E.g. last Cache added would be Slabs containing 1024 8192 byte blocks
+SlabM.addCache2(2048, 10000, 1024);
+
 // In allocating space for one int the smallest block size
 // we find is 512 bytes. What a waste!
 int* ptrI = SlabM.allocate();
+
+// Do NOT add another Cache after allocations start,
+// it can result in undefined behavior
 
 // All alloc::SlabMem's are the same except for their default type (the template parameter)
 // as they all use the same storage in a static interface
@@ -32,18 +39,13 @@ alloc::SlabMem<size_t>::deallocate(ptrI);
 // of at least (sizeof(int) * 128) bytes in size. In this case, the first Cache
 ptrI = SlabM.allocate(128);
 
-// Do NOT add another (smaller than the largest) Cache after allocations start,
-// you run the risk of deallocations failing (will fail)
-
 // Allocate enough space for 257 uint16_t's,
 // uses the second cache as allocation would take atleast 514 bytes
 uint16_t* ptrS = SlabM.allocate<uint16_t>(257);
 
-// If allocation included a count, that number must be 
-// included in the deallocation. Otherwise the allocator
-// could look in the wrong cache
-slabM.deallocate(ptrI, 128);
-slabM.deallocate(ptrS, 257);
+// Standard deallocation
+slabM.deallocate(ptrI);
+slabM.deallocate(ptrS);
 
 // Aside from a memory leak, during the attempted
 // 1025th allocation SlabMem will find it is out of room and grow
