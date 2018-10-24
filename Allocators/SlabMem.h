@@ -7,6 +7,19 @@ namespace SlabMemImpl
 {
 	using byte = alloc::byte;
 
+	// Maximum number of caches that can be added
+	// to SlabMem (Used to keep the size_type in header small)
+	inline constexpr auto MAX_CACHES = 128;
+
+	// Used to find the Cache in deallocation 
+	// with SlabMem
+	struct Header
+	{
+		using size_type = typename alloc::FindSizeT<MAX_CACHES>::size_type;
+
+		size_type cacheIdx;
+	};
+
 	struct Slab
 	{
 	private:
@@ -259,14 +272,6 @@ namespace SlabMemImpl
 			caches.emplace_back(objSize, count);
 		}
 
-		static std::vector<alloc::CacheInfo> info() noexcept
-		{
-			std::vector<alloc::CacheInfo> stats;
-			for (const auto& ch : caches)
-				stats.emplace_back(ch.info());
-			return stats;
-		}
-
 		template<class T>
 		static T* allocate(size_t count)
 		{
@@ -292,6 +297,14 @@ namespace SlabMemImpl
 					return;
 				}
 			throw alloc::bad_dealloc();
+		}
+
+		static std::vector<alloc::CacheInfo> info() noexcept
+		{
+			std::vector<alloc::CacheInfo> stats;
+			for (const auto& ch : caches)
+				stats.emplace_back(ch.info());
+			return stats;
 		}
 
 		template<bool all>

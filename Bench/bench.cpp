@@ -128,6 +128,16 @@ enum AllocIdx
 	ALL_ALLOCS	= (1 << 6) - 1
 };
 
+enum BenchIdx
+{
+	ALLOC		= 1,
+	AL_DE		= 1 << 1,
+	R_AL_DE		= 1 << 2,
+	SEQ_READ	= 1 << 3,
+	R_READ		= 1 << 4,
+	ALL_BENCH	= 1 << 5
+};
+
 
 // TODO: If we're ever allocing simple types here: Ctor = SlabObjImpl::DefaultXtor
 template<class T, class Ctor> 

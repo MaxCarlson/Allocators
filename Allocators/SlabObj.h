@@ -170,7 +170,7 @@ namespace SlabObjImpl
 		{
 			auto idx = static_cast<size_t>((reinterpret_cast<byte*>(ptr) - mem) / sizeof(T));
 			availible.emplace_back(idx); 
-			Cache::xtors->destruct( ptr); // This defaults to doing nothing, and will only do something if a dtor is passed
+			Cache::xtors->destruct(ptr); // This defaults to doing nothing, and will only do something if a dtor is passed
 		}
 	};
 
@@ -192,7 +192,7 @@ namespace SlabObjImpl
 		inline static Xtors* xtors = nullptr;
 
 		// TODO: Should this also reconstruct all objects that 
-		// haven't used this ctor and are availible? Yes, probably!
+		// haven't used this xtor and are availible? Yes, probably!
 		static void setXtors(Xtors& tors) { xtors = &tors; }
 
 

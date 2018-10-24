@@ -67,8 +67,6 @@ namespace alloc
 		return alignedAlloc<T>(pgs, pgSize);
 	}
 
-
-
 	struct CacheInfo
 	{
 		CacheInfo(size_t size, size_t capacity, size_t objectSize, size_t objPerSlab)
@@ -79,6 +77,27 @@ namespace alloc
 		size_t objectSize;
 		size_t objPerSlab;
 	};
+
+
+	template<size_t bytes, size_t takenBits = 0>
+	struct FindSizeT
+	{
+		// This finds the smallest number of bits
+		// required (within the constraints of the types availible)
+		// TODO: ? This can be condensed into just conditionals if we want
+		enum
+		{
+			bits	= bytes <= 0xff			>> takenBits ? 8  :
+			bytes			<= 0xffff		>> takenBits ? 16 :
+			bytes			<= 0xffffffff	>> takenBits ? 32 :
+			64
+		};
+		using size_type =	std::conditional_t<bits == 8, uint8_t,
+							std::conditional_t<bits == 16, uint16_t,
+							std::conditional_t<bits == 32, uint32_t,
+							uint64_t >>>;
+	};
+
 
 	// TODO: Write tests for this list
 	// TODO: std::list actually has splice,

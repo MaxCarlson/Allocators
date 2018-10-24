@@ -83,10 +83,12 @@ double basicAlloc(Init& init, Alloc& al)
 		++idx;
 	}
 
-	auto end = Clock::now();
-
 	for (auto ptr : ptrs)
 		init.de(ptr);
+
+	auto end = Clock::now();
+
+
 
 	return std::chrono::duration_cast<TimeType>(end - start).count() - deallocTime;
 }
@@ -157,7 +159,6 @@ double randomAlDe(Init& init, Alloc& al)
 			--deallocs;
 		}
 	}
-
 	auto end = Clock::now();
 
 	for (auto& ptr : ptrs)
