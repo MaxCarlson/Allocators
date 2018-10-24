@@ -53,7 +53,5 @@ int main()
 
 	auto ptr = al.allocate(1);
 
-
-
 	return 0;
 }

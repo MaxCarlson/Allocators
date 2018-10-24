@@ -289,14 +289,6 @@ namespace SlabMemImpl
 		//	func(caches);
 		//}
 
-		// Add Caches of count elements starting at 
-		// startSz that double in size until <= maxSz
-		static void addCache2(size_type startSz, size_type maxSz, size_type count)
-		{
-			for (auto i = 0; startSz <= maxSz; ++i, startSz <<= 1)
-				caches.emplace_back(startSz, count);
-		}
-
 		// TODO: Add a debug check so this function won't add any 
 		// (or just any smaller than largest) caches after first allocation for safety?
 		//
@@ -306,6 +298,20 @@ namespace SlabMemImpl
 		{
 			caches.emplace_back(blockSize, count);
 		}
+
+		// Add Caches of count elements starting at 
+		// startSz that double in size until <= maxSz
+		static void addCache2(size_type startSz, size_type maxSz, size_type count)
+		{
+			for (auto i = 0; startSz <= maxSz; ++i, startSz <<= 1)
+				caches.emplace_back(startSz, count);
+		}
+
+		//static void addCacheFib(size_type startSz, size_type maxSz, size_type count)
+		//{
+		//	for (auto i = 0; startSz <= maxSz; ++i, startSz <<= 1)
+		//		caches.emplace_back(startSz, count);
+		//}
 
 		template<class T>
 		static T* allocate(size_t count)
@@ -347,20 +353,8 @@ namespace SlabMemImpl
 		template<bool all>
 		static void freeFunc(size_t cacheSize)
 		{
-			if (cacheSize == 0)
-			{
-				for (auto it = std::begin(caches); it != std::end(caches); ++it)
-				{
-					if constexpr (all)
-						it->freeAll();
-					else
-						it->freeEmpty();
-				}
-				return;
-			}
-
 			for (auto it = std::begin(caches); it != std::end(caches); ++it)
-				if (it->blockSize == cacheSize)
+				if (cacheSize == 0 || it->blockSize == cacheSize)
 				{
 					if constexpr (all)
 						it->freeAll();

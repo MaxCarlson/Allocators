@@ -1,11 +1,13 @@
 #pragma once
 #include <memory>
 #include <stdexcept>
+
+#define NOMINMAX = 1
 #include <Windows.h>
 #include <list>
-
 #include <cstdlib>
 #include <stdlib.h>
+
 
 namespace alloc
 {
@@ -98,6 +100,23 @@ namespace alloc
 							uint64_t >>>;
 	};
 
+	void closestFibs(size_t num)
+	{
+		auto calc = []()
+		{
+			std::vector<size_t> nums(1, 0);
+			size_t prev = 0;
+			size_t i = 1;
+			while (i < std::numeric_limits<size_t>::max() / 2) 
+			{
+				nums.emplace_back(i + prev);
+				prev = i;
+			}
+			return nums;
+		};
+		static std::vector<size_t> nums = calc();
+
+	}
 
 	// TODO: Write tests for this list
 	// TODO: std::list actually has splice,
