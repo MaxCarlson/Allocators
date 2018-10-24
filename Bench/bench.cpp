@@ -107,24 +107,39 @@ decltype(auto) benchAlT(Init& init, Alloc& al, Ctor& ctor, int count, size_t bMa
 	return averages;
 }
 
+// Build benchmark and alloc names based on masks
+inline void buildNames(const std::vector<std::string>& allNames, 
+	std::vector<std::string>& maskedNames, size_t mask)
+{
+	size_t idx = 1;
+	for (const auto& n : allNames)
+	{
+		if (idx & mask)
+			maskedNames.emplace_back(n);
+		idx <<= 1;
+	}
+}
+
 template<class T>
-void printScores(std::vector<std::vector<double>>& scores, size_t bMask, size_t tMask, bool isStruct = true)
+void printScores(std::vector<std::vector<double>>& scores, size_t alMask, size_t bMask, bool isStruct = true)
 {
 	static constexpr int printWidth = 10;
 	static const std::vector<std::string> benchNames	= { "Alloc", "Al/De", "R Al/De", "SeqRead", "RandRead" };
-	static const std::vector<std::string> alNames		= { "Default: ", "FLstList: ", "FLstFlat: ", "FLstTree: ", "SlabMem: ", "SlabObj: " };
+	static const std::vector<std::string> allocNames	= { "Default: ", "FLstList: ", "FLstFlat: ", "FLstTree: ", "SlabMem: ", "SlabObj: " };
 
 	std::vector<std::string> bNames;
 	std::vector<std::string> alNames;
 
+	buildNames(allocNames, alNames, alMask);
+	buildNames(benchNames, bNames,	 bMask);
 	
 	// Print the struct name, without struct
 	auto* name = isStruct ? &(typeid(T).name()[7]) : &typeid(T).name()[0];
 	std::cout << name << ' ' << "scores: \n";
 
-	for (const auto& name : benchNames)
+	for (const auto& name : bNames)
 	{
-		if(name == benchNames[0])
+		if(name == bNames[0])
 			std::cout << std::setw(printWidth * 2) << name << ' ';
 		else
 			std::cout << std::setw(printWidth) << name << ' ';
@@ -147,13 +162,13 @@ void printScores(std::vector<std::vector<double>>& scores, size_t bMask, size_t 
 
 // TODO: If we're ever allocing simple types here: Ctor = SlabObjImpl::DefaultXtor
 template<class T, class Ctor> 
-decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t testMask = ALL_ALLOCS, size_t bMask = ALL_BENCH)
+decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t alMask = ALL_ALLOCS, size_t bMask = ALL_BENCH)
 {
 	std::default_random_engine re{ 1 };
 	std::vector<std::vector<double>> scores;
 
 	// Default allocator
-	if (testMask & DEFAULT)
+	if (alMask & DEFAULT)
 	{
 		auto[Al, De] = defWrappers();
 		BenchT init(T{}, ctor, Al, De, re);
@@ -161,7 +176,7 @@ decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t testMask = ALL_ALLOCS, s
 	}
 	
 	// FreeList: ListPolicy
-	if (testMask & FL_LIST)
+	if (alMask & FL_LIST)
 	{
 		auto[Al, De] = flWrappers(freeAlList);
 		BenchT init(T{}, ctor, Al, De, re);
@@ -169,7 +184,7 @@ decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t testMask = ALL_ALLOCS, s
 	}
 
 	// FreeList: FlatPolicy
-	if (testMask & FL_FLAT)
+	if (alMask & FL_FLAT)
 	{
 		auto[Al, De] = flWrappers(freeAlFlat);
 		BenchT init(T{}, ctor, Al, De, re);
@@ -177,7 +192,7 @@ decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t testMask = ALL_ALLOCS, s
 	}
 
 	// FreeList: TreePolicy
-	if (testMask & FL_TREE)
+	if (alMask & FL_TREE)
 	{
 		auto[Al, De] = flWrappers(freeAlTree);
 		BenchT init(T{}, ctor, Al, De, re);
@@ -185,7 +200,7 @@ decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t testMask = ALL_ALLOCS, s
 	}
 
 	// SlabMem
-	if (testMask & SLAB_MEM)
+	if (alMask & SLAB_MEM)
 	{
 		auto[Al, De] = sMemWrappers();
 		BenchT init(T{}, ctor, Al, De, re);
@@ -193,7 +208,7 @@ decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t testMask = ALL_ALLOCS, s
 	}
 
 	// SlabObj
-	if (testMask & SLAB_OBJ)
+	if (alMask & SLAB_OBJ)
 	{
 		auto[Al, De] = sObjWrappers<Ctor>();
 		BenchT init(T{}, ctor, Al, De, re, true, false);
@@ -201,7 +216,7 @@ decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t testMask = ALL_ALLOCS, s
 		slabO.freeAll<T, Ctor>(); // Needed to destroy cache of objects (as it's an object pool)
 	}
 
-	printScores<T>(scores);
+	printScores<T>(scores, alMask, bMask);
 	return scores;
 }
 
@@ -220,9 +235,10 @@ inline void addScores(std::vector<std::vector<double>>& first,
 // Benchmark the allocators
 int main()
 {
-	constexpr size_t testMask	= 0;			
 	//constexpr size_t allocMask = ALL_ALLOCS;
-	constexpr size_t allocMask = SLAB_MEM | SLAB_OBJ;	
+
+	constexpr size_t allocMask		= SLAB_MEM | SLAB_OBJ;	
+	constexpr size_t benchMask		= BenchMasks::ALL_BENCH;
 
 	constexpr int numTests			= 5;
 
@@ -245,8 +261,8 @@ int main()
 
 	// Run benchmarks
 	std::vector<std::vector<double>> scores;
-	scores			= benchAllocs<SimpleStruct, ssCtorT>(ssCtor, numTests, allocMask, testMask);
-	addScores(scores, benchAllocs<PartialInit,  piCtorT>(piCtor, numTests, allocMask, testMask));
+	scores			= benchAllocs<SimpleStruct, ssCtorT>(ssCtor, numTests, allocMask, benchMask);
+	addScores(scores, benchAllocs<PartialInit,  piCtorT>(piCtor, numTests, allocMask, benchMask));
 
 
 	// Print the average of all benchmark scores for 
@@ -254,7 +270,7 @@ int main()
 	for (auto& v : scores)
 		avgScores(v, 2);
 
-	printScores<AveragedScores> (scores);
+	printScores<AveragedScores> (scores, allocMask, benchMask);
 
 	std::cout << "\nOptimization var: " << TestV << '\n';
 	return 0;
