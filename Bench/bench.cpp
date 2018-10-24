@@ -14,6 +14,26 @@ alloc::FreeList<int, FreeListBytes, alloc::ListPolicy> freeAlList;
 alloc::FreeList<int, FreeListBytes, alloc::FlatPolicy> freeAlFlat;
 alloc::FreeList<int, FreeListBytes, alloc::TreePolicy> freeAlTree;
 
+enum AllocMasks
+{
+	DEFAULT		= 1,
+	FL_LIST		= 1 << 1,
+	FL_FLAT		= 1 << 2,
+	FL_TREE		= 1 << 3,
+	SLAB_MEM	= 1 << 4,
+	SLAB_OBJ	= 1 << 5,
+	ALL_ALLOCS	= (1 << 6) - 1
+};
+
+enum BenchMasks
+{
+	ALLOC		= 1,
+	AL_DE		= 1 << 1,
+	R_AL_DE		= 1 << 2,
+	SEQ_READ	= 1 << 3,
+	R_READ		= 1 << 4,
+	ALL_BENCH	= (1 << 5) - 1
+};
 
 // Wrapper for common dtor/deallocation in benchmarks
 template<class Al, class Ptr>
@@ -63,7 +83,7 @@ inline void avgScores(std::vector<double>& scores, int cnt)
 }
 
 template<class Init, class Alloc, class Ctor>
-decltype(auto) benchAlT(Init& init, Alloc& al, Ctor& ctor, int count)
+decltype(auto) benchAlT(Init& init, Alloc& al, Ctor& ctor, int count, size_t bMask)
 {
 	// TODO: make vec of pair<string, double> to name tests
 	std::vector<double> averages(5, 0.0);
@@ -71,11 +91,16 @@ decltype(auto) benchAlT(Init& init, Alloc& al, Ctor& ctor, int count)
 	int i;
 	for (i = 0; i < count; ++i)
 	{
-		averages[0] += basicAlloc(init, al);
-		averages[1] += basicAlDea(init, al);
-		averages[2] += randomAlDe(init, al);
-		averages[3] += sMemAccess(init, al);
-		averages[4] += rMemAccess(init, al);
+		if(bMask & BenchMasks::ALLOC)
+			averages[0] += basicAlloc(init, al);
+		if(bMask & BenchMasks::AL_DE)
+			averages[1] += basicAlDea(init, al);
+		if(bMask & BenchMasks::R_AL_DE)
+			averages[2] += randomAlDe(init, al);
+		if(bMask & BenchMasks::SEQ_READ)
+			averages[3] += sMemAccess(init, al);
+		if(bMask & BenchMasks::R_READ)
+			averages[4] += rMemAccess(init, al);
 	}
 	
 	avgScores(averages, i);
@@ -83,11 +108,15 @@ decltype(auto) benchAlT(Init& init, Alloc& al, Ctor& ctor, int count)
 }
 
 template<class T>
-void printScores(std::vector<std::vector<double>>& scores, bool isStruct = true)
+void printScores(std::vector<std::vector<double>>& scores, size_t bMask, size_t tMask, bool isStruct = true)
 {
 	static constexpr int printWidth = 10;
 	static const std::vector<std::string> benchNames	= { "Alloc", "Al/De", "R Al/De", "SeqRead", "RandRead" };
 	static const std::vector<std::string> alNames		= { "Default: ", "FLstList: ", "FLstFlat: ", "FLstTree: ", "SlabMem: ", "SlabObj: " };
+
+	std::vector<std::string> bNames;
+	std::vector<std::string> alNames;
+
 	
 	// Print the struct name, without struct
 	auto* name = isStruct ? &(typeid(T).name()[7]) : &typeid(T).name()[0];
@@ -116,82 +145,59 @@ void printScores(std::vector<std::vector<double>>& scores, bool isStruct = true)
 	std::cout << '\n';
 }
 
-
-enum AllocIdx
-{
-	DEFAULT		= 1,
-	FL_LIST		= 1 << 1,
-	FL_FLAT		= 1 << 2,
-	FL_TREE		= 1 << 3,
-	SLAB_MEM	= 1 << 4,
-	SLAB_OBJ	= 1 << 5,
-	ALL_ALLOCS	= (1 << 6) - 1
-};
-
-enum BenchIdx
-{
-	ALLOC		= 1,
-	AL_DE		= 1 << 1,
-	R_AL_DE		= 1 << 2,
-	SEQ_READ	= 1 << 3,
-	R_READ		= 1 << 4,
-	ALL_BENCH	= 1 << 5
-};
-
-
 // TODO: If we're ever allocing simple types here: Ctor = SlabObjImpl::DefaultXtor
 template<class T, class Ctor> 
-decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t testIdx = ALL_ALLOCS)
+decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t testMask = ALL_ALLOCS, size_t bMask = ALL_BENCH)
 {
 	std::default_random_engine re{ 1 };
 	std::vector<std::vector<double>> scores;
 
 	// Default allocator
-	if (testIdx & DEFAULT)
+	if (testMask & DEFAULT)
 	{
 		auto[Al, De] = defWrappers();
 		BenchT init(T{}, ctor, Al, De, re);
-		scores.emplace_back(benchAlT(init, defaultAl, ctor, runs));
+		scores.emplace_back(benchAlT(init, defaultAl, ctor, runs, bMask));
 	}
 	
 	// FreeList: ListPolicy
-	if (testIdx & FL_LIST)
+	if (testMask & FL_LIST)
 	{
 		auto[Al, De] = flWrappers(freeAlList);
 		BenchT init(T{}, ctor, Al, De, re);
-		scores.emplace_back(benchAlT(init, freeAlList, ctor, runs));
+		scores.emplace_back(benchAlT(init, freeAlList, ctor, runs, bMask));
 	}
 
 	// FreeList: FlatPolicy
-	if (testIdx & FL_FLAT)
+	if (testMask & FL_FLAT)
 	{
 		auto[Al, De] = flWrappers(freeAlFlat);
 		BenchT init(T{}, ctor, Al, De, re);
-		scores.emplace_back(benchAlT(init, freeAlFlat, ctor, runs));
+		scores.emplace_back(benchAlT(init, freeAlFlat, ctor, runs, bMask));
 	}
 
 	// FreeList: TreePolicy
-	if (testIdx & FL_TREE)
+	if (testMask & FL_TREE)
 	{
 		auto[Al, De] = flWrappers(freeAlTree);
 		BenchT init(T{}, ctor, Al, De, re);
-		scores.emplace_back(benchAlT(init, freeAlTree, ctor, runs));
+		scores.emplace_back(benchAlT(init, freeAlTree, ctor, runs, bMask));
 	}
 
 	// SlabMem
-	if (testIdx & SLAB_MEM)
+	if (testMask & SLAB_MEM)
 	{
 		auto[Al, De] = sMemWrappers();
 		BenchT init(T{}, ctor, Al, De, re);
-		scores.emplace_back(benchAlT(init, slabM, ctor, runs));
+		scores.emplace_back(benchAlT(init, slabM, ctor, runs, bMask));
 	}
 
 	// SlabObj
-	if (testIdx & SLAB_OBJ)
+	if (testMask & SLAB_OBJ)
 	{
 		auto[Al, De] = sObjWrappers<Ctor>();
 		BenchT init(T{}, ctor, Al, De, re, true, false);
-		scores.emplace_back(benchAlT(init, slabO, ctor, runs));
+		scores.emplace_back(benchAlT(init, slabO, ctor, runs, bMask));
 		slabO.freeAll<T, Ctor>(); // Needed to destroy cache of objects (as it's an object pool)
 	}
 
@@ -214,9 +220,11 @@ inline void addScores(std::vector<std::vector<double>>& first,
 // Benchmark the allocators
 int main()
 {
-	constexpr size_t testToBench	= 0;			// TODO: Implement this same way as allocsToBench! (So we can turn off tests and look at specific ones)
-	constexpr size_t allocsToBench	= ALL_ALLOCS;	// TODO: Make this function with the printout!
-	constexpr int numTests			= 2;
+	constexpr size_t testMask	= 0;			
+	//constexpr size_t allocMask = ALL_ALLOCS;
+	constexpr size_t allocMask = SLAB_MEM | SLAB_OBJ;	
+
+	constexpr int numTests			= 5;
 
 	// Add caches for slab allocator
 	// Note: Less caches will make it faster
@@ -237,8 +245,8 @@ int main()
 
 	// Run benchmarks
 	std::vector<std::vector<double>> scores;
-	scores			= benchAllocs<SimpleStruct, ssCtorT>(ssCtor, numTests, allocsToBench);
-	addScores(scores, benchAllocs<PartialInit,  piCtorT>(piCtor, numTests, allocsToBench));
+	scores			= benchAllocs<SimpleStruct, ssCtorT>(ssCtor, numTests, allocMask, testMask);
+	addScores(scores, benchAllocs<PartialInit,  piCtorT>(piCtor, numTests, allocMask, testMask));
 
 
 	// Print the average of all benchmark scores for 

@@ -9,13 +9,18 @@ namespace SlabMemImpl
 
 	// Maximum number of caches that can be added
 	// to SlabMem (Used to keep the size_type in header small)
-	inline constexpr auto MAX_CACHES = 128;
+	inline constexpr auto MAX_CACHES = 127;
 
 	// Used to find the Cache in deallocation 
 	// with SlabMem
 	struct Header
 	{
-		using size_type = typename alloc::FindSizeT<MAX_CACHES>::size_type;
+		enum
+		{
+			NO_CACHE = 1
+		};
+
+		using size_type = typename alloc::FindSizeT<MAX_CACHES, 1>::size_type;
 
 		size_type cacheIdx;
 	};
