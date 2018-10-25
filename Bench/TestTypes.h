@@ -33,8 +33,7 @@ struct PartialInit
 	// less intensive to give more descrepency in benching
 	void meddle()
 	{
-		name[1] += name[3];
-		TestV += name[0] + name[1] + name[2] + name[3];
+		TestV += name[1];
 	}
 
 	std::string name;

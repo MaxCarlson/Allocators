@@ -41,8 +41,12 @@ namespace SlabMemImpl
 		Slab(size_t blockSize, size_t count, Header::size_type index) 
 			: blockSize{ blockSize }, count{ count }, availible(count)
 		{
-			mem = reinterpret_cast<byte*>(operator new((blockSize + sizeof(Header)) * count));
+			mem = reinterpret_cast<byte*>(operator new((blockSize + sizeof(Header)) * count ));
 			std::iota(std::rbegin(availible), std::rend(availible), 0);
+
+			// TODO: This assumes the memory handed to us is 16byte aligned
+			// 16 byte align whatever data user stores
+			//mem += (8 - sizeof(Header));
 
 			//
 			// TODO: Header messes up alignment here right?
@@ -88,7 +92,7 @@ namespace SlabMemImpl
 
 		std::pair<byte*, bool> allocate() 
 		{
-			if (availible.empty()) // TODO: This should never happen?
+			if (availible.empty()) // TODO: This should never happen? DELETE?
 				return { nullptr, false };
 
 			auto idx = availible.back();
@@ -152,7 +156,7 @@ namespace SlabMemImpl
 		//Cache() = default;
 		Cache(size_type blockSize, size_type num) : count(num), blockSize(blockSize)
 		{
-			//count = alloc::nearestPageSz(num * objSize) / objSize; // This might increase random access times
+			//count = alloc::nearestPageSz(num * (blockSize * sizeof(Header))) / (blockSize * sizeof(Header)); // This might increase random access times
 			index = nextIndex++;
 			newSlab();
 		}

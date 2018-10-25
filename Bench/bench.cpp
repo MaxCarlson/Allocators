@@ -238,14 +238,12 @@ int main()
 	//constexpr size_t allocMask = ALL_ALLOCS;
 
 	constexpr size_t allocMask		= SLAB_MEM | SLAB_OBJ;	
+	//constexpr size_t allocMask		= AllocMasks::ALL_ALLOCS; // SLAB_MEM | SLAB_OBJ;	
 	constexpr size_t benchMask		= BenchMasks::ALL_BENCH;
 
-	constexpr int numTests			= 5;
+	constexpr int numTests			= 4;
 
-	// Add caches for slab allocator
-	// Note: Less caches will make it faster
-	for(int i = 5; i < 13; ++i)
-		slabM.addCache(1 << i, cacheSz); 
+	slabM.addCache2(1 << 5, 1 << 13, cacheSz);
 
 	// Custom ctor for slabObj test structs
 	// Note: Ctor is also used to construct the object for other allocators in tests

@@ -88,12 +88,10 @@ double basicAlloc(Init& init, Alloc& al)
 		++idx;
 	}
 
-	for (auto ptr : ptrs)
-		init.de(ptr);
-
 	auto end = Clock::now();
 
-
+	for (auto ptr : ptrs)
+		init.de(ptr);
 
 	return std::chrono::duration_cast<TimeType>(end - start).count() - deallocTime;
 }

@@ -53,5 +53,22 @@ int main()
 
 	auto ptr = al.allocate(1);
 
+	constexpr int length = 64 * 1024 * 1024;
+	int* arr = new int[length];
+
+	// Loop 1
+	auto st = Clock::now();
+	for (int i = 0; i < length; i++) arr[i] *= 3;
+	auto end = Clock::now();
+
+
+	// Loop 2
+	auto st2 = Clock::now();
+	for (int i = 0; i < length; i += 4) arr[i] *= 3;
+	auto end2 = Clock::now();
+
+	std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - st).count() <<
+		" " << std::chrono::duration_cast<std::chrono::milliseconds>(end2 - st2).count();
+
 	return 0;
 }
