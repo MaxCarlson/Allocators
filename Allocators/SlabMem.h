@@ -7,7 +7,7 @@ namespace SlabMemImpl
 {
 	using byte = alloc::byte;
 
-	// Maximum number of caches that can be added
+	// Maximum number of Caches that can be added
 	// to SlabMem (Used to keep the size_type in header small)
 	inline constexpr auto MAX_CACHES = 127;
 
@@ -46,6 +46,7 @@ namespace SlabMemImpl
 
 			//
 			// TODO: Header messes up alignment here right?
+			// TODO: Coloring offsets for different Slabs
 			//
 			// Set all the indicies. This only has to be done once
 			// and will allow us to find this Cache (quickly) again on deallocation
@@ -292,15 +293,11 @@ namespace SlabMemImpl
 		// TODO: Add a debug check so this function won't add any 
 		// (or just any smaller than largest) caches after first allocation for safety?
 		//
-		// Add a dynamic cache that stores count 
-		// number of objSize memory chunks
 		static void addCache(size_type blockSize, size_type count)
 		{
 			caches.emplace_back(blockSize, count);
 		}
 
-		// Add Caches of count elements starting at 
-		// startSz that double in size until <= maxSz
 		static void addCache2(size_type startSz, size_type maxSz, size_type count)
 		{
 			for (auto i = 0; startSz <= maxSz; ++i, startSz <<= 1)

@@ -15,15 +15,18 @@ namespace alloc
 
 		using size_type = size_t;
 
-		template<class T = Type>
-		static T* allocate()
-		{
-			return SlabMemImpl::Interface::allocate<T>(1);
-		}
+		template<class U>
+		struct rebind { using other = SlabMem<U>; };
+
+		template<class U>
+		bool operator==(const SlabMem<U>& other) const noexcept { return true; }
+
+		template<class U>
+		bool operator!=(const SlabMem<U>& other) const noexcept { return false; }
 
 		// Allocate space for count objects of type T
 		template<class T = Type>
-		static T* allocate(size_t count)
+		static T* allocate(size_type count = 1)
 		{
 			return SlabMemImpl::Interface::allocate<T>(count);
 		}
@@ -34,15 +37,26 @@ namespace alloc
 			SlabMemImpl::Interface::deallocate(ptr);
 		}
 
+		// Add a dynamic cache that stores count 
+		// number of blockSize memory chunks
 		static void addCache(size_type blockSize, size_type count)
 		{
 			SlabMemImpl::Interface::addCache(blockSize, count);
 		}
 
+		// Add a cache of memory == (sizeof(T) * count) bytes 
+		// divided into sizeof(T) byte blocks
 		template<class T = Type>
 		static void addCache(size_type count)
 		{
 			SlabMemImpl::Interface::addCache(sizeof(T), count);
+		}
+
+		// Add Caches of count elements starting at 
+		// startSize that double in size until <= maxSize
+		static void addCache2(size_type startSize, size_type maxSize, size_type count)
+		{
+			SlabMemImpl::Interface::addCache2(startSize, maxSize, count);
 		}
 
 		// Free all memory of all caches
@@ -74,6 +88,16 @@ namespace alloc
 	public:
 
 		using size_type = size_t;
+
+		template<class U>
+		struct rebind { using other = SlabObj<U>; };
+
+		// TODO: I think this is right, since SlabObj can deallocate anything allocated by SlabObj,
+		// it just has to be passed the right parameters in the deallocation
+		template<class U>
+		bool operator==(const SlabObj<U>& other) const noexcept { return true; }
+		template<class U>
+		bool operator!=(const SlabObj<U>& other) const noexcept { return false; }
 
 		template<class T = Type, class Xtors = SlabObjImpl::DefaultXtor<>>
 		static void addCache(size_type count, Xtors& xtors = defaultXtor)

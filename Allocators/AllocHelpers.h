@@ -89,10 +89,10 @@ namespace alloc
 		// TODO: ? This can be condensed into just conditionals if we want
 		enum
 		{
-			bits	= bytes <= 0xff			>> takenBits ? 8  :
-			bytes			<= 0xffff		>> takenBits ? 16 :
-			bytes			<= 0xffffffff	>> takenBits ? 32 :
-			64
+			bits	=	bytes <= 0xff		>> takenBits ?	8  :
+						bytes <= 0xffff		>> takenBits ?	16 :
+						bytes <= 0xffffffff	>> takenBits ?	32 :
+															64
 		};
 		using size_type =	std::conditional_t<bits == 8, uint8_t,
 							std::conditional_t<bits == 16, uint16_t,
@@ -100,8 +100,9 @@ namespace alloc
 							uint64_t >>>;
 	};
 
-	void closestFibs(size_t num)
+	inline void closestFibs(size_t num)
 	{
+		/*
 		auto calc = []()
 		{
 			std::vector<size_t> nums(1, 0);
@@ -115,7 +116,7 @@ namespace alloc
 			return nums;
 		};
 		static std::vector<size_t> nums = calc();
-
+		*/
 	}
 
 	// TODO: Write tests for this list
