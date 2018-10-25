@@ -15,10 +15,11 @@ SlabMem is used by creating a variable number of caches of different sizes. Each
 // int is the type this allocator will default to, but it can be overridden
 alloc::SlabMem<int> slabM;
 
-// Create a cache of Slabs divided into 1024, 512 byte blocks 
+// Create a Cache of Slabs divided into 1024, 512 byte blocks 
 SlabM.addCache(512, 1024);
 
-// Create another cache (each Slabs memory is contiguous)
+// Create another Cache (each Slabs memory is contiguous)
+// Maximum number of Caches (not Slabs in Caches) is by default 127, but can be changed in SlabMem.h
 SlabM.addCache(1024, 1024);
 
 // Will add Caches at power of 2 multiples of 2048
