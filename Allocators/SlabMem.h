@@ -31,8 +31,10 @@ namespace SlabMemImpl
 		using size_type = size_t;
 
 		byte*					mem;
+		//byte* end;
 		size_type				blockSize;
 		size_type				count;
+		//size_type offset;
 		std::vector<uint16_t>	availible;
 
 	public:
@@ -41,11 +43,16 @@ namespace SlabMemImpl
 		Slab(size_t blockSize, size_t count, Header::size_type index) 
 			: blockSize{ blockSize }, count{ count }, availible(count)
 		{
-			mem = reinterpret_cast<byte*>(operator new((blockSize + sizeof(Header)) * count ));
+			//offset = index & 30U;
+
+			mem = reinterpret_cast<byte*>(operator new((blockSize + sizeof(Header)) * count));
 			std::iota(std::rbegin(availible), std::rend(availible), 0);
+			
+			//end = mem + (blockSize + sizeof(Header)) * count;
 
 			// TODO: This assumes the memory handed to us is 16byte aligned
 			// 16 byte align whatever data user stores
+			//mem += offset;
 			//mem += (8 - sizeof(Header));
 
 			//
@@ -92,9 +99,6 @@ namespace SlabMemImpl
 
 		std::pair<byte*, bool> allocate() 
 		{
-			if (availible.empty()) // TODO: This should never happen? DELETE?
-				return { nullptr, false };
-
 			auto idx = availible.back();
 			availible.pop_back();
 			return { mem + (idx * (blockSize + sizeof(Header))) + sizeof(Header), availible.empty() };
@@ -331,7 +335,7 @@ namespace SlabMemImpl
 		}
 
 		template<class T>
-		static void deallocate(T* ptr)
+		static void deallocate(T* ptr, size_type n)
 		{
 			const auto hPtr = Slab::getHeader(ptr);
 			if (hPtr->cacheIdx != Header::NO_CACHE)

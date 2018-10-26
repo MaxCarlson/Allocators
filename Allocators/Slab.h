@@ -13,7 +13,13 @@ namespace alloc
 	{
 	public:
 
-		using size_type = size_t;
+		using size_type			= size_t;
+		using difference_type	= std::ptrdiff_t;
+		using pointer			= Type*;
+		using const_pointer		= const pointer;
+		using reference			= Type&;
+		using const_reference	= const reference;
+		using value_type		= Type;
 
 		template<class U>
 		struct rebind { using other = SlabMem<U>; };
@@ -32,9 +38,9 @@ namespace alloc
 		}
 
 		template<class T>
-		static void deallocate(T* ptr)
+		static void deallocate(T* ptr, size_type n)
 		{
-			SlabMemImpl::Interface::deallocate(ptr);
+			SlabMemImpl::Interface::deallocate(ptr, n);
 		}
 
 		// Add a dynamic cache that stores count 

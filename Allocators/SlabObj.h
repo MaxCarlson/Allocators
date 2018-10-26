@@ -149,9 +149,6 @@ namespace SlabObjImpl
 
 		std::pair<byte*, bool> allocate()
 		{
-			if (availible.empty()) // TODO: This should never happen?
-				return { nullptr, false };
-
 			auto idx = availible.back();
 			availible.pop_back();
 			return { mem + (idx * sizeof(T)), availible.empty() };

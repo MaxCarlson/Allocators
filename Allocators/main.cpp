@@ -49,26 +49,14 @@ struct Large
 // Allocator w/ thread private heaps like Intel's tbb::scalable_allocator<T>
 int main()
 {
+	alloc::SlabMem<size_t>::addCache2(sizeof(size_t), 1 << 10, 512);
 	alloc::FreeList<int, 50000, alloc::TreePolicy> al;
 
 	auto ptr = al.allocate(1);
 
-	constexpr int length = 64 * 1024 * 1024;
-	int* arr = new int[length];
+	std::vector<size_t, alloc::SlabMem<size_t>> vec;
 
-	// Loop 1
-	auto st = Clock::now();
-	for (int i = 0; i < length; i++) arr[i] *= 3;
-	auto end = Clock::now();
-
-
-	// Loop 2
-	auto st2 = Clock::now();
-	for (int i = 0; i < length; i += 4) arr[i] *= 3;
-	auto end2 = Clock::now();
-
-	std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - st).count() <<
-		" " << std::chrono::duration_cast<std::chrono::milliseconds>(end2 - st2).count();
+	vec.emplace_back(1U);
 
 	return 0;
 }
