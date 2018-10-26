@@ -54,9 +54,12 @@ int main()
 
 	auto ptr = al.allocate(1);
 
-	std::vector<size_t, alloc::FreeList<size_t, 50000, alloc::TreePolicy>> vec;
+	decltype(al)::rebind<size_t>::other all;
 
-	vec.emplace_back(1U);
+	std::allocator_traits<decltype(al)>::rebind_alloc<size_t> ll;
+
+	std::vector<size_t, decltype(ll)> vec;
+	//vec.emplace_back(1U);
 
 	return 0;
 }

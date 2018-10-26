@@ -136,10 +136,33 @@ namespace Tests
 				{
 					for (int h = 0; h < 3; ++h)
 					{
-						Assert::IsTrue(ptrs[i][j].ar[h] == 12);
+						Assert::IsTrue(ptrs[order[i]][j].ar[h] == 12);
 					}
-					slabM.deallocate(&ptrs[i][j], 10);
+					slabM.deallocate(&ptrs[order[i]][j], 10);
 				}
+		}
+
+		TEST_METHOD(Mem_STD_Allocator)
+		{
+			static constexpr int count = 50;
+			std::vector<int> order(101, 0);
+			std::iota(std::begin(order), std::end(order), 0);
+			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(22));
+
+			std::vector<Large, alloc::SlabMem<Large>> vec;
+			vec.reserve(count+1);
+
+			for (int i = 0; i < count; ++i)
+				vec.emplace_back(2, 6, 3);
+
+			for (int i = 0; i < count; ++i)
+				for (int j = 0; j < 3; ++j)
+					Assert::IsTrue(vec[i].ar[j] == 12);
+
+			auto preClear = LargeDtorCounter;
+			vec.clear();
+
+			Assert::IsTrue(LargeDtorCounter == preClear + count);
 		}
 
 		TEST_METHOD(Dealloc_Mem)
