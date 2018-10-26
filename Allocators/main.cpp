@@ -54,7 +54,7 @@ int main()
 
 	auto ptr = al.allocate(1);
 
-	std::vector<size_t, alloc::SlabMem<size_t>> vec;
+	std::vector<size_t, alloc::FreeList<size_t, 50000, alloc::TreePolicy>> vec;
 
 	vec.emplace_back(1U);
 

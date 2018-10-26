@@ -338,7 +338,7 @@ namespace SlabMemImpl
 		static void deallocate(T* ptr, size_type n)
 		{
 			const auto hPtr = Slab::getHeader(ptr);
-			if (hPtr->cacheIdx != Header::NO_CACHE)
+			if (hPtr->cacheIdx != Header::NO_CACHE) // TODO: Should this be reverted since we're now being passed an n?
 			{
 				caches[hPtr->cacheIdx].deallocate(ptr);
 				return;
