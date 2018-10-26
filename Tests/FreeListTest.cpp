@@ -108,7 +108,7 @@ namespace Tests
 			std::shuffle(std::begin(idxs), std::end(idxs), std::default_random_engine(1));
 
 			for (const auto it : idxs)
-				al.deallocate(ptrs[it]);
+				al.deallocate(ptrs[it], 1);
 
 			// Check byte count is correct
 			Assert::IsTrue(itf.bytesFree == static_cast<lsType>(alSize));

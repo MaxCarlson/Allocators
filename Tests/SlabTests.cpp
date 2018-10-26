@@ -13,9 +13,9 @@ static int LargeDtorCounter = 0;
 
 struct Large
 {
-	Large()					: ar(maxAllocs, LargeDefaultCtorVal) {}
-	Large(int val)			: ar(maxAllocs, val) {}
-	Large(int a, char b)	: ar(maxAllocs, a * b) {}
+	Large()										: ar(maxAllocs, LargeDefaultCtorVal) {}
+	Large(int val)								: ar(maxAllocs, val) {}
+	Large(int a, char b, size_t n = maxAllocs)	: ar(n, a * b) {}
 	~Large()
 	{
 		++LargeDtorCounter;
@@ -56,7 +56,7 @@ namespace Tests
 			alloc::SlabMem<int> slabM;
 			slabM.addCache(sizeof(int), maxAllocs);
 			slabM.addCache<Large>(maxAllocs);
-			slabM.addCache(sizeof(Large) * 100, 100); // TODO: THIS BREAKS TESTS, FIND OUT WHY
+			slabM.addCache(sizeof(Large) * 100, 100); 
 
 			// SlabObj Init
 			alloc::SlabObj<Large> slabO;
@@ -87,12 +87,12 @@ namespace Tests
 			for (auto idx : order)
 			{
 				Assert::IsTrue(*iptrs[idx] == idx, L"Failed to find an int");
-				slabM.deallocate(iptrs[idx]);
+				slabM.deallocate(iptrs[idx], 1);
 
 				for (auto i : (*lptrs[idx]).ar)
 					Assert::IsTrue(i == idx, L"Failed finding a value in Large Struct");
 
-				slabM.deallocate(lptrs[idx]);
+				slabM.deallocate(lptrs[idx], 1);
 			}
 		}
 
@@ -115,10 +115,31 @@ namespace Tests
 			deallocMem(iptrs, lptrs, order);
 		}
 
-		TEST_METHOD(AllocMulti_Mem) // TODO: Test for multiple count of object allocations
+		TEST_METHOD(Alloc_MultiMem) // TODO: Test for multiple count of object allocations
 		{
-			//auto* lrg10 = slabM.allocate<Large>(10);
-			//slabM.deallocate(lrg10, 10);
+			Large* ptrs[101];
+			std::vector<int> order(101, 0);
+			std::iota(std::begin(order), std::end(order), 0);
+			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(22));
+
+			for (int i = 0; i < 101; ++i)
+			{
+				ptrs[i] = slabM.allocate<Large>(10);
+				for (int j = 0; j < 10; ++j)
+					new (&ptrs[i][j]) Large{ 2, 6, 3 }; // Place Large's
+			}
+			
+			Assert::IsTrue(slabM.info().at(3).size == 101);
+
+			for (int i = 0; i < 101; ++i)
+				for (int j = 0; j < 10; ++j)
+				{
+					for (int h = 0; h < 3; ++h)
+					{
+						Assert::IsTrue(ptrs[i][j].ar[h] == 12);
+					}
+					slabM.deallocate(&ptrs[i][j], 10);
+				}
 		}
 
 		TEST_METHOD(Dealloc_Mem)
