@@ -21,6 +21,11 @@ namespace alloc
 		using const_reference	= const reference;
 		using value_type		= Type;
 
+		SlabMem() = default;
+
+		template<class U>
+		SlabMem(const SlabMem<U>& other) {} // Note: Needed for debug mode to compile with std::containers
+
 		template<class U>
 		struct rebind { using other = SlabMem<U>; };
 

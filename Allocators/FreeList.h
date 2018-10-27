@@ -345,6 +345,9 @@ namespace alloc
 		FreeList() = default;
 
 		template<class U>
+		FreeList(const FreeList<U, bytes, Policy>& other) {} // Note: Needed for debug mode to compile with std::containers
+
+		template<class U>
 		bool operator==(const FreeList<U, bytes, Policy>& other) const noexcept
 		{
 			return true;

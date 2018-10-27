@@ -74,7 +74,7 @@ double basicAlloc(Init& init, Alloc& al)
 			auto start = Clock::now();
 
 			for (auto& ptr : ptrs)
-				init.de(ptr);
+				init.de(ptr, 1);
 			ptrs.clear();
 
 			auto end = Clock::now();
@@ -91,7 +91,7 @@ double basicAlloc(Init& init, Alloc& al)
 	auto end = Clock::now();
 
 	for (auto ptr : ptrs)
-		init.de(ptr);
+		init.de(ptr, 1);
 
 	return std::chrono::duration_cast<TimeType>(end - start).count() - deallocTime;
 }
@@ -111,7 +111,7 @@ double basicAlDea(Init& init, Alloc& al)
 		if (init.useCtor)
 			init.ctor.construct(loc);
 
-		init.de(loc);
+		init.de(loc, 1);
 	}
 
 	auto end = Clock::now();
@@ -157,7 +157,7 @@ double randomAlDe(Init& init, Alloc& al)
 			auto disDe	= std::uniform_int_distribution<int>(0, ptrs.size() - 1);
 			auto idx	= disDe(init.re);
 			std::swap(ptrs[idx], ptrs.back());
-			init.de(ptrs.back());
+			init.de(ptrs.back(), 1);
 			ptrs.pop_back();
 			--deallocs;
 		}
@@ -165,7 +165,7 @@ double randomAlDe(Init& init, Alloc& al)
 	auto end = Clock::now();
 
 	for (auto& ptr : ptrs)
-		init.de(ptr);
+		init.de(ptr, 1);
 
 	return std::chrono::duration_cast<TimeType>(end - start).count();
 }
@@ -195,7 +195,7 @@ double memAccess(Init& init, Alloc& al, bool seq)
 	auto end = Clock::now();
 
 	for (auto& ptr : ptrs)
-		init.de(ptr);
+		init.de(ptr, 1);
 
 	return std::chrono::duration_cast<TimeType>(end - start).count();
 }

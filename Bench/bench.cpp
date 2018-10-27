@@ -37,10 +37,10 @@ enum BenchMasks
 
 // Wrapper for common dtor/deallocation in benchmarks
 template<class Al, class Ptr>
-void destroyDealloc(Al& al, Ptr* ptr)
+void destroyDealloc(Al& al, Ptr* ptr, size_t n)
 {
 	ptr->~Ptr();
-	al.deallocate(ptr);
+	al.deallocate(ptr, n);
 }
 
 // Allocator allocate/deallocate wrappers.
@@ -49,7 +49,7 @@ void destroyDealloc(Al& al, Ptr* ptr)
 decltype(auto) defWrappers()
 {
 	auto al = [](auto t, auto cnt = 1) { return defaultAl.allocate<decltype(t)>(cnt); };
-	auto de = [](auto ptr) { destroyDealloc(defaultAl, ptr); };
+	auto de = [](auto ptr, size_t n) { destroyDealloc(defaultAl, ptr, n); };
 	return std::pair(al, de);
 }
 
@@ -57,13 +57,13 @@ template<class Al>
 decltype(auto) flWrappers(Al& al)
 {
 	auto all = [&](auto t, auto cnt) { return al.allocate<decltype(t)>(cnt); };
-	auto de  = [&](auto ptr) { destroyDealloc(al, ptr); };
+	auto de  = [&](auto ptr, size_t n) { destroyDealloc(al, ptr, n); };
 	return std::pair(all, de);
 }
 decltype(auto) sMemWrappers()
 {
 	auto al = [&](auto t, auto cnt) { return slabM.allocate<decltype(t)>(cnt); };
-	auto de = [&](auto ptr) { destroyDealloc(slabM, ptr); };
+	auto de = [&](auto ptr, size_t n) { destroyDealloc(slabM, ptr, n); };
 	return std::pair(al, de);
 }
 
@@ -72,7 +72,7 @@ decltype(auto) sObjWrappers()
 {
 	// Slab obj functions 
 	auto al = [&](auto t, auto cnt) { return slabO.allocate<decltype(t), Xtors>(); };
-	auto de = [&](auto ptr) { slabO.deallocate<typename std::remove_pointer<decltype(ptr)>::type, Xtors>(ptr); };
+	auto de = [&](auto ptr, size_t n) { slabO.deallocate<typename std::remove_pointer<decltype(ptr)>::type, Xtors>(ptr); };
 	return std::pair(al, de);
 }
 

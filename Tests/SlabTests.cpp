@@ -115,12 +115,16 @@ namespace Tests
 			deallocMem(iptrs, lptrs, order);
 		}
 
-		TEST_METHOD(Alloc_MultiMem) // TODO: Test for multiple count of object allocations
+		//
+		// FAILING
+		//
+		// Test for multiple count of object allocations
+		TEST_METHOD(Alloc_MultiMem) 
 		{
 			Large* ptrs[101];
 			std::vector<int> order(101, 0);
 			std::iota(std::begin(order), std::end(order), 0);
-			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(22));
+			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(72));
 
 			for (int i = 0; i < 101; ++i)
 			{
@@ -129,19 +133,19 @@ namespace Tests
 					new (&ptrs[i][j]) Large{ 2, 6, 3 }; // Place Large's
 			}
 			
-			Assert::IsTrue(slabM.info().at(3).size == 101);
+			Assert::IsTrue(slabM.info()[2].size == 101);
 
 			for (int i = 0; i < 101; ++i)
 				for (int j = 0; j < 10; ++j)
 				{
 					for (int h = 0; h < 3; ++h)
-					{
 						Assert::IsTrue(ptrs[order[i]][j].ar[h] == 12);
-					}
 					slabM.deallocate(&ptrs[order[i]][j], 10);
 				}
 		}
 
+		// Make sure SlabMem works with std::containers 
+		// TODO: Should be a complex container for allocators like std::map
 		TEST_METHOD(Mem_STD_Allocator)
 		{
 			static constexpr int count = 50;
