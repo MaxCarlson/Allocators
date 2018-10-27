@@ -17,21 +17,27 @@ namespace Tests
 		static const lType alSize	= 512;
 		using LAllocator			= alloc::FreeList<int, alSize, alloc::ListPolicy>;
 		using FAllocator			= alloc::FreeList<int, alSize, alloc::FlatPolicy>;
+		using TAllocator			= alloc::FreeList<int, alSize, alloc::TreePolicy>;
+
 		using lsType				= LAllocator::size_type; // Allocator size type for list pol
 		using LPol					= typename LAllocator::OurPolicy::OurPolicy;
 		using FPol					= typename FAllocator::OurPolicy::OurPolicy;
+		using TPol					= typename TAllocator::OurPolicy::OurPolicy;
 		using Header				= typename LAllocator::OurPolicy::Header;
 
 		LAllocator listAl;
 		FAllocator flatAl;
+		TAllocator treeAl;
 		// This is the policy interface that interfaces with
 		// different allocator policies
 		LAllocator::OurPolicy lItf;
 		FAllocator::OurPolicy fItf;
+		TAllocator::OurPolicy tItf;
 		// A particular allocator policy. From here we can access
 		// the list of free mem blocks, etc
 		LPol lPol;
 		FPol fPol;
+		TPol tPol;
 
 		template<class Al, class Itf, class Pol>
 		void testAlloc(Al& al, Itf& itf, Pol& pol)
@@ -69,7 +75,7 @@ namespace Tests
 			// Check byte count is correct
 			Assert::IsTrue(itf.bytesFree == remainingBytes);
 			// Check remaining chunk mem size is matching our count
-			Assert::IsTrue(pol.availible.front().second == remainingBytes);
+			Assert::IsTrue(pol.availible.begin()->second == remainingBytes);
 
 			// And test to make sure nothing is overwritten
 			for (int i = 0; i < count; ++i)
@@ -82,7 +88,8 @@ namespace Tests
 		TEST_METHOD(Allocation)
 		{
 			testAlloc(listAl, lItf,  lPol);
-			testAlloc(flatAl, fItf, fPol);
+			testAlloc(flatAl, fItf,  fPol);
+			testAlloc(treeAl, tItf,  tPol);
 		}
 
 		template<class Al, class Itf, class Pol>
@@ -117,13 +124,14 @@ namespace Tests
 			Assert::IsTrue(pol.availible.size() == 1);
 
 			// Check remaining chunk mem size is matching our count
-			Assert::IsTrue(pol.availible.front().second == static_cast<lsType>(alSize));
+			Assert::IsTrue(pol.availible.begin()->second == static_cast<lsType>(alSize));
 		}
 
 		TEST_METHOD(Deallocation)
 		{
 			testDealloc(listAl, lItf, lPol);
 			testDealloc(flatAl, fItf, fPol);
+			testDealloc(treeAl, tItf, tPol);
 		}
 
 		template<class Al, class Itf, class Pol>
@@ -136,15 +144,16 @@ namespace Tests
 
 			al.freeAll();
 
-			Assert::IsTrue(itf.bytesFree				== alSize);
-			Assert::IsTrue(pol.availible.size()			==		1);
-			Assert::IsTrue(pol.availible.front().second == alSize);
+			Assert::IsTrue(itf.bytesFree					== alSize);
+			Assert::IsTrue(pol.availible.size()				==		1);
+			Assert::IsTrue(pol.availible.begin()->second	== alSize);
 		}
 
 		TEST_METHOD(FreeAll)
 		{
 			testFreeAll(listAl, lItf, lPol);
 			testFreeAll(flatAl, fItf, fPol);
+			testFreeAll(treeAl, tItf, tPol);
 		}
 
 	};

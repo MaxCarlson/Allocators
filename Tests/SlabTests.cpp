@@ -137,9 +137,9 @@ namespace Tests
 
 			for (int i = 0; i < 101; ++i)
 			{
-				for(int j = 0; j < 10; ++j)
+				for(int j = 0; j < 10; ++j) // Make sure each and every Slab allocated is correct
 					for (int h = 0; h < 3; ++h)
-						Assert::IsTrue(ptrs[order[i]][j].ar[h] == 12, L"" + 5);
+						Assert::IsTrue(ptrs[order[i]][j].ar[h] == 12); 
 				slabM.deallocate(ptrs[order[i]], 10);
 			}
 		}
