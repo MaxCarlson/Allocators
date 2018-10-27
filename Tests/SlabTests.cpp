@@ -136,12 +136,12 @@ namespace Tests
 			Assert::IsTrue(slabM.info()[2].size == 101);
 
 			for (int i = 0; i < 101; ++i)
-				for (int j = 0; j < 10; ++j)
-				{
+			{
+				for(int j = 0; j < 10; ++j)
 					for (int h = 0; h < 3; ++h)
-						Assert::IsTrue(ptrs[order[i]][j].ar[h] == 12);
-					slabM.deallocate(&ptrs[order[i]][j], 10);
-				}
+						Assert::IsTrue(ptrs[order[i]][j].ar[h] == 12, L"" + 5);
+				slabM.deallocate(ptrs[order[i]], 10);
+			}
 		}
 
 		// Make sure SlabMem works with std::containers 
