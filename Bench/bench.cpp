@@ -241,7 +241,7 @@ int main()
 	//constexpr size_t allocMask		= AllocMasks::ALL_ALLOCS; // SLAB_MEM | SLAB_OBJ;	
 	constexpr size_t benchMask		= BenchMasks::ALL_BENCH;
 
-	constexpr int numTests			= 4;
+	constexpr int numTests			= 10;
 
 	slabM.addCache2(1 << 5, 1 << 13, cacheSz);
 

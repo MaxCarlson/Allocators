@@ -11,6 +11,16 @@ namespace alloc
 	template<class Type>
 	class SlabMem
 	{
+		// SlabMem requires all caches be added before allocations begin
+		// 
+		// Memory is divided into Caches, which are divided
+		// into Slabs. Slabs are divided into n blocks of m size.
+		// Vectors are used to store the list of empty indicies on a Slab
+		// Caches will add a Slab when all previous Slabs have run out of space
+		//
+		// Overhead per Slab: (sizeof(SlabMemImpl::Header) + sizeof(uint16_t)) * count 
+		//					 + sizeof(size_t) * 3 + sizeof(std::vector<uint16_t>)
+
 	public:
 
 		using size_type			= size_t;

@@ -156,6 +156,11 @@ namespace Tests
 			testFreeAll(treeAl, tItf, tPol);
 		}
 
+		TEST_METHOD(STD_Containers) // TODO: add test to make sure each works with the std::containers
+		{
+
+		}
+
 	};
 
 }

@@ -31,7 +31,6 @@ namespace SlabMemImpl
 		using size_type = size_t;
 
 		byte*					mem;
-		//byte* end;
 		size_type				blockSize;
 		size_type				count;
 		//size_type offset;
@@ -40,12 +39,12 @@ namespace SlabMemImpl
 	public:
 
 		Slab() : mem{ nullptr } {}
-		Slab(size_t blockSize, size_t count, Header::size_type index) 
+		Slab(size_t blockSize, size_t count) 
 			: blockSize{ blockSize }, count{ count }, availible(count)
 		{
 			//offset = index & 30U;
 
-			mem = reinterpret_cast<byte*>(operator new((blockSize + sizeof(Header)) * count));
+			mem = reinterpret_cast<byte*>(operator new(blockSize * count));
 			std::iota(std::rbegin(availible), std::rend(availible), 0);
 			
 			//end = mem + (blockSize + sizeof(Header)) * count;
@@ -61,8 +60,8 @@ namespace SlabMemImpl
 			//
 			// Set all the indicies. This only has to be done once
 			// and will allow us to find this Cache (quickly) again on deallocation
-			for (auto i = 0; i < count; ++i)
-				reinterpret_cast<Header*>(mem + (blockSize + sizeof(Header)) * i)->cacheIdx = index;
+			//for (auto i = 0; i < count; ++i)
+			//	reinterpret_cast<Header*>(mem + (blockSize + sizeof(Header)) * i)->cacheIdx = index;
 		}
 
 		void otherMove(Slab&& other) noexcept
@@ -101,15 +100,14 @@ namespace SlabMemImpl
 		{
 			auto idx = availible.back();
 			availible.pop_back();
-			return { mem + (idx * (blockSize + sizeof(Header))) + sizeof(Header), availible.empty() };
+			return { mem + (idx * blockSize), availible.empty() };
 		}
 
 		template<class P>
 		void deallocate(P* ptr)
 		{
-			auto idx = static_cast<size_type>((reinterpret_cast<byte*>(ptr) - sizeof(Header) - mem) / (blockSize + sizeof(Header)));
+			auto idx = static_cast<size_type>((reinterpret_cast<byte*>(ptr) - mem)) / blockSize;
 			availible.emplace_back(idx);
-			ptr->~P();
 		}
 
 		template<class P>
@@ -122,7 +120,7 @@ namespace SlabMemImpl
 		bool containsMem(P* ptr) const noexcept
 		{
 			return (reinterpret_cast<byte*>(ptr) >= mem
-				 && reinterpret_cast<byte*>(ptr) < (mem + ((blockSize + sizeof(Header)) * count)));
+				 && reinterpret_cast<byte*>(ptr) < (mem + blockSize * count));
 		}
 	};
 
@@ -143,9 +141,9 @@ namespace SlabMemImpl
 		using SlabStore = alloc::List<Slab>;
 		using It		= SlabStore::iterator;
 
-		inline static Header::size_type nextIndex = 0;
+		//inline static Header::size_type nextIndex = 0;
 
-		Header::size_type index; // Index of this cache, used for deallocation
+		//Header::size_type index; // Index of this cache, used for deallocation
 
 		size_type count;
 		size_type blockSize;
@@ -161,7 +159,7 @@ namespace SlabMemImpl
 		Cache(size_type blockSize, size_type num) : count(num), blockSize(blockSize)
 		{
 			//count = alloc::nearestPageSz(num * (blockSize * sizeof(Header))) / (blockSize * sizeof(Header)); // This might increase random access times
-			index = nextIndex++;
+			//index = nextIndex++;
 			newSlab();
 		}
 
@@ -175,7 +173,7 @@ namespace SlabMemImpl
 
 		void newSlab()
 		{
-			slabsFree.emplace_back(blockSize, count, index);
+			slabsFree.emplace_back(blockSize, count);
 			myCapacity += count;
 		}
 
@@ -325,18 +323,26 @@ namespace SlabMemImpl
 
 			const auto bytes = count * sizeof(T);
 			for (auto it = std::begin(caches); it != std::end(caches); ++it)
-				if (bytes <= it->blockSize)
+				if (it->blockSize >= bytes)
 					return it->allocate<T>();
 
 			// If the allocation is too large go ahead and allocate from new
-			byte* ptr = reinterpret_cast<byte*>(operator new((sizeof(T) + sizeof(Header)) * count));
-			reinterpret_cast<Header*>(ptr)->cacheIdx = Header::NO_CACHE;
-			return reinterpret_cast<T*>(ptr + sizeof(Header));
+			//byte* ptr = reinterpret_cast<byte*>(operator new((sizeof(T) + sizeof(Header)) * count));
+			//reinterpret_cast<Header*>(ptr)->cacheIdx = Header::NO_CACHE;
+			//return reinterpret_cast<T*>(ptr + sizeof(Header));
 		}
 
 		template<class T>
-		static void deallocate(T* ptr, size_type n)
+		static void deallocate(T* ptr, size_type count)
 		{
+			const auto bytes = count * sizeof(T);
+			for (auto it = std::begin(caches); it != std::end(caches); ++it)
+				if (it->blockSize >= bytes)
+				{
+					it->deallocate(ptr);
+					return;
+				}
+			/*
 			const auto hPtr = Slab::getHeader(ptr);
 			if (hPtr->cacheIdx != Header::NO_CACHE) // TODO: Should this be reverted since we're now being passed an n?
 			{
@@ -345,6 +351,7 @@ namespace SlabMemImpl
 			}
 
 			operator delete(ptr);
+			*/
 		}
 
 		static std::vector<alloc::CacheInfo> info() noexcept
