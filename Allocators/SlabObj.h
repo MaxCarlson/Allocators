@@ -97,9 +97,8 @@ namespace SlabObjImpl
 		// TODO: Should we only allow this function to change count on init?
 		static void addCache(size_type count, Xtors& tors)
 		{
+			perCache = count;
 			setXtors(tors);
-
-			perCache = alloc::nearestPageSz(count * sizeof(T)) / sizeof(T);
 			newSlab();
 		}
 
@@ -218,6 +217,7 @@ namespace SlabObjImpl
 		template<class T, class Xtors>
 		static void addCache(size_type count, Xtors& tors)
 		{
+			count = alloc::nearestPageSz(count * sizeof(T)) / sizeof(T);
 			SlabImpl::addToMap(count);
 			Cache<T, Xtors>::addCache(count, tors);
 		}

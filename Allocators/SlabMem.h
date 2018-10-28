@@ -282,6 +282,7 @@ namespace SlabMemImpl
 		//
 		static void addCache(size_type blockSize, size_type count)
 		{
+			count = alloc::nearestPageSz(count * blockSize) / blockSize;
 			SlabImpl::addToMap(count);
 			caches.emplace_back(blockSize, count);
 		}
