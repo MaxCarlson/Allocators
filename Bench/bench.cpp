@@ -179,12 +179,12 @@ void printScores(std::vector<std::vector<double>>& scores, size_t alMask, size_t
 	for (auto& v : scores)
 	{
 		std::cout << std::left << std::setw(printWidth) << alNames[i];
-		size_t i = 1;
+		size_t iMask = 1;
 		for (const auto& s : v)
 		{
-			if(i & bMask)
+			if(iMask & bMask)
 				std::cout << std::right << std::setw(printWidth) << std::fixed << std::setprecision(1) << s << ' ';
-			i <<= 1;
+			iMask <<= 1;
 		}
 		std::cout << '\n';
 		++i;
@@ -294,10 +294,8 @@ int main()
 
 	// Run benchmarks
 	std::vector<std::vector<double>> scores;
-	scores			= benchAllocs<SimpleStruct,  ssCtorT>(ssCtor, numTests, allocMask, benchMask);
-	addScores(scores, benchAllocs<PartialInit,	 piCtorT>(piCtor, numTests, allocMask, benchMask));
-	addScores(scores, benchAllocs<NonType,		defCtorT>(alloc::defaultXtor, numTests, allocMask, benchMask & BenchMasks::NON_T_MSK));
-
+	scores			= benchAllocs<SimpleStruct,  ssCtorT>(ssCtor, numTests, allocMask, benchMask & BenchMasks::TYPE_MSK);
+	addScores(scores, benchAllocs<PartialInit,	 piCtorT>(piCtor, numTests, allocMask, benchMask & BenchMasks::TYPE_MSK));
 
 	// Print the average of all benchmark scores for 
 	// the allocators
@@ -305,6 +303,9 @@ int main()
 		avgScores(v, 2);
 
 	printScores<AveragedScores> (scores, allocMask, benchMask);
+
+	// Non type based tests
+	benchAllocs<NonType, defCtorT>(alloc::defaultXtor, numTests, allocMask, benchMask & BenchMasks::NON_T_MSK);
 
 	std::cout << "\nOptimization var: " << TestV << '\n';
 	return 0;
