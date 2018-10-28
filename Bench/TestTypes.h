@@ -5,6 +5,9 @@
 // Helper struct for printing average 
 // scores over all test ( Must be outside of main for good printing)
 struct AveragedScores {};
+// Helper struct for non-type dependent tests
+struct NonType { void meddle() {} };
+
 
 
 struct DefaultAlloc
