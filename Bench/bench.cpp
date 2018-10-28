@@ -6,7 +6,7 @@
 #include "Tests.h"
 
 // Allocators
-DefaultAlloc defaultAl;
+DefaultAlloc<int> defaultAl;
 alloc::SlabMem<int> slabM;
 alloc::SlabObj<int> slabO;
 constexpr auto FreeListBytes = (sizeof(PartialInit) + sizeof(alloc::FreeList<PartialInit, 999999999>::OurHeader)) * (maxAllocs * 2); // TODO: Better size needs prediciton

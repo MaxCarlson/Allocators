@@ -326,6 +326,8 @@ namespace alloc
 	class FreeList
 	{
 	public:
+		using STD_Compatible	= std::true_type;
+
 		using OurPolicy			= PolicyInterface<bytes, Policy>;
 		using size_type			= typename OurPolicy::size_type;
 		using OurHeader			= typename OurPolicy::Header;

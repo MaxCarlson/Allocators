@@ -9,20 +9,38 @@ struct AveragedScores {};
 struct NonType { void meddle() {} };
 
 
-
+template<class Type>
 struct DefaultAlloc
 {
-	template<class T>
-	T* allocate() { return reinterpret_cast<T*>(operator new(sizeof(T))); }
+	DefaultAlloc() = default;
 
-	template<class T>
+	template<class U>
+	DefaultAlloc(const DefaultAlloc<U>& other) {};
+
+	using STD_Compatible = std::true_type;
+
+	using size_type			= size_t;
+	using difference_type	= std::ptrdiff_t;
+	using pointer			= Type*;
+	using const_pointer		= const pointer;
+	using reference			= Type&;
+	using const_reference	= const reference;
+	using value_type		= Type;
+
+	template<class T = Type>
+	T* allocate() { return reinterpret_cast<T*>(operator new(sizeof(Type))); }
+
+	template<class T = Type>
 	T* allocate(size_t count) { return reinterpret_cast<T*>(operator new(sizeof(T) * count)); }
 
-	template<class T>
+	template<class T = Type>
 	void deallocate(T* ptr, size_t n) 
 	{
 		operator delete(ptr);
 	}
+
+	template<class U>
+	struct rebind { using other = DefaultAlloc<U>; };
 };
 
 inline static int TestV = 0;

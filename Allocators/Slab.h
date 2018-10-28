@@ -22,6 +22,7 @@ namespace alloc
 		//					 + sizeof(size_t) * 3 + sizeof(std::vector<uint16_t>)
 
 	public:
+		using STD_Compatible	= std::true_type;
 
 		using size_type			= size_t;
 		using difference_type	= std::ptrdiff_t;
@@ -108,7 +109,8 @@ namespace alloc
 	{
 	public:
 
-		using size_type = size_t;
+		using size_type			= size_t;
+		using STD_Compatible	= std::false_type;
 
 		template<class U>
 		struct rebind { using other = SlabObj<U>; };

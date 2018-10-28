@@ -5,6 +5,7 @@
 #include <iostream>
 #include <random>
 #include <iomanip>
+#include <string>
 
 // TODO: Concurrency Benchmarks
 
@@ -206,10 +207,43 @@ double rMemAccess(Init& init, Alloc& al) { return memAccess(init, al, false); }
 template<class Init, class Alloc>
 double sMemAccess(Init& init, Alloc& al) { return memAccess(init, al, true); }
 
+
+// Non-Type benchmarks after this point
+
+template<class Init, class Alloc>
+double strAl(Init& init, Alloc& al, std::true_type t)
+{
+	using T			= typename Init::MyType;
+	using TimeType	= std::chrono::milliseconds;
+	using Al		= typename Alloc::template rebind<char>::other; // TODO: Crap we can't use allocators like this with non-standard allocs
+	using String	= std::basic_string<char, std::char_traits<char>, Al>;
+
+	std::vector<String> strings;
+	auto dis = std::uniform_int_distribution<size_t>(34, 130); // Use numbers beyond small string optimizations
+
+	auto start = Clock::now();
+	int idx = 0;
+	for (auto i = 0; i < iterations; ++i)
+	{
+		if (i % maxAllocs == 0)
+			idx = 0;
+
+		auto strLen = dis(init.re);
+
+		strings.emplace_back(String(strLen, 'i'));
+	}
+
+	auto end = Clock::now();
+
+	return std::chrono::duration_cast<TimeType>(end - start).count();
+}
+
+template<class Init, class Alloc>
+double strAl(Init& init, Alloc& al, std::false_type f) { return 0.0; }
+
 template<class Init, class Alloc>
 double stringAl(Init& init, Alloc& al) 
 {
-
-
-	return 0.0;
+	using TType = typename Alloc::STD_Compatible;
+	return strAl<Init, Alloc>(init, al, TType{});
 }
