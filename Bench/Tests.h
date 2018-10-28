@@ -205,3 +205,11 @@ double rMemAccess(Init& init, Alloc& al) { return memAccess(init, al, false); }
 
 template<class Init, class Alloc>
 double sMemAccess(Init& init, Alloc& al) { return memAccess(init, al, true); }
+
+template<class Init, class Alloc>
+double stringAl(Init& init, Alloc& al) 
+{
+
+
+
+}

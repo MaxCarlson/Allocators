@@ -32,7 +32,8 @@ enum BenchMasks
 	R_AL_DE		= 1 << 2,
 	SEQ_READ	= 1 << 3,
 	R_READ		= 1 << 4,
-	ALL_BENCH	= (1 << 5) - 1
+	STR_AL_DE	= 1 << 5,
+	ALL_BENCH	= (1 << 6) - 1
 };
 
 // Wrapper for common dtor/deallocation in benchmarks
@@ -82,8 +83,26 @@ inline void avgScores(std::vector<double>& scores, int cnt)
 		s /= cnt;
 }
 
+std::map<size_t, std::vector<size_t>> disabledTests = { {SLAB_OBJ, {STR_AL_DE}} };
+
+inline bool isValid(size_t alMask, size_t bMask, size_t testMask)
+{
+	if (!(bMask & alMask))
+		return false;
+
+	auto find = disabledTests.find(SLAB_OBJ);
+	if (find == std::end(disabledTests))
+		return true;
+
+	auto vFind = std::find(std::begin(find->second), std::end(find->second), testMask);
+	if (vFind == std::end(find->second))
+		return true;
+
+	return false;
+}
+
 template<class Init, class Alloc, class Ctor>
-decltype(auto) benchAlT(Init& init, Alloc& al, Ctor& ctor, int count, size_t bMask)
+decltype(auto) benchAlT(Init& init, Alloc& al, Ctor& ctor, int count, size_t alMask, size_t bMask)
 {
 	// TODO: make vec of pair<string, double> to name tests
 	std::vector<double> averages(5, 0.0);
@@ -91,15 +110,15 @@ decltype(auto) benchAlT(Init& init, Alloc& al, Ctor& ctor, int count, size_t bMa
 	int i;
 	for (i = 0; i < count; ++i)
 	{
-		if(bMask & BenchMasks::ALLOC)
+		if (isValid(alMask, bMask, BenchMasks::ALLOC))
 			averages[0] += basicAlloc(init, al);
-		if(bMask & BenchMasks::AL_DE)
+		if (isValid(alMask, bMask, BenchMasks::AL_DE))
 			averages[1] += basicAlDea(init, al);
-		if(bMask & BenchMasks::R_AL_DE)
+		if (isValid(alMask, bMask, BenchMasks::R_AL_DE))
 			averages[2] += randomAlDe(init, al);
-		if(bMask & BenchMasks::SEQ_READ)
+		if (isValid(alMask, bMask, BenchMasks::SEQ_READ))
 			averages[3] += sMemAccess(init, al);
-		if(bMask & BenchMasks::R_READ)
+		if (isValid(alMask, bMask, BenchMasks::R_READ))
 			averages[4] += rMemAccess(init, al);
 	}
 	
@@ -172,7 +191,7 @@ decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t alMask = ALL_ALLOCS, siz
 	{
 		auto[Al, De] = defWrappers();
 		BenchT init(T{}, ctor, Al, De, re);
-		scores.emplace_back(benchAlT(init, defaultAl, ctor, runs, bMask));
+		scores.emplace_back(benchAlT(init, defaultAl, ctor, runs, DEFAULT, bMask));
 	}
 	
 	// FreeList: ListPolicy
@@ -180,7 +199,7 @@ decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t alMask = ALL_ALLOCS, siz
 	{
 		auto[Al, De] = flWrappers(freeAlList);
 		BenchT init(T{}, ctor, Al, De, re);
-		scores.emplace_back(benchAlT(init, freeAlList, ctor, runs, bMask));
+		scores.emplace_back(benchAlT(init, freeAlList, ctor, runs, FL_LIST, bMask));
 	}
 
 	// FreeList: FlatPolicy
@@ -188,7 +207,7 @@ decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t alMask = ALL_ALLOCS, siz
 	{
 		auto[Al, De] = flWrappers(freeAlFlat);
 		BenchT init(T{}, ctor, Al, De, re);
-		scores.emplace_back(benchAlT(init, freeAlFlat, ctor, runs, bMask));
+		scores.emplace_back(benchAlT(init, freeAlFlat, ctor, runs, FL_FLAT, bMask));
 	}
 
 	// FreeList: TreePolicy
@@ -196,7 +215,7 @@ decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t alMask = ALL_ALLOCS, siz
 	{
 		auto[Al, De] = flWrappers(freeAlTree);
 		BenchT init(T{}, ctor, Al, De, re);
-		scores.emplace_back(benchAlT(init, freeAlTree, ctor, runs, bMask));
+		scores.emplace_back(benchAlT(init, freeAlTree, ctor, runs, FL_TREE, bMask));
 	}
 
 	// SlabMem
@@ -204,7 +223,7 @@ decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t alMask = ALL_ALLOCS, siz
 	{
 		auto[Al, De] = sMemWrappers();
 		BenchT init(T{}, ctor, Al, De, re);
-		scores.emplace_back(benchAlT(init, slabM, ctor, runs, bMask));
+		scores.emplace_back(benchAlT(init, slabM, ctor, runs, SLAB_MEM, bMask));
 	}
 
 	// SlabObj
@@ -212,7 +231,7 @@ decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t alMask = ALL_ALLOCS, siz
 	{
 		auto[Al, De] = sObjWrappers<Ctor>();
 		BenchT init(T{}, ctor, Al, De, re, true, false);
-		scores.emplace_back(benchAlT(init, slabO, ctor, runs, bMask));
+		scores.emplace_back(benchAlT(init, slabO, ctor, runs, SLAB_OBJ, bMask));
 		slabO.freeAll<T, Ctor>(); // Needed to destroy cache of objects (as it's an object pool)
 	}
 

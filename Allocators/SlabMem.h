@@ -9,21 +9,20 @@ namespace SlabMemImpl
 
 	// Maximum number of Caches that can be added
 	// to SlabMem (Used to keep the size_type in header small)
-	inline constexpr auto MAX_CACHES = 127;
+	//inline constexpr auto MAX_CACHES	= 127;
+	static constexpr auto MAX_SLAB_SIZE	= 65535; // Max number of memory blocks a Slab can be divided into 
 
-	// Used to find the Cache in deallocation 
-	// with SlabMem
+	using IndexSizeT = typename alloc::FindSizeT<MAX_SLAB_SIZE>::size_type;
+
+	// NOT in use. Could be useful in future though
+	/*
 	struct Header
 	{
-		enum
-		{
-			NO_CACHE = MAX_CACHES + 1
-		};
-
+		enum { NO_CACHE = MAX_CACHES + 1 };
 		using size_type = typename alloc::FindSizeT<MAX_CACHES, 1>::size_type;
-
 		size_type cacheIdx;
 	};
+	*/
 
 	struct Slab
 	{
@@ -32,9 +31,9 @@ namespace SlabMemImpl
 
 		byte*					mem;
 		size_type				blockSize;
-		size_type				count;
+		size_type				count;		// TODO: This can be converted to IndexSizeT 
 		//size_type offset;
-		std::vector<uint16_t>	availible;
+		std::vector<IndexSizeT>	availible;
 
 	public:
 
@@ -108,12 +107,6 @@ namespace SlabMemImpl
 		{
 			auto idx = static_cast<size_type>((reinterpret_cast<byte*>(ptr) - mem)) / blockSize;
 			availible.emplace_back(idx);
-		}
-
-		template<class P>
-		static Header* getHeader(P* ptr)
-		{
-			return reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) - sizeof(Header));
 		}
 
 		template<class P>
