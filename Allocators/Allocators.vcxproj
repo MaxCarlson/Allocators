@@ -136,6 +136,7 @@
     <ClInclude Include="AllocHelpers.h" />
     <ClInclude Include="Buddy.h" />
     <ClInclude Include="FreeList.h" />
+    <ClInclude Include="SlabHelper.h" />
     <ClInclude Include="SlabMem.h" />
     <ClInclude Include="SlabObj.h" />
     <ClInclude Include="Slab.h" />

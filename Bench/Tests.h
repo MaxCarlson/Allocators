@@ -14,11 +14,10 @@ using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
 
 constexpr auto cacheSz		= 1024;
 
-//constexpr auto iterations	= 3000000;
-//constexpr auto maxAllocs	= 150000;
-
-constexpr auto iterations	= 1000;
-constexpr auto maxAllocs	= 1500;
+constexpr auto iterations	= 1000000;
+constexpr auto maxAllocs	= 150000;
+//constexpr auto iterations	= 1000;
+//constexpr auto maxAllocs	= 1500;
 
 
 
@@ -226,11 +225,14 @@ double strAl(Init& init, Alloc& al, std::true_type t)
 	for (auto i = 0; i < iterations; ++i)
 	{
 		if (i % maxAllocs == 0)
+		{
 			idx = 0;
+			strings.clear();
+		}
 
 		auto strLen = dis(init.re);
 
-		strings.emplace_back(String(strLen, 'i'));
+		strings.emplace_back(String(strLen, static_cast<char>(strLen)));
 	}
 
 	auto end = Clock::now();

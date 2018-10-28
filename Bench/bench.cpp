@@ -9,7 +9,7 @@
 DefaultAlloc<int> defaultAl;
 alloc::SlabMem<int> slabM;
 alloc::SlabObj<int> slabO;
-constexpr auto FreeListBytes = (sizeof(PartialInit) + sizeof(alloc::FreeList<PartialInit, 999999999>::OurHeader)) * (maxAllocs * 2); // TODO: Better size needs prediciton
+constexpr auto FreeListBytes = (150 + sizeof(alloc::FreeList<PartialInit, 999999999>::OurHeader)) * (maxAllocs * 2); // TODO: Better size needs prediciton
 alloc::FreeList<int, FreeListBytes, alloc::ListPolicy> freeAlList;
 alloc::FreeList<int, FreeListBytes, alloc::FlatPolicy> freeAlFlat;
 alloc::FreeList<int, FreeListBytes, alloc::TreePolicy> freeAlTree;
@@ -269,13 +269,13 @@ inline void addScores(std::vector<std::vector<double>>& first,
 // Benchmark the allocators
 int main()
 {
-	constexpr size_t allocMask = ALL_ALLOCS;
+	//constexpr size_t allocMask = ALL_ALLOCS;
 
-	//constexpr size_t allocMask		= SLAB_MEM | SLAB_OBJ;	
+	constexpr size_t allocMask		= SLAB_MEM | SLAB_OBJ;	
 	//constexpr size_t allocMask		= AllocMasks::ALL_ALLOCS; // SLAB_MEM | SLAB_OBJ;	
 	constexpr size_t benchMask		= BenchMasks::ALL_BENCH;
 
-	constexpr int numTests			= 1;
+	constexpr int numTests			= 5;
 
 	slabM.addCache2(1 << 5, 1 << 13, cacheSz);
 
@@ -302,7 +302,7 @@ int main()
 	for (auto& v : scores)
 		avgScores(v, 2);
 
-	printScores<AveragedScores> (scores, allocMask, benchMask);
+	printScores<AveragedScores> (scores, allocMask, benchMask & BenchMasks::TYPE_MSK);
 
 	// Non type based tests
 	benchAllocs<NonType, defCtorT>(alloc::defaultXtor, numTests, allocMask, benchMask & BenchMasks::NON_T_MSK);

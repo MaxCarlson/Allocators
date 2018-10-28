@@ -54,12 +54,10 @@ int main()
 
 	auto ptr = al.allocate(1);
 
-	decltype(al)::rebind<size_t>::other all;
+	std::vector<int> a;
 
-	std::allocator_traits<decltype(al)>::rebind_alloc<size_t> ll;
-
-	std::vector<size_t, decltype(ll)> vec;
-	//vec.emplace_back(1U);
+	int b = a[55];
+	b = a.at(550);
 
 	return 0;
 }

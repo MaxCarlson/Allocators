@@ -1,7 +1,7 @@
 #pragma once
 #include <vector>
 #include <numeric>
-#include "AllocHelpers.h"
+#include "SlabHelper.h"
 
 namespace SlabMemImpl
 {
@@ -10,10 +10,6 @@ namespace SlabMemImpl
 	// Maximum number of Caches that can be added
 	// to SlabMem (Used to keep the size_type in header small)
 	//inline constexpr auto MAX_CACHES	= 127;
-	static constexpr auto MAX_SLAB_SIZE	= 65535; // Max number of memory blocks a Slab can be divided into 
-
-	using IndexSizeT = typename alloc::FindSizeT<MAX_SLAB_SIZE>::size_type;
-
 	// NOT in use. Could be useful in future though
 	/*
 	struct Header
@@ -24,27 +20,28 @@ namespace SlabMemImpl
 	};
 	*/
 
+
 	struct Slab
 	{
 	private:
 		using size_type = size_t;
 
-		byte*					mem;
-		size_type				blockSize;
-		size_type				count;		// TODO: This can be converted to IndexSizeT 
-		//size_type offset;
-		std::vector<IndexSizeT>	availible;
+		byte*								mem;
+		size_type							blockSize;
+		size_type							count;		// TODO: This can be converted to IndexSizeT 
+		//size_type							offset;
+		std::vector<SlabImpl::IndexSizeT>	availible;
 
 	public:
 
 		Slab() : mem{ nullptr } {}
-		Slab(size_t blockSize, size_t count) 
-			: blockSize{ blockSize }, count{ count }, availible(count)
+		Slab(size_t blockSize, size_t count) : 
+			mem{ reinterpret_cast<byte*>(operator new(blockSize * count)) },
+			blockSize{ blockSize }, 
+			count{ count }, 
+			availible{ SlabImpl::vecMap[count] }//availible(count)
 		{
-			//offset = index & 30U;
-
-			mem = reinterpret_cast<byte*>(operator new(blockSize * count));
-			std::iota(std::rbegin(availible), std::rend(availible), 0);
+			//std::iota(std::rbegin(availible), std::rend(availible), 0);
 			
 			//end = mem + (blockSize + sizeof(Header)) * count;
 
@@ -134,25 +131,22 @@ namespace SlabMemImpl
 		using SlabStore = alloc::List<Slab>;
 		using It		= SlabStore::iterator;
 
-		//inline static Header::size_type nextIndex = 0;
-
-		//Header::size_type index; // Index of this cache, used for deallocation
-
 		size_type count;
 		size_type blockSize;
-		size_type myCapacity	= 0;
-		size_type mySize		= 0;
+		size_type myCapacity;
+		size_type mySize;
 
 		SlabStore slabsFree;
 		SlabStore slabsPart;
 		SlabStore slabsFull;
 
 
-		//Cache() = default;
-		Cache(size_type blockSize, size_type num) : count(num), blockSize(blockSize)
+		Cache(size_type blockSize, size_type num)
+			:	count{ num },
+				blockSize{ blockSize },
+				myCapacity{ 0 },
+				mySize{ 0 }
 		{
-			//count = alloc::nearestPageSz(num * (blockSize * sizeof(Header))) / (blockSize * sizeof(Header)); // This might increase random access times
-			//index = nextIndex++;
 			newSlab();
 		}
 
@@ -283,24 +277,19 @@ namespace SlabMemImpl
 
 		inline static SmallStore caches;
 
-		//template<class Func>
-		//static void addCache(Func&& func)
-		//{
-		//	func(caches);
-		//}
-
 		// TODO: Add a debug check so this function won't add any 
 		// (or just any smaller than largest) caches after first allocation for safety?
 		//
 		static void addCache(size_type blockSize, size_type count)
 		{
+			SlabImpl::addToMap(count);
 			caches.emplace_back(blockSize, count);
 		}
 
 		static void addCache2(size_type startSz, size_type maxSz, size_type count)
 		{
 			for (auto i = 0; startSz <= maxSz; ++i, startSz <<= 1)
-				caches.emplace_back(startSz, count);
+				addCache(startSz, count);
 		}
 
 		//static void addCacheFib(size_type startSz, size_type maxSz, size_type count)

@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <stdlib.h>
 
+#define ALLOC_ASSERT(cond, msg) // TODO: Implement and setup in places where it is easy to get undefined behavior
 
 namespace alloc
 {
@@ -28,6 +29,7 @@ namespace alloc
 		return pgSz;
 	}
 
+	// Note: Not in use!
 	template<class T>
 	inline T* alignedAlloc(size_t size, size_t alignment)
 	{
