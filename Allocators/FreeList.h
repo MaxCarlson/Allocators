@@ -5,32 +5,19 @@
 #include <algorithm>
 #include "AllocHelpers.h"
 
-
-
-namespace alloc
+namespace FreeListImpl
 {
-	enum AlSearch : byte
-	{
-		BEST_FIT,
-		FIRST_FIT
-	};
 
 	template<size_t bytes, class size_type,
 		class Interface, class Storage>
-	struct PolicyT
+		struct PolicyT
 	{
 		//using Storage	= std::vector<std::pair<byte*, size_type>>;
-		using It		= typename Storage::iterator; 
-		using Ib		= std::pair<It, bool>;
-		using Header	= typename Interface::Header;
+		using It = typename Storage::iterator;
+		using Ib = std::pair<It, bool>;
+		using Header = typename Interface::Header;
 
 		inline static Storage availible;
-
-		template<class K, class V, class ...Args>
-		It emplace(std::map<K, V>& m, It it, Args&& ...args)
-		{
-			return m.emplace(std::forward<Args>(args)...).first;
-		}
 
 		template<class K, class V, class ...Args>
 		It emplace(std::vector<std::pair<K, V>>& v, It it, Args&& ...args)
@@ -38,15 +25,40 @@ namespace alloc
 			return v.emplace(it, std::forward<Args>(args)...);
 		}
 
-		template<class K, class V, class P>
-		It lower_bound(std::vector<std::pair<K, V>>& v, P* ptr)
+		template<class K, class V, class ...Args>
+		It emplace(std::list<std::pair<K, V>>& l, It it, Args&& ...args)
+		{
+			return l.emplace(it, std::forward<Args>(args)...);
+		}
+
+		template<class K, class V, class ...Args>
+		It emplace(std::map<K, V>& m, It it, Args&& ...args)
+		{
+			return m.emplace(std::forward<Args>(args)...).first;
+		}
+
+		// Lower bound impl for linear containers (vec/list)
+		template<class C, class P>
+		It lower_bound_linear(C& c, P* ptr)
 		{
 			return std::lower_bound(
-				std::begin(v), std::end(v),
+				std::begin(c), std::end(c),
 				ptr, [](auto& it1, auto& it2)
 			{
 				return it1.first < it2;
 			});
+		}
+
+		template<class K, class V, class P>
+		It lower_bound(std::vector<std::pair<K, V>>& v, P* ptr)
+		{
+			return lower_bound_linear(v, ptr);
+		}
+
+		template<class K, class V, class P>
+		It lower_bound(std::list<std::pair<K, V>>& l, P* ptr)
+		{
+			return lower_bound_linear(l, ptr);
 		}
 
 		template<class K, class V, class P>
@@ -110,6 +122,16 @@ namespace alloc
 			emplace(availible, std::end(availible), MyBegin, bytes);
 		}
 	};
+}
+
+namespace alloc
+{
+	enum AlSearch : byte
+	{
+		BEST_FIT,
+		FIRST_FIT
+	};
+
 
 	// TODO: For all three policies, integrate the nodes
 	// storing info about the free memory blocks into the blocks
@@ -120,89 +142,22 @@ namespace alloc
 	template<size_t bytes, class size_type,
 		class Interface>
 		struct FlatPolicy 
-		: public PolicyT<bytes, size_type, Interface, 
+		: public FreeListImpl::PolicyT<bytes, size_type, Interface, 
 		  std::vector<std::pair<byte*, size_type>>>
 	{};
 
 	// Store the 'list' of free nods in std::map
 	template<size_t bytes, class size_type,
 		class Interface> 
-		struct TreePolicy : public PolicyT<bytes, size_type, Interface,
+		struct TreePolicy : public FreeListImpl::PolicyT<bytes, size_type, Interface,
 		std::map<byte*, size_type>>
 	{};
 
-	// TODO: Move this into the general code above in PolicyT
 	template<size_t bytes, class size_type,
 		class Interface>
-	struct ListPolicy
-	{
-		using Storage	= std::list<std::pair<byte*, size_type>>;
-		using It		= typename Storage::iterator;
-		using Ib		= std::pair<It, bool>;
-		using Header	= typename Interface::Header;
-
-		inline static Storage availible;
-
-		void add(byte* start, size_type size)
-		{
-			if (availible.empty())
-			{
-				availible.emplace_back(start, size);
-				return;
-			}
-
-			// Add to linked list in memory
-			// sorted order
-			It it = std::begin(availible);
-			for (it; it != std::end(availible); ++it)
-				if (it->first > start)
-				{
-					it = availible.emplace(it, start, size + Interface::headerSize);
-					break;
-				}
-
-			// Perform coalescence of adjacent blocks
-			It next = it, prev = it;
-			++next;
-
-			if (next != std::end(availible) && 
-				it->first + it->second == next->first)
-			{
-				it->second += next->second;
-				availible.erase(next);
-			}
-			if (prev != std::begin(availible) &&
-				(--prev)->first + prev->second == it->first)
-			{
-				prev->second += it->second;
-				availible.erase(it);
-			}
-		}
-
-		Ib firstFit(size_t reqBytes)
-		{
-			for (It it = std::begin(availible);
-				it != std::end(availible); ++it)
-			{
-				// Found a section of memory large enough to hold
-				// what we want to allocate
-				if (it->second >= reqBytes)
-					return { it, true };
-			}
-			return { It{}, false };
-		}
-
-		void erase(It it)
-		{
-			availible.erase(it);
-		}
-
-		void freeAll(byte* MyBegin)
-		{
-			availible.clear();
-			availible.emplace_front(MyBegin, bytes);
-		}
-	};
+		struct ListPolicy : public FreeListImpl::PolicyT<bytes, size_type, Interface,
+		std::list<std::pair<byte*, size_type>>>
+	{};
 
 	template<size_t bytes,
 		template<size_t, class, class> class Policy>

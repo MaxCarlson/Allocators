@@ -17,8 +17,7 @@ struct DefaultAlloc
 	template<class U>
 	DefaultAlloc(const DefaultAlloc<U>& other) {};
 
-	using STD_Compatible = std::true_type;
-
+	using STD_Compatible	= std::true_type;
 	using size_type			= size_t;
 	using difference_type	= std::ptrdiff_t;
 	using pointer			= Type*;
@@ -34,34 +33,13 @@ struct DefaultAlloc
 	T* allocate(size_t count) { return reinterpret_cast<T*>(operator new(sizeof(T) * count)); }
 
 	template<class T = Type>
-	void deallocate(T* ptr, size_t n) 
-	{
-		operator delete(ptr);
-	}
+	void deallocate(T* ptr, size_t n) { operator delete(ptr); }
 
 	template<class U>
 	struct rebind { using other = DefaultAlloc<U>; };
 };
 
 inline static int TestV = 0;
-
-struct PartialInit
-{
-	PartialInit() = default;
-	PartialInit(const std::string& name) : name(name) 
-	{
-		TestV += name[0];
-	}
-
-	// TODO: Probably make the structs meddle functions
-	// less intensive to give more descrepency in benching
-	void meddle()
-	{
-		TestV += name[1];
-	}
-
-	std::string name;
-};
 
 struct SimpleStruct
 {
@@ -84,19 +62,21 @@ struct SimpleStruct
 	size_t f;
 };
 
-struct FullInit
+struct PartialInit
 {
-	FullInit() = default;
-	FullInit(int count) : count(count)
+	PartialInit() = default;
+	PartialInit(const std::string& name) : name(name)
 	{
-		others = new FullInit[count];
+		TestV += name[0];
 	}
 
-	~FullInit()
+	// TODO: Probably make the structs meddle functions
+	// less intensive to give more descrepency in benching
+	void meddle()
 	{
-		delete[] others;
+		TestV += name[1];
 	}
 
-	int count;
-	FullInit* others;
+	std::string name;
 };
+

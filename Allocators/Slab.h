@@ -18,8 +18,8 @@ namespace alloc
 		// Vectors are used to store the list of empty indicies on a Slab
 		// Caches will add a Slab when all previous Slabs have run out of space
 		//
-		// Overhead per Slab: (sizeof(SlabMemImpl::Header) + sizeof(uint16_t)) * count 
-		//					 + sizeof(size_t) * 3 + sizeof(std::vector<uint16_t>)
+		// Overhead per Slab: (sizeof(IndexSizeT)) * count + sizeof(size_t) * 3 + sizeof(std::vector<IndexSizeT>)
+		// Note IndexSizeT is found in SlabHelpers.h and depends on MAX_SLAB_SIZE
 
 	public:
 		using STD_Compatible	= std::true_type;

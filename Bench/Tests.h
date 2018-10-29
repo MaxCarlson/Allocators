@@ -15,7 +15,7 @@ using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
 constexpr auto cacheSz		= 1024;
 
 constexpr auto iterations	= 1000000;
-constexpr auto maxAllocs	= 50000;
+constexpr auto maxAllocs	= 160000;
 //constexpr auto iterations	= 1000;
 //constexpr auto maxAllocs	= 1500;
 
@@ -24,17 +24,18 @@ constexpr auto maxAllocs	= 50000;
 template<class T, class Ctor, class Al, class De>
 struct BenchT
 {
+	using RngEngine = std::default_random_engine;
 	using MyType = T;
 
 	BenchT(T t, Ctor& ctor, Al& al, De& de, std::default_random_engine& re, bool singleAl = false, bool useCtor = true)
 		: ctor(ctor), al(al), de(de), re(re), singleAl(singleAl), useCtor(useCtor) {}
 
-	Ctor& ctor;
-	Al& al;
-	De& de;
-	std::default_random_engine re;
-	bool singleAl;
-	bool useCtor;
+	Ctor&		ctor;
+	Al&			al;
+	De&			de;
+	RngEngine	re;
+	bool		singleAl;
+	bool		useCtor;
 };
 
 template<class Init>
@@ -218,7 +219,8 @@ double strAl(Init& init, Alloc& al, std::true_type t)
 	using String	= std::basic_string<char, std::char_traits<char>, Al>;
 
 	std::vector<String> strings;
-	std::vector<uint16_t> lens(maxAllocs);
+	std::vector<uint16_t> lens;
+	lens.reserve(maxAllocs);
 
 	// Build string length list
 	auto dis = std::uniform_int_distribution<size_t>(34, 170); // Use numbers beyond small string optimizations
@@ -227,7 +229,7 @@ double strAl(Init& init, Alloc& al, std::true_type t)
 
 	int idx = 0;
 	auto start = Clock::now();
-	for (auto i = 0; i < iterations * 2; ++i)
+	for (auto i = 0; i < iterations; ++i)
 	{
 		if (i % maxAllocs == 0)
 		{
