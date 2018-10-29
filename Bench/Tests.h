@@ -15,7 +15,7 @@ using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
 constexpr auto cacheSz		= 1024;
 
 constexpr auto iterations	= 1000000;
-constexpr auto maxAllocs	= 150000;
+constexpr auto maxAllocs	= 50000;
 //constexpr auto iterations	= 1000;
 //constexpr auto maxAllocs	= 1500;
 
@@ -218,11 +218,16 @@ double strAl(Init& init, Alloc& al, std::true_type t)
 	using String	= std::basic_string<char, std::char_traits<char>, Al>;
 
 	std::vector<String> strings;
-	auto dis = std::uniform_int_distribution<size_t>(34, 130); // Use numbers beyond small string optimizations
+	std::vector<uint16_t> lens(maxAllocs);
 
-	auto start = Clock::now();
+	// Build string length list
+	auto dis = std::uniform_int_distribution<size_t>(34, 170); // Use numbers beyond small string optimizations
+	for (int i = 0; i < maxAllocs; ++i)
+		lens.emplace_back(dis(init.re));
+
 	int idx = 0;
-	for (auto i = 0; i < iterations; ++i)
+	auto start = Clock::now();
+	for (auto i = 0; i < iterations * 2; ++i)
 	{
 		if (i % maxAllocs == 0)
 		{
@@ -230,9 +235,7 @@ double strAl(Init& init, Alloc& al, std::true_type t)
 			strings.clear();
 		}
 
-		auto strLen = dis(init.re);
-
-		strings.emplace_back(String(strLen, static_cast<char>(strLen)));
+		strings.emplace_back(String(lens[idx], static_cast<char>(lens[idx])));
 	}
 
 	auto end = Clock::now();

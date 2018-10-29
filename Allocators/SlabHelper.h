@@ -105,7 +105,6 @@ namespace alloc
 	inline static DefaultDtor				defaultDtor; // Handles default destructions (Does nothing)
 	inline static SlabObjImpl::DefaultXtor	defaultXtor; // Handles default construction/destruction (Default ctor w/ placement new) 
 
-	// TODO: Add const?
 	// Wrapper struct for when you need both a Ctor &
 	// a Dtor for Slab allocators object caches
 	// Ctor: CtorArgs or XtorFunc

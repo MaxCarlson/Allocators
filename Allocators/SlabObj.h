@@ -18,11 +18,10 @@ namespace SlabObjImpl
 		
 		Slab() : mem{ nullptr } {}
 		Slab(size_t count) :
-			mem { reinterpret_cast<byte*>(operator new(sizeof(T) * count)) },
-			count{ count }, 
+			mem{ reinterpret_cast<byte*>(operator new(sizeof(T) * count)) },
+			count{ count },
 			availible{ SlabImpl::vecMap[count] }
 		{
-			//mem = alloc::alignedAlloc<byte>(sizeof(T) * count, alloc::pageSize());
 			//mem = reinterpret_cast<byte*>(operator new(sizeof(T) * count, static_cast<std::align_val_t>(alloc::pageSize())));
 
 			// TODO: Test coloring alingment here 
@@ -40,7 +39,6 @@ namespace SlabObjImpl
 				reinterpret_cast<T*>(mem + sizeof(T) * i)->~T();
 
 			operator delete(reinterpret_cast<void*>(mem));
-			//alloc::alignedFree(mem);
 			//operator delete(mem, static_cast<std::align_val_t>(alloc::pageSize()));
 		}
 

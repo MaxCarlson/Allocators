@@ -325,16 +325,6 @@ namespace SlabMemImpl
 					it->deallocate(ptr);
 					return;
 				}
-			/*
-			const auto hPtr = Slab::getHeader(ptr);
-			if (hPtr->cacheIdx != Header::NO_CACHE) // TODO: Should this be reverted since we're now being passed an n?
-			{
-				caches[hPtr->cacheIdx].deallocate(ptr);
-				return;
-			}
-
-			operator delete(ptr);
-			*/
 		}
 
 		static std::vector<alloc::CacheInfo> info() noexcept

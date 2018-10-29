@@ -213,8 +213,6 @@ namespace alloc
 		// size_type to keep overhead as low as possible
 		using size_type = typename FindSizeT<bytes, 0>::size_type;
 
-		// TODO: The footers size field can be removed and replaced
-		// with 1bit denoting free/empty
 		struct Header
 		{
 			size_type size;
@@ -273,7 +271,6 @@ namespace alloc
 			// add a new list entry that reflects the remaining memory
 			if (chunkBytes > reqBytes)
 				policy.add(mem + reqBytes, chunkBytes - reqBytes);
-
 
 			return writeHeader(mem, reqBytes - headerSize);
 		}
@@ -365,15 +362,9 @@ namespace alloc
 		struct rebind { using other = FreeList<U, bytes, Policy>; };
 
 		template<class T = Type>
-		T* allocate(size_type count)
+		T* allocate(size_type count = 1)
 		{
 			return storage.allocate<T>(static_cast<size_type>(count));
-		}
-
-		template<class T = Type>
-		T* allocate()
-		{
-			return storage.allocate<T>(static_cast<size_type>(1));
 		}
 
 		template<class T = Type>
