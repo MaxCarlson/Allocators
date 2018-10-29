@@ -132,5 +132,29 @@ slabO.deallocate<Large, XtorT>(p);
 ```
 
 ### FreeList Allocator
+The FreeList allocator is a fixed to a size specified at compile time. It stores info about the free blocks in a variety of different ways through different policies.
+
+```cpp
+constexpr int listBytes = 1 << 8;
+
+// Traditional Free List allocator that stores info about free
+// memory in a list
+alloc::FreeList<int, listBytes> listAlloc;
+
+// Stores the free 'list' in a sorted vector
+alloc::FreeList<int, listBytes, alloc::FlatPolicy> flatAlloc; 
+
+// Stores the free 'list' in a red-black tree
+alloc::FreeList<int, listBytes, alloc::TreePolicy> treeAlloc; 
+
+// FreeList allocators have static Storage based on Policy and Size (listBytes)
+// so that any allocators sharing those two are effectively identical.
+// alloc::FreeList<size_t, listBytes, alloc::Flat> == alloc::FreeList<int, listBytes, alloc::Flat> 
+
+// Storage size is fixed at compile time and will throw std::bad_alloc() if it runs out
+
+// Frees all the memory in the allocator 
+listAlloc.freeAll();
+```
 
 ### Linear Allocator
