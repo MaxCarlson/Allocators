@@ -12,7 +12,7 @@
 #### SlabMem
 SlabMem is used by creating a variable number of caches of different sizes. Each cache holds Slabs (contiguous chunks of memory) of a particular size that are divided into blocks
 ```cpp
-#include "SlabMem.h
+#include "SlabMem.h"
 
 // int is the type this allocator will default to, but it can be overridden
 alloc::SlabMem<int> slabM;
@@ -67,7 +67,7 @@ slabM.info();         // Returns a std::vector<CacheInfo> which holds stats abou
 #### SlabObj
 SlabObj acts similarly to SlabMem, but instead of holding caches of un-initialized memory SlabObj creates caches of constructed objects. How those objects are constructed, as well as how they are handled when they are 'deallocated' and sent back to the object pool is completely customizable through template specializations (with either argument forwarding or lambda's). 
 ```cpp
-#include "SlabObj.h
+#include "SlabObj.h"
 
 // Example struct
 struct Large
@@ -138,7 +138,7 @@ slabO.deallocate<Large, XtorT>(p);
 The FreeList allocator is a fixed to a size specified at compile time. It stores info about the free blocks in a variety of different ways through different policies.
 
 ```cpp
-#include "FreeList.h
+#include "FreeList.h"
 
 constexpr int listBytes = 1 << 8;
 
