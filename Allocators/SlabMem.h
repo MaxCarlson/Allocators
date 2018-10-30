@@ -39,47 +39,29 @@ namespace SlabMemImpl
 			mem{ reinterpret_cast<byte*>(operator new(blockSize * count)) },
 			blockSize{ blockSize }, 
 			count{ count }, 
-			availible{ SlabImpl::vecMap[count] }//availible(count)
+			availible{ SlabImpl::vecMap[count] }
 		{
-			//std::iota(std::rbegin(availible), std::rend(availible), 0);
-			
-			//end = mem + (blockSize + sizeof(Header)) * count;
-
-			// TODO: This assumes the memory handed to us is 16byte aligned
-			// 16 byte align whatever data user stores
-			//mem += offset;
-			//mem += (8 - sizeof(Header));
-
-			//
-			// TODO: Header messes up alignment here right?
-			// TODO: Coloring offsets for different Slabs
-			//
-			// Set all the indicies. This only has to be done once
-			// and will allow us to find this Cache (quickly) again on deallocation
-			//for (auto i = 0; i < count; ++i)
-			//	reinterpret_cast<Header*>(mem + (blockSize + sizeof(Header)) * i)->cacheIdx = index;
-		}
-
-		void otherMove(Slab&& other) noexcept // TODO: Move into MoveCtor and let asignment Ctor use that
-		{
-			mem			= std::move(other.mem);
-			other.mem	= nullptr;
-			blockSize	= std::move(other.blockSize);
-			count		= std::move(other.count);
-			availible	= std::move(other.availible);
 		}
 
 		Slab(const Slab& other) = delete;
 
-		Slab& operator=(Slab&& other) noexcept
+		Slab(Slab&& other) noexcept :
+			mem{		other.mem					},
+			blockSize{	other.blockSize				},
+			count{		other.count					},
+			availible{	std::move(other.availible)	}
 		{
-			otherMove(std::move(other));
-			return *this;
+			other.mem = nullptr;
 		}
 
-		Slab(Slab&& other) noexcept
+		Slab& operator=(Slab&& other) noexcept
 		{
-			otherMove(std::move(other));
+			mem			= other.mem;
+			blockSize	= other.blockSize;
+			count		= other.count;
+			availible	= std::move(other.availible);
+			other.mem	= nullptr;
+			return *this;
 		}
 
 		~Slab()
@@ -128,7 +110,6 @@ namespace SlabMemImpl
 		// TODO: Exception Safety 
 
 		using size_type = size_t;
-		//using SlabStore = alloc::List<Slab>;
 		using SlabStore = std::vector<Slab>;
 		using It		= SlabStore::iterator;
 
@@ -188,9 +169,10 @@ namespace SlabMemImpl
 
 		It splice(SlabStore& to, It pos, SlabStore& from, It it)
 		{
-			It ret = to.emplace(pos, std::move(*it)); // TODO: Should definitly add to back with vec, not front!
-			from.erase(it);
-			return ret;
+			to.emplace_back(std::move(*it)); 
+			std::swap(*it, from.back());
+			from.pop_back();
+			return std::end(to) - 1;
 		}
 
 		template<class T>
@@ -225,10 +207,10 @@ namespace SlabMemImpl
 		template<class P>
 		std::pair<SlabStore*, It> searchStore(SlabStore& store, P* ptr)
 		{
-			for (auto it = std::begin(store); // TODO: Look into keeping in sorted memory order so we can lower_bound here?
-				it != std::end(store); ++it)
+			for (auto it = std::rbegin(store); // TODO: Look into keeping in sorted memory order so we can lower_bound here?
+				it != std::rend(store); ++it)
 				if (it->containsMem(ptr))
-					return { &store, it };
+					return { &store, it.base() - 1 };
 			return { &store, store.end() };
 		}
 
