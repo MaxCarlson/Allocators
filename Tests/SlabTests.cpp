@@ -10,7 +10,7 @@ static const int MAX_CACHE_SZ	= 256;
 static const int maxAllocs		= 2048;
 static constexpr int LargeDefaultCtorVal = 1;
 
-static int LargeDtorCounter = 0;
+static size_t LargeDtorCounter = 0;
 
 struct Large
 {
@@ -25,7 +25,7 @@ struct Large
 	std::vector<int> ar; 
 };
 
-static int DtorCount = 0;
+static size_t DtorCount = 0;
 auto dtorL = [](Large& l)			// Custom llambda dtor
 {
 	DtorCount += l.ar[0];
@@ -228,7 +228,7 @@ namespace Tests
 				Assert::IsTrue(idx == v);
 		}
 
-		void deallocObjs(std::vector<Large*> def, std::vector<Large*> cus, std::vector<int>& order)
+		void deallocObjs(std::vector<Large*>& def, std::vector<Large*>& cus, std::vector<int>& order)
 		{
 			for (auto i = 0; i < maxAllocs; ++i)
 			{

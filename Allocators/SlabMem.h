@@ -184,13 +184,11 @@ namespace SlabMemImpl
 			// If we're taking memory from a free slab
 			// add it to the list of partially full slabs
 			if (store == &slabsFree)
-				//slabsPart.splice(std::begin(slabsPart), *store, it);
 				splice(slabsPart, std::end(slabsPart), *store, it);
 
 			// Give the slab storage to the 
 			// full list if it has no more room // TODO: Make this else if!!!!!
 			if (full)
-				//slabsFull.splice(std::begin(slabsFull), *store, it);
 				splice(slabsFull, std::end(slabsFull), *store, it);
 
 
@@ -220,7 +218,6 @@ namespace SlabMemImpl
 			auto[store, it] = searchStore(slabsFull, ptr);
 			// Need to move slab back into partials
 			if (it != slabsFull.end())
-				//slabsPart.splice(std::begin(slabsPart), slabsFull, it);
 				it = splice(slabsPart, std::end(slabsPart), slabsFull, it);
 			
 			else
@@ -235,9 +232,7 @@ namespace SlabMemImpl
 
 			// Return slab to free list if it's empty
 			if (it->empty())
-				//slabsFree.splice(std::begin(slabsFree), *store, it);
 				splice(slabsFree, std::end(slabsFree), *store, it);
-
 
 			--mySize;
 		}
@@ -271,6 +266,7 @@ namespace SlabMemImpl
 
 		// TODO: Add a debug check so this function won't add any 
 		// (or just any smaller than largest) caches after first allocation for safety?
+		// TODO: Add a reserve parameter so it can reserve Slabs!
 		//
 		static void addCache(size_type blockSize, size_type count)
 		{
@@ -300,11 +296,6 @@ namespace SlabMemImpl
 			for (auto it = std::begin(caches); it != std::end(caches); ++it)
 				if (it->blockSize >= bytes)
 					return it->allocate<T>();
-
-			// If the allocation is too large go ahead and allocate from new
-			//byte* ptr = reinterpret_cast<byte*>(operator new((sizeof(T) + sizeof(Header)) * count));
-			//reinterpret_cast<Header*>(ptr)->cacheIdx = Header::NO_CACHE;
-			//return reinterpret_cast<T*>(ptr + sizeof(Header));
 		}
 
 		template<class T>

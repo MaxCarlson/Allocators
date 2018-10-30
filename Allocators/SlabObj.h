@@ -175,7 +175,7 @@ namespace SlabObjImpl
 				it = i;
 			}
 
-			if (it == slabsPart.end())
+			if (it == slabsPart.end()) // TODO: Remove!
 				throw alloc::bad_dealloc(); 
 
 			it->deallocate(ptr);
