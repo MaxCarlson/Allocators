@@ -60,7 +60,7 @@ namespace SlabMemImpl
 			//	reinterpret_cast<Header*>(mem + (blockSize + sizeof(Header)) * i)->cacheIdx = index;
 		}
 
-		void otherMove(Slab&& other) noexcept
+		void otherMove(Slab&& other) noexcept // TODO: Move into MoveCtor and let asignment Ctor use that
 		{
 			mem			= std::move(other.mem);
 			other.mem	= nullptr;
@@ -128,7 +128,8 @@ namespace SlabMemImpl
 		// TODO: Exception Safety 
 
 		using size_type = size_t;
-		using SlabStore = alloc::List<Slab>;
+		//using SlabStore = alloc::List<Slab>;
+		using SlabStore = std::vector<Slab>;
 		using It		= SlabStore::iterator;
 
 		size_type count;
@@ -175,7 +176,6 @@ namespace SlabMemImpl
 			}
 			else
 			{
-				// No empty slabs, need to create one! (TODO: If allowed to create?)
 				if (slabsFree.empty())
 					newSlab();
 
@@ -184,6 +184,13 @@ namespace SlabMemImpl
 			}
 
 			return { store, slabIt };
+		}
+
+		It splice(SlabStore& to, It pos, SlabStore& from, It it)
+		{
+			It ret = to.emplace(pos, std::move(*it)); // TODO: Should definitly add to back with vec, not front!
+			from.erase(it);
+			return ret;
 		}
 
 		template<class T>
@@ -195,12 +202,15 @@ namespace SlabMemImpl
 			// If we're taking memory from a free slab
 			// add it to the list of partially full slabs
 			if (store == &slabsFree)
-				slabsPart.splice(std::begin(slabsPart), *store, it);
+				//slabsPart.splice(std::begin(slabsPart), *store, it);
+				splice(slabsPart, std::end(slabsPart), *store, it);
 
 			// Give the slab storage to the 
-			// full list if it has no more room
+			// full list if it has no more room // TODO: Make this else if!!!!!
 			if (full)
-				slabsFull.splice(std::begin(slabsFull), *store, it);
+				//slabsFull.splice(std::begin(slabsFull), *store, it);
+				splice(slabsFull, std::end(slabsFull), *store, it);
+
 
 			++mySize;
 			return reinterpret_cast<T*>(mem);
@@ -215,7 +225,7 @@ namespace SlabMemImpl
 		template<class P>
 		std::pair<SlabStore*, It> searchStore(SlabStore& store, P* ptr)
 		{
-			for (auto it = std::begin(store);
+			for (auto it = std::begin(store); // TODO: Look into keeping in sorted memory order so we can lower_bound here?
 				it != std::end(store); ++it)
 				if (it->containsMem(ptr))
 					return { &store, it };
@@ -228,7 +238,8 @@ namespace SlabMemImpl
 			auto[store, it] = searchStore(slabsFull, ptr);
 			// Need to move slab back into partials
 			if (it != slabsFull.end())
-				slabsPart.splice(std::begin(slabsPart), slabsFull, it);
+				//slabsPart.splice(std::begin(slabsPart), slabsFull, it);
+				it = splice(slabsPart, std::end(slabsPart), slabsFull, it);
 			
 			else
 			{
@@ -238,14 +249,13 @@ namespace SlabMemImpl
 				it = i;
 			}
 
-			if (it == slabsPart.end())
-				throw alloc::bad_dealloc(); 
-
 			it->deallocate(ptr);
 
 			// Return slab to free list if it's empty
 			if (it->empty())
-				slabsFree.splice(std::begin(slabsFree), *store, it);
+				//slabsFree.splice(std::begin(slabsFree), *store, it);
+				splice(slabsFree, std::end(slabsFree), *store, it);
+
 
 			--mySize;
 		}

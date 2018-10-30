@@ -3,7 +3,7 @@
 
 namespace alloc
 {
-	template<size_t bytes>
+	template<size_t bytes> // TODO: Remove from alloc:: namespace
 	struct LStorage
 	{
 		inline static bool init = 1;

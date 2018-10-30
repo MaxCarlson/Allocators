@@ -6,7 +6,8 @@
 
 // Note: All this stuff needs to be done here
 // as we need access to Xtor stuff throughout the tests
-static const int maxAllocs = 64;
+static const int MAX_CACHE_SZ	= 256;
+static const int maxAllocs		= 2048;
 static constexpr int LargeDefaultCtorVal = 1;
 
 static int LargeDtorCounter = 0;
@@ -21,10 +22,10 @@ struct Large
 		++LargeDtorCounter;
 	}
 
-	std::vector<int> ar; // TODO: Why does this fail with a vector? Figure it out because we need vec for dtor testing
+	std::vector<int> ar; 
 };
 
-int DtorCount = 0;
+static int DtorCount = 0;
 auto dtorL = [](Large& l)			// Custom llambda dtor
 {
 	DtorCount += l.ar[0];
@@ -54,14 +55,14 @@ namespace Tests
 		{
 			// SlabMem Init
 			alloc::SlabMem<int> slabM;
-			slabM.addCache(sizeof(int), maxAllocs);
-			slabM.addCache<Large>(maxAllocs);
+			slabM.addCache(sizeof(int), MAX_CACHE_SZ);
+			slabM.addCache<Large>(MAX_CACHE_SZ);
 			slabM.addCache(sizeof(Large) * 100, 100); 
 
 			// SlabObj Init
 			alloc::SlabObj<Large> slabO;
-			slabO.addCache<Large>(maxAllocs);						// Default Constructor/dtor
-			slabO.addCache<Large, XtorType>(maxAllocs, xtors);	// Add custom cache with custom ctors/dtors
+			slabO.addCache<Large>(MAX_CACHE_SZ);						// Default Constructor/dtor
+			slabO.addCache<Large, XtorType>(MAX_CACHE_SZ, xtors);	// Add custom cache with custom ctors/dtors
 		}
 
 		std::pair<std::vector<int*>, std::vector<Large*>> allocMem(std::vector<int>& order, int seed)
@@ -231,7 +232,7 @@ namespace Tests
 		{
 			for (auto i = 0; i < maxAllocs; ++i)
 			{
-				auto idx = order[i];
+				const auto idx = order[i];
 				testLargeForV(def[idx], LargeDefaultCtorVal);
 				slabO.deallocate<Large>(def[idx]);
 
@@ -242,7 +243,7 @@ namespace Tests
 				testLargeForV(cus[idx], 15 * 'a');
 				slabO.deallocate<Large, XtorType>(cus[idx]);
 
-				Assert::IsTrue(prevCount + prevNum == DtorCount); // Make sure lambda destructor is being called)
+				Assert::IsTrue(prevCount + prevNum == DtorCount, L"Dtor count fail"); // Make sure lambda destructor is being called)
 			}
 		}
 

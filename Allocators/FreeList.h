@@ -144,10 +144,10 @@ namespace FreeListImpl
 			//size_type free : 1;
 		};
 
-		using OurType = PolicyInterface<bytes, Policy>;
-		using OurPolicy = Policy<bytes, size_type, OurType>;
-		using It = typename OurPolicy::It;
-		using Ib = typename OurPolicy::Ib;
+		using OurType		= PolicyInterface<bytes, Policy>;
+		using OurPolicy		= Policy<bytes, size_type, OurType>;
+		using It			= typename OurPolicy::It;
+		using Ib			= typename OurPolicy::Ib;
 
 		// Handles how we store, find, 
 		// and emplace free memory information
@@ -156,10 +156,10 @@ namespace FreeListImpl
 		inline static byte* MyBegin;
 		inline static byte* MyEnd;
 
-		inline static bool init = true;
-		inline static AlSearch search = FIRST_FIT;
-		inline static size_type bytesFree = bytes;
-		inline static constexpr size_t headerSize = sizeof(Header);
+		inline static bool init						= true;
+		inline static AlSearch search				= FIRST_FIT; // TODO: Get rid of?
+		inline static size_type bytesFree			= bytes;
+		inline static constexpr size_t headerSize	= sizeof(Header);
 
 		static_assert(bytes > headerSize + 1, "Allocator size is smaller than minimum required.");
 
@@ -169,9 +169,9 @@ namespace FreeListImpl
 			{
 				// TODO: Should we just make this class use an  
 				// array since it's size is compile time determined?
-				init = false;
-				MyBegin = reinterpret_cast<byte*>(operator new (bytes));
-				MyEnd = MyBegin + bytes;
+				init	= false;
+				MyBegin	= reinterpret_cast<byte*>(operator new (bytes));
+				MyEnd	= MyBegin + bytes;
 				policy.add(MyBegin, bytes);
 			}
 		}
@@ -222,15 +222,14 @@ namespace FreeListImpl
 				throw std::bad_alloc();
 
 			bytesFree -= reqBytes;
-
 			return reinterpret_cast<T*>(mem);
 		}
 
 		template<class T>
 		void deallocate(T* ptr)
 		{
-			Header* header = reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) - headerSize);
-			bytesFree += header->size + headerSize;
+			Header* header	= reinterpret_cast<Header*>(reinterpret_cast<byte*>(ptr) - headerSize);
+			bytesFree		+= header->size + headerSize;
 
 			policy.add(reinterpret_cast<byte*>(header), header->size);
 		}
