@@ -58,7 +58,7 @@ namespace SlabImpl
 
 		void newSlab()
 		{
-			slabsFree.emplace_back(count);
+			slabsFree.emplace_back(blockSize, count);
 			myCapacity += count;
 		}
 

@@ -125,37 +125,37 @@ namespace alloc
 		template<class T = Type, class Xtors = SlabObjImpl::DefaultXtor<>>
 		static void addCache(size_type count, Xtors& xtors = defaultXtor)
 		{
-			SlabObjImpl::Interface::addCache<T, Xtors>(count, xtors);
+			SlabObjImpl::Interface<T, Xtors>::addCache(count, xtors);
 		}
 
 		template<class T = Type, class Xtors = SlabObjImpl::DefaultXtor<>>
 		static T* allocate()
 		{
-			return SlabObjImpl::Interface::allocate<T, Xtors>();
+			return SlabObjImpl::Interface<T, Xtors>::allocate();
 		}
 
 		template<class T = Type, class Xtors = SlabObjImpl::DefaultXtor<>>
 		static void deallocate(T* ptr)
 		{
-			SlabObjImpl::Interface::deallocate<T, Xtors>(ptr);
+			SlabObjImpl::Interface<T, Xtors>::deallocate(ptr);
 		}
 
 		template<class T = Type, class Xtors = SlabObjImpl::DefaultXtor<>>
 		static void freeAll()
 		{
-			SlabObjImpl::Interface::freeAll<T, Xtors>();
+			SlabObjImpl::Interface<T, Xtors>::freeAll();
 		}
 
 		template<class T = Type, class Xtors = SlabObjImpl::DefaultXtor<>>
 		static void freeEmpty()
 		{
-			SlabObjImpl::Interface::freeEmpty<T, Xtors>();
+			SlabObjImpl::Interface<T, Xtors>::freeEmpty();
 		}
 
 		template<class T = Type, class Xtors = SlabObjImpl::DefaultXtor<>>
 		static CacheInfo objInfo() 
 		{
-			return SlabObjImpl::Interface::info<T, Xtors>();
+			return SlabObjImpl::Interface<T, Xtors>::info();
 		}
 	};
 }

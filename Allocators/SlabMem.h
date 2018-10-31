@@ -20,7 +20,6 @@ namespace SlabMemImpl
 	};
 	*/
 
-
 	struct Slab
 	{
 	private:
@@ -34,12 +33,11 @@ namespace SlabMemImpl
 
 	public:
 
-		Slab() : mem{ nullptr } {}
 		Slab(size_t blockSize, size_t count) : 
-			mem{ reinterpret_cast<byte*>(operator new(blockSize * count)) },
-			blockSize{ blockSize }, 
-			count{ count }, 
-			availible{ SlabImpl::vecMap[count] }
+			mem{		reinterpret_cast<byte*>(operator new(blockSize * count)) },
+			blockSize{	blockSize }, 
+			count{		count }, 
+			availible{	SlabImpl::vecMap[count] }
 		{
 		}
 
@@ -95,170 +93,13 @@ namespace SlabMemImpl
 				 && reinterpret_cast<byte*>(ptr) < (mem + blockSize * count));
 		}
 	};
-
-
-	// Cache's based on memory size
-	// Not designed around particular objects
-	struct Cache
-	{
-		// TODOLIST:
-		// TODO: Perhaps keep storage in sorted memory order? Would make finding
-		// deallocations super fast?
-		// TODO: Also, look into using a vector as storage instead of list
-		// TODO: Better indexing of memory (Coloring offsets to search slabs faster, etc)
-		// TODO: Locking mechanism
-		// TODO: Exception Safety 
-
-		using size_type = size_t;
-		using SlabStore = std::vector<Slab>;
-		using It		= SlabStore::iterator;
-
-		size_type count;
-		size_type blockSize;
-		size_type myCapacity;
-		size_type mySize;
-
-		SlabStore slabsFree;
-		SlabStore slabsPart;
-		SlabStore slabsFull;
-
-		Cache(size_type blockSize, size_type num) :	
-			count{		num			},
-			blockSize{	blockSize	},
-			myCapacity{ 0			},
-			mySize{		0			}
-		{
-			newSlab();
-		}
-
-		Cache(Cache&& other)			= default;
-		Cache& operator=(Cache&& other) = default;
-
-		size_type size()						const noexcept { return mySize; }
-		size_type capacity()					const noexcept { return myCapacity; }
-		bool operator<(const Cache& other)		const noexcept { return size() < other.size(); }
-		alloc::CacheInfo info()					const noexcept { return { size(), capacity(), blockSize, count }; }
-
-		void newSlab()
-		{
-			slabsFree.emplace_back(blockSize, count);
-			myCapacity += count;
-		}
-
-		std::pair<SlabStore*, It> findFreeSlab()
-		{
-			It slabIt;
-			SlabStore* store = nullptr;
-			if (!slabsPart.empty())
-			{
-				slabIt	= std::begin(slabsPart);
-				store	= &slabsPart;
-			}
-			else
-			{
-				if (slabsFree.empty())
-					newSlab();
-
-				slabIt	= std::begin(slabsFree);
-				store	= &slabsFree;
-			}
-
-			return { store, slabIt };
-		}
-
-		It splice(SlabStore& to, It pos, SlabStore& from, It it)
-		{
-			to.emplace_back(std::move(*it)); 
-			std::swap(*it, from.back());
-			from.pop_back();
-			return std::end(to) - 1;
-		}
-
-		template<class T>
-		T* allocate()
-		{
-			auto[store, it] = findFreeSlab();
-			auto[mem, full] = it->allocate();
-
-			// If we're taking memory from a free slab
-			// add it to the list of partially full slabs
-			if (store == &slabsFree)
-				splice(slabsPart, std::end(slabsPart), *store, it);
-
-			// Give the slab storage to the 
-			// full list if it has no more room // TODO: Make this else if!!!!!
-			if (full)
-				splice(slabsFull, std::end(slabsFull), *store, it);
-
-
-			++mySize;
-			return reinterpret_cast<T*>(mem);
-		}
-
-		// Search slabs for one that holds the memory
-		// ptr points to
-		//
-		// TODO: We should implement a coloring offset scheme
-		// so that some Slabs store objects at address of address % 8 == 0
-		// and others at addresses % 12 == 0 so we can search faster for the proper Slab
-		template<class P>
-		std::pair<SlabStore*, It> searchStore(SlabStore& store, P* ptr)
-		{
-			for (auto it = std::rbegin(store); // TODO: Look into keeping in sorted memory order so we can lower_bound here?
-				it != std::rend(store); ++it)
-				if (it->containsMem(ptr))
-					return { &store, it.base() - 1 };
-			return { &store, store.end() };
-		}
-
-		template<class T>
-		void deallocate(T* ptr)
-		{
-			auto[store, it] = searchStore(slabsFull, ptr);
-			// Need to move slab back into partials
-			if (it != slabsFull.end())
-				it = splice(slabsPart, std::end(slabsPart), slabsFull, it);
-			
-			else
-			{
-				// TODO: Super ugly. Due to not being able to structured bind already initlized variables
-				auto[s, i] = searchStore(slabsPart, ptr);
-				store = s;
-				it = i;
-			}
-
-			it->deallocate(ptr);
-
-			// Return slab to free list if it's empty
-			if (it->empty())
-				splice(slabsFree, std::end(slabsFree), *store, it);
-
-			--mySize;
-		}
-
-		void freeAll()
-		{
-			slabsFree.clear();
-			slabsPart.clear();
-			slabsFull.clear();
-			myCapacity	= 0;
-			mySize		= 0;
-		}
-
-		void freeEmpty()
-		{
-			myCapacity -= slabsFree.size() * blockSize;
-			slabsFree.clear();
-		}
-	};
-
-
+	
 	// Holds all the memory caches 
 	// of different sizes
 	struct Interface
 	{
 		using size_type		= size_t;
-		using SmallStore	= std::vector<Cache>;
+		using SmallStore	= std::vector<SlabImpl::Cache<Slab>>;
 		using It			= typename SmallStore::iterator;
 
 		inline static SmallStore caches;
