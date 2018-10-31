@@ -26,15 +26,14 @@ namespace SlabObjImpl
 			// to prevent slabs from crowding cachelines
 			for (auto i = 0; i < count; ++i)
 				Cache::xtors->construct(reinterpret_cast<T*>(mem + sizeof(T) * i));
-			int a = 5;
 		}
 
 		Slab(const Slab& other) = delete;
 
 		Slab(Slab&& other) noexcept :
-			mem{ other.mem },
-			count{ other.count },
-			availible{ std::move(availible) }
+			mem{		other.mem },
+			count{		other.count },
+			availible{	std::move(other.availible) }
 		{
 			other.mem = nullptr;
 		}

@@ -105,6 +105,14 @@ namespace Tests
 				Assert::IsTrue(info[i].size == cmp, str);
 		}
 
+		std::vector<int> orderShuffle(size_t size, size_t seed)
+		{
+			std::vector<int> order(size);
+			std::iota(std::begin(order), std::end(order), 0);
+			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(seed));
+			return order;
+		}
+
 		TEST_METHOD(Alloc_Mem)
 		{
 			std::vector<int> order;
@@ -123,9 +131,7 @@ namespace Tests
 		TEST_METHOD(Alloc_MultiMem) 
 		{
 			Large* ptrs[101];
-			std::vector<int> order(101, 0);
-			std::iota(std::begin(order), std::end(order), 0);
-			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(72));
+			auto order = orderShuffle(101, 72);
 
 			for (int i = 0; i < 101; ++i)
 			{
@@ -150,9 +156,7 @@ namespace Tests
 		TEST_METHOD(Mem_STD_Allocator)
 		{
 			static constexpr int count = 50;
-			std::vector<int> order(101, 0);
-			std::iota(std::begin(order), std::end(order), 0);
-			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(22));
+			auto order = orderShuffle(101, 83);
 
 			std::vector<Large, alloc::SlabMem<Large>> vec;
 			vec.reserve(count+1);
@@ -271,10 +275,8 @@ namespace Tests
 
 		TEST_METHOD(Dealloc_Objs)
 		{
-			std::vector<int> order(maxAllocs);
+			auto order = orderShuffle(maxAllocs, 111);
 			auto[def, custom] = allocateObjs();
-
-			std::shuffle(std::begin(order), std::end(order), std::default_random_engine(111));
 
 			auto infoDef = slabO.objInfo<Large>();
 			auto infoCus = slabO.objInfo<Large, XtorType>();

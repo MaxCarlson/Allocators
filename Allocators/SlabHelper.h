@@ -158,8 +158,8 @@ namespace SlabImpl
 			slabsFree.clear();
 			slabsPart.clear();
 			slabsFull.clear();
-			myCapacity = 0;
-			mySize = 0;
+			myCapacity	= 0;
+			mySize		= 0;
 		}
 
 		void freeEmpty()
