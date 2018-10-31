@@ -22,12 +22,30 @@ namespace SlabObjImpl
 			count{ count },
 			availible{ SlabImpl::vecMap[count] }
 		{
-			//mem = reinterpret_cast<byte*>(operator new(sizeof(T) * count, static_cast<std::align_val_t>(alloc::pageSize())));
-
 			// TODO: Test coloring alingment here 
 			// to prevent slabs from crowding cachelines
 			for (auto i = 0; i < count; ++i)
 				Cache::xtors->construct(reinterpret_cast<T*>(mem + sizeof(T) * i));
+			int a = 5;
+		}
+
+		Slab(const Slab& other) = delete;
+
+		Slab(Slab&& other) noexcept :
+			mem{ other.mem },
+			count{ other.count },
+			availible{ std::move(availible) }
+		{
+			other.mem = nullptr;
+		}
+
+		Slab& operator=(Slab&& other) noexcept
+		{
+			mem			= other.mem;
+			count		= other.count;
+			availible	= std::move(other.availible);
+			other.mem	= nullptr;
+			return *this;
 		}
 
 		~Slab()
@@ -39,7 +57,6 @@ namespace SlabObjImpl
 				reinterpret_cast<T*>(mem + sizeof(T) * i)->~T();
 
 			operator delete(reinterpret_cast<void*>(mem));
-			//operator delete(mem, static_cast<std::align_val_t>(alloc::pageSize()));
 		}
 
 		bool full()			const noexcept { return availible.empty(); }
@@ -175,7 +192,7 @@ namespace SlabObjImpl
 				it = i;
 			}
 
-			if (it == slabsPart.end()) // TODO: Remove!
+			if (it == slabsPart.end()) // TODO: Remove?
 				throw alloc::bad_dealloc(); 
 
 			it->deallocate(ptr);
@@ -208,6 +225,95 @@ namespace SlabObjImpl
 		}
 	};
 
+	template<class T, class Xtors>
+	struct CacheT
+	{
+		using CacheTT = SlabImpl::Cache<Slab<T, CacheT<T, Xtors>, Xtors>>;
+		inline static CacheTT storage;
+
+		inline static Xtors* xtors = nullptr;
+
+		// TODO: Should this also reconstruct all objects that 
+		// haven't used this xtor and are availible? Yes, probably!
+		static void setXtors(Xtors& tors) { xtors = &tors; }
+
+		// TODO: Should we only allow this function to change count on init?
+		static void addCache(size_t count, Xtors& tors)
+		{
+			setXtors(tors);
+			storage = CacheTT{ sizeof(T), count };
+		}
+
+		static T* allocate()
+		{
+			return storage.allocate<T>();
+		}
+
+		static void deallocate(T* ptr)
+		{
+			storage.deallocate(ptr);
+		}
+
+		static void freeAll()
+		{
+			storage.freeAll();
+		}
+
+		static void freeEmpty()
+		{
+			storage.freeEmpty();
+		}
+
+		static alloc::CacheInfo info()
+		{
+			return storage.info();
+		}
+	};
+
+	struct Interface
+	{
+		using size_type = size_t;
+
+		template<class T, class Xtors>
+		static void addCache(size_type count, Xtors& tors)
+		{
+			count = alloc::nearestPageSz(count * sizeof(T)) / sizeof(T);
+			SlabImpl::addToMap(count);
+			CacheT<T, Xtors>::addCache(count, tors);
+		}
+
+		template<class T, class Xtors>
+		static T* allocate()
+		{
+			return CacheT<T, Xtors>::allocate();
+		}
+
+		template<class T, class Xtors>
+		static void deallocate(T* ptr)
+		{
+			CacheT<T, Xtors>::deallocate(ptr);
+		}
+
+		template<class T, class Xtors>
+		static void freeAll()
+		{
+			CacheT<T, Xtors>::freeAll();
+		}
+
+		template<class T, class Xtors>
+		static void freeEmpty()
+		{
+			CacheT<T, Xtors>::freeEmpty();
+		}
+
+		template<class T, class Xtors>
+		static alloc::CacheInfo info()
+		{
+			return CacheT<T, Xtors>::info();
+		}
+	};
+
+		/*
 	struct Interface
 	{
 		using size_type = size_t;
@@ -250,4 +356,6 @@ namespace SlabObjImpl
 			return Cache<T, Xtors>::info();
 		}
 	};
+	*/
+
 }

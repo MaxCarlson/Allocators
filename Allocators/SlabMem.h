@@ -122,12 +122,11 @@ namespace SlabMemImpl
 		SlabStore slabsPart;
 		SlabStore slabsFull;
 
-
-		Cache(size_type blockSize, size_type num)
-			:	count{ num },
-				blockSize{ blockSize },
-				myCapacity{ 0 },
-				mySize{ 0 }
+		Cache(size_type blockSize, size_type num) :	
+			count{		num			},
+			blockSize{	blockSize	},
+			myCapacity{ 0			},
+			mySize{		0			}
 		{
 			newSlab();
 		}
@@ -251,8 +250,8 @@ namespace SlabMemImpl
 			myCapacity -= slabsFree.size() * blockSize;
 			slabsFree.clear();
 		}
-
 	};
+
 
 	// Holds all the memory caches 
 	// of different sizes
@@ -270,7 +269,7 @@ namespace SlabMemImpl
 		//
 		static void addCache(size_type blockSize, size_type count)
 		{
-			count = alloc::nearestPageSz(count * blockSize) / blockSize;
+			count = alloc::nearestPageSz(count * blockSize) / blockSize; // TODO: This causes a major issue with looking up the caches again if need be. Store their input count?
 			SlabImpl::addToMap(count);
 			caches.emplace_back(blockSize, count);
 		}
