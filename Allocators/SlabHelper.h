@@ -22,6 +22,9 @@ namespace SlabImpl
 		}
 	}
 
+	// Modeled after linux's Slab allocator,
+	// this cache holds and manages slabs of a 
+	// particular size (or object type in the case of SlabObj). 
 	template<class Slab>
 	struct Cache
 	{
@@ -68,16 +71,16 @@ namespace SlabImpl
 			SlabStore* store = nullptr;
 			if (!slabsPart.empty())
 			{
-				slabIt = std::begin(slabsPart);
-				store = &slabsPart;
+				slabIt	= std::begin(slabsPart);
+				store	= &slabsPart;
 			}
 			else
 			{
 				if (slabsFree.empty())
 					newSlab();
 
-				slabIt = std::begin(slabsFree);
-				store = &slabsFree;
+				slabIt	= std::begin(slabsFree);
+				store	= &slabsFree;
 			}
 
 			return { store, slabIt };
@@ -121,10 +124,10 @@ namespace SlabImpl
 		template<class P>
 		std::pair<SlabStore*, It> searchStore(SlabStore& store, P* ptr)
 		{
-			for (auto it = std::rbegin(store); // TODO: Look into keeping in sorted memory order so we can lower_bound here?
+			for (auto it = std::rbegin(store);			// TODO: Look into keeping in sorted memory order so we can lower_bound here?
 				it != std::rend(store); ++it)
 				if (it->containsMem(ptr))
-					return { &store, it.base() - 1 };
+					return { &store, it.base() - 1 };	// TODO: it.base() - 1 could be an issue if we're retuning the begin? Maybe not with rIts? Find out
 			return { &store, store.end() };
 		}
 
@@ -170,8 +173,8 @@ namespace SlabImpl
 	};
 }
 
-// Below this line belongs only to SlabObj functionality
-// as well as user templates for SlabObj
+/// Below this line belongs only to SlabObj functionality
+/// as well as user templates for SlabObj
 
 namespace SlabObjImpl
 {

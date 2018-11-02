@@ -28,7 +28,7 @@ namespace SlabMemImpl
 		byte*								mem;
 		size_type							blockSize;
 		size_type							count;		// TODO: This can be converted to IndexSizeT 
-		//size_type							offset;
+		//char								offset;
 		std::vector<SlabImpl::IndexSizeT>	availible;
 
 	public:

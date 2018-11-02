@@ -47,5 +47,8 @@
     <ClInclude Include="SlabHelper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="SlabMulti.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

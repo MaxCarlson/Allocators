@@ -91,7 +91,7 @@ namespace SlabObjImpl
 	struct Interface
 	{
 		using size_type = size_t;
-		using Cache = SlabImpl::Cache<Slab<T, Interface<T, Xtors>, Xtors>>;
+		using Cache		= SlabImpl::Cache<Slab<T, Interface<T, Xtors>, Xtors>>;
 		inline static Cache storage;
 
 		inline static Xtors* xtors = nullptr;

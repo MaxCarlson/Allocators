@@ -138,6 +138,7 @@
     <ClInclude Include="FreeList.h" />
     <ClInclude Include="SlabHelper.h" />
     <ClInclude Include="SlabMem.h" />
+    <ClInclude Include="SlabMulti.h" />
     <ClInclude Include="SlabObj.h" />
     <ClInclude Include="Slab.h" />
     <ClInclude Include="Linear.h" />
