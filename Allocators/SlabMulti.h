@@ -76,6 +76,10 @@ namespace alloc // Move this to Slab.h eventually
 
 // TODO IDEAS:
 // TODO: Should this have a bookeeping thread for other-than-alloc-operations?
+// TODO: Create a global Pool of Slabs that can be passed to Caches in need 
+// (that way we can treat the issue of possibly having Slabs that are never used
+// in the vector of Caches)
+//
 template<class Type>
 class SlabMulti
 {
