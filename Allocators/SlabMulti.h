@@ -1,9 +1,18 @@
 #pragma once
+#include "AllocHelpers.h"
+
 #include <numeric>
 #include <vector>
+#include <thread>
 
 namespace SlabMultiImpl
 {
+using byte = alloc::byte;
+
+struct Slab
+{
+
+};
 
 struct Cache
 {
@@ -12,6 +21,19 @@ struct Cache
 	size_type count;
 	size_type blockSize;
 
+	std::vector<Slab> slabs;
+
+	Cache(size_type count, size_type blockSize) :
+		count{		count },
+		blockSize{	blockSize }
+	{
+	}
+
+	byte* allocate()
+	{
+
+		return nullptr;
+	}
 };
 
 struct Caches
@@ -20,7 +42,7 @@ struct Caches
 
 	std::vector<Cache> caches;
 
-	void addCache(size_type blockSize, size_type count, int index)
+	void addCache(size_type blockSize, size_type count)
 	{
 		auto bytes = blockSize * count;
 		for(auto it = std::begin(caches), 
@@ -30,6 +52,20 @@ struct Caches
 				caches.emplace_back(count, blockSize);
 				return;
 			}
+		caches.emplace_back(count, blockSize);
+	}
+
+	byte* allocate(size_type bytes)
+	{
+		for (auto& c : caches)
+			if (c.blockSize >= bytes)
+				return c.allocate();
+	}
+
+	template<class T>
+	void deallocate(T* ptr)
+	{
+
 	}
 };
 
@@ -54,29 +90,30 @@ public:
 	using const_reference	= const reference;
 	using value_type		= Type;
 
-	int threads;
+private:
 	int numHeaps;
-	std::vector<size_type>				blockSizes;
 	std::vector<SlabMultiImpl::Caches>	caches; // TODO: Not Caches, Caches of Caches
 
-	SlabMulti(int threads, int numHeaps) :
-		threads{	threads },
+public:
+
+
+	SlabMulti(int numHeaps) :
 		numHeaps{	numHeaps },
 		caches{		numHeaps }
 	{
 
 	}
 
+	SlabMulti(SlabMulti&& other) :
+		numHeaps{	numHeaps },
+		caches{		std::move(caches) }
+	{
+	}
+
 	void addCache(size_type blockSize, size_type count)
 	{
-		int idx		= 0;
-		auto bytes	= blockSize * count;
-		for(auto it = std::begin(blockSizes), 
-			E = std::end(blockSizes); it != E; ++it, ++idx)
-			if (bytes < *it)
-			{
-
-			}
+		for (auto& c : caches)
+			c.addCache(blockSize, count);
 	}
 
 	// Add a cache of memory == (sizeof(T) * count) bytes 
@@ -84,12 +121,18 @@ public:
 	template<class T = Type>
 	void addCache(size_type count)
 	{
+		addCache(sizeof(T), count);
 	}
 
 	template<class T = Type>
 	T* allocate(size_t count)
 	{
+		std::hash<std::thread::id> hasher;
 
+		auto bytes	= sizeof(T) * count;
+		auto idx	= hasher(std::this_thread::get_id()) % numHeaps; // TODO: Require power of two size for heaps to avoid mod here?
+
+		return reinterpret_cast<T*>(caches[idx].allocate(bytes)); 
 	}
 
 	template<class T = Type>

@@ -3,6 +3,7 @@
 #include "FreeList.h"
 #include "Slab.h"
 #include "SlabObj.h"
+#include "SlabMulti.h"
 #include <memory>
 #include <chrono>
 #include <iostream>
@@ -49,17 +50,26 @@ struct Large
 // Allocator w/ thread private heaps like Intel's tbb::scalable_allocator<T>
 int main()
 {
-	alloc::SlabMem<size_t>::addCache2(sizeof(size_t), 1 << 10, 512);
-	alloc::FreeList<int, 50000, alloc::TreePolicy> al;
-
+	//alloc::SlabMem<size_t>::addCache2(sizeof(size_t), 1 << 10, 512);
+	//alloc::FreeList<int, 50000, alloc::TreePolicy> al;
 	
+
+	alloc::SlabMulti<size_t> multi{ 16 };
+	
+	multi.addCache(sizeof(int), 512);
+	multi.addCache(sizeof(size_t), 512);
+	multi.addCache(1 << 8, 512);
+
+	auto p = multi.allocate(2);
+
+	/*
 	size_t test = 0;
 	size_t deallocT = 0;
 	alloc::SlabObj<int>::addCache(100);
 
 	constexpr int count = 100000000;
 
-	int** ptrs = new int*[count];
+	size_t** ptrs = new size_t*[count];
 	size_t idx = 0;
 
 	auto start = Clock::now();
@@ -69,18 +79,21 @@ int main()
 		{
 			idx = 0;
 			auto start = Clock::now();
-			alloc::SlabObj<int>::freeAll();
+			alloc::SlabMem<size_t>::freeAll(sizeof(size_t));
+			//alloc::SlabObj<int>::freeAll();
 			auto end = Clock::now();
 			deallocT += std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 		}
 		
-		ptrs[idx] = alloc::SlabObj<int>::allocate();
+		//ptrs[idx] = alloc::SlabObj<int>::allocate();
+		ptrs[idx] = alloc::SlabMem<size_t>::allocate();
 		test += *ptrs[idx];
 	}
 
 	auto end = Clock::now();
 
 	std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() - deallocT << ' ' << test;
+	*/
 
 	return 0;
 }
