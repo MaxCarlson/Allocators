@@ -5,6 +5,13 @@
 #include <vector>
 #include <thread>
 
+namespace alloc
+{
+template<class T>
+class SlabMulti;
+}
+
+
 namespace SlabMultiImpl
 {
 using byte = alloc::byte;
@@ -36,28 +43,37 @@ struct Cache
 	}
 };
 
-struct Caches
+// Bucket of Caches
+struct Bucket
 {
 	using size_type = size_t;
 
-	std::vector<Cache> caches;
+	std::vector<Cache> buckets;
+
+	Bucket() = default;
+
+	template<class T>
+	Bucket(alloc::SlabMulti<T>* alloc)
+	{
+
+	}
 
 	void addCache(size_type blockSize, size_type count)
 	{
-		auto bytes = blockSize * count;
-		for(auto it = std::begin(caches), 
-			E = std::end(caches); it != E; ++it)
+		auto bytes = blockSize * count; // Extra work is done here for each Bucket
+		for(auto it = std::begin(buckets), 
+			E = std::end(buckets); it != E; ++it)
 			if (bytes < it->blockSize)
 			{
-				caches.emplace_back(count, blockSize);
+				buckets.emplace_back(count, blockSize);
 				return;
 			}
-		caches.emplace_back(count, blockSize);
+		buckets.emplace_back(count, blockSize);
 	}
 
 	byte* allocate(size_type bytes)
 	{
-		for (auto& c : caches)
+		for (auto& c : buckets)
 			if (c.blockSize >= bytes)
 				return c.allocate();
 	}
@@ -96,27 +112,39 @@ public:
 
 private:
 	int numHeaps;
-	std::vector<SlabMultiImpl::Caches>	caches; // TODO: Not Caches, Caches of Caches
+	std::vector<SlabMultiImpl::Bucket>	buckets; 
 
 public:
 
+	template<class U>
+	friend class SlabMulti;
 
 	SlabMulti(int numHeaps) :
 		numHeaps{	numHeaps },
-		caches{		numHeaps }
+		buckets{	numHeaps }
 	{
 
 	}
 
-	SlabMulti(SlabMulti&& other) :
-		numHeaps{	numHeaps },
-		caches{		std::move(caches) }
+	template<class U>
+	SlabMulti(SlabMulti<U>&& other) noexcept :
+		numHeaps{	other.numHeaps },
+		buckets{	std::move(other.buckets) }
 	{
 	}
+
+	/*
+	template<class U>
+	SlabMulti(const SlabMulti<U>& other) noexcept :
+		numHeaps{ other.numHeaps },
+		buckets{ other.buckets }
+	{
+	}
+	*/
 
 	void addCache(size_type blockSize, size_type count)
 	{
-		for (auto& c : caches)
+		for (auto& c : buckets)
 			c.addCache(blockSize, count);
 	}
 
@@ -136,11 +164,11 @@ public:
 		auto bytes	= sizeof(T) * count;
 		auto idx	= hasher(std::this_thread::get_id()) % numHeaps; // TODO: Require power of two size for heaps to avoid mod here?
 
-		return reinterpret_cast<T*>(caches[idx].allocate(bytes)); 
+		return reinterpret_cast<T*>(buckets[idx].allocate(bytes)); 
 	}
 
 	template<class T = Type>
-	void deallocate(T* ptr)
+	void deallocate(T* ptr, size_type n)
 	{
 
 	}

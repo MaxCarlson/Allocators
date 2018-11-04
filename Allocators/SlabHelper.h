@@ -124,11 +124,12 @@ struct Cache
 	template<class P>
 	std::pair<SlabStore*, It> searchStore(SlabStore& store, P* ptr)
 	{
-		for (auto it = std::rbegin(store);			// TODO: Look into keeping in sorted memory order so we can lower_bound here?
-			it != std::rend(store); ++it)
+		for (auto it = std::rbegin(store), 
+			E = std::rend(store);					// TODO: Look into keeping in sorted memory order so we can lower_bound here?
+			it != E; ++it)
 			if (it->containsMem(ptr))
 				return { &store, it.base() - 1 };	// TODO: it.base() - 1 could be an issue if we're retuning the begin? Maybe not with rIts? Find out
-		return { &store, store.end() };
+		return { &store, std::end(store) };
 	}
 
 	template<class T>
@@ -136,7 +137,7 @@ struct Cache
 	{
 		auto[store, it] = searchStore(slabsFull, ptr);
 		// Need to move slab back into partials
-		if (it != slabsFull.end())
+		if (it != std::end(slabsFull))
 			it = splice(slabsPart, std::end(slabsPart), slabsFull, it);
 
 		else

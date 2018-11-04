@@ -221,7 +221,8 @@ public:
 	{
 		if (MyHead && MySize)
 		{
-			for (iterator it = begin(); it != end();)
+			for (iterator it = begin(), 
+				E = end(); it != E;)
 			{
 				Node* p = it.ptr;
 				++it;

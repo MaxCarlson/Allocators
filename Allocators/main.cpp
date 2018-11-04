@@ -60,6 +60,10 @@ int main()
 	multi.addCache(sizeof(size_t), 512);
 	multi.addCache(1 << 8, 512);
 
+	std::vector<size_t, alloc::SlabMulti<size_t>> vec(multi);
+
+	vec.reserve(10);
+
 	auto p = multi.allocate(2);
 
 	/*

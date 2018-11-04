@@ -102,7 +102,7 @@ struct Interface
 	using SmallStore	= std::vector<SlabImpl::Cache<Slab>>;
 	using It			= typename SmallStore::iterator;
 
-	inline static SmallStore caches;
+	inline static SmallStore buckets;
 
 	// TODO: Add a debug check so this function won't add any 
 	// (or just any smaller than largest) caches after first allocation for safety?
@@ -112,7 +112,7 @@ struct Interface
 	{
 		count = alloc::nearestPageSz(count * blockSize) / blockSize; // TODO: This causes a major issue with looking up the caches again if need be. Store their input count?
 		SlabImpl::addToMap(count);
-		caches.emplace_back(blockSize, count);
+		buckets.emplace_back(blockSize, count);
 	}
 
 	static void addCache2(size_type startSz, size_type maxSz, size_type count)
@@ -133,7 +133,8 @@ struct Interface
 		// TODO: Binary search if caches is large enough?
 
 		const auto bytes = count * sizeof(T);
-		for (auto it = std::begin(caches); it != std::end(caches); ++it)
+		for (auto it = std::begin(buckets), 
+			E = std::end(buckets); it != E; ++it)
 			if (it->blockSize >= bytes)
 				return it->allocate<T>();
 	}
@@ -142,7 +143,8 @@ struct Interface
 	static void deallocate(T* ptr, size_type count)
 	{
 		const auto bytes = count * sizeof(T);
-		for (auto it = std::begin(caches); it != std::end(caches); ++it)
+		for (auto it = std::begin(buckets), 
+			E = std::end(buckets); it != E; ++it)
 			if (it->blockSize >= bytes)
 			{
 				it->deallocate(ptr);
@@ -153,7 +155,7 @@ struct Interface
 	static std::vector<alloc::CacheInfo> info() noexcept
 	{
 		std::vector<alloc::CacheInfo> stats;
-		for (const auto& ch : caches)
+		for (const auto& ch : buckets)
 			stats.emplace_back(ch.info());
 		return stats;
 	}
@@ -161,7 +163,8 @@ struct Interface
 	template<bool all>
 	static void freeFunc(size_t cacheSize)
 	{
-		for (auto it = std::begin(caches); it != std::end(caches); ++it)
+		for (auto it = std::begin(buckets), 
+			E = std::end(buckets); it != E; ++it)
 			if (cacheSize == 0 || it->blockSize == cacheSize)
 			{
 				if constexpr (all)
