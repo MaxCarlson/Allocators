@@ -63,7 +63,7 @@ struct Bucket
 			E = std::end(buckets); it != E; ++it)
 			if (bytes < it->blockSize)
 			{
-				buckets.emplace_back(count, blockSize);
+				buckets.emplace(it, count, blockSize);
 				return;
 			}
 		buckets.emplace_back(count, blockSize);
@@ -128,7 +128,7 @@ struct BucketPair
 {
 	Bucket bucket;
 	std::thread::id id;
-	std::atomic<bool> inUse;
+	std::atomic_flag inUse = ATOMIC_FLAG_INIT;
 };
 // Interface class for SlabMulti so that
 // we can have multiple SlabMulti copies pointing
@@ -138,15 +138,18 @@ struct Interface
 	using size_type		= size_t;
 
 	SmpVec<BucketPair> buckets;
+	SmpVec<std::pair<size_t, size_t>> cacheSizes;
 
 	Interface(int threads = 1) :
-		buckets{ threads }
+		buckets{ threads },
+		cacheSizes{ 0 }
 	{
 
 	}
 
-	void addCache(size_type blockSize, size_type count) // TODO: Make this thread safe?
+	void addCache(size_type blockSize, size_type count) // TODO: If this is made non-thread safe it could improve performance
 	{
+		cacheSizes.emplace_back(blockSize, count); // TODO: Not ordered
 		buckets.lIterate([&](BucketPair& p) -> byte*
 		{
 			p.bucket.addCache(blockSize, count);
@@ -173,8 +176,9 @@ struct Interface
 			if (p.id == id)
 				return p.bucket.allocate(bytes);
 
-			else if (!p.inUse)
+			else if (!p.inUse.test_and_set())
 			{
+				p.id = std::this_thread::get_id();
 				p.bucket.setup();
 				return p.bucket.allocate(bytes);
 			}
@@ -182,16 +186,14 @@ struct Interface
 		});
 
 		return reinterpret_cast<T*>(mem);
-
-		//std::hash<std::thread::id> hasher;
-		//auto idx = hasher(std::this_thread::get_id()) % numHeaps; // TODO: Require power of two size for heaps to avoid mod here?
-		//return reinterpret_cast<T*>(find->second.allocate(bytes)); 
 	}
 
 	template<class T>
 	void deallocate(T* ptr, size_type n)
 	{
-
+		// Look in this threads memory Caches first
+		
+		// Then other threads
 	}
 };
 
