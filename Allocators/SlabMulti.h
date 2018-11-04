@@ -4,6 +4,9 @@
 #include <numeric>
 #include <vector>
 #include <thread>
+#include <mutex>
+#include <atomic>
+#include <shared_mutex>
 
 namespace alloc
 {
@@ -52,11 +55,6 @@ struct Bucket
 
 	Bucket() = default;
 
-	template<class T>
-	Bucket(alloc::SlabMulti<T>* alloc)
-	{
-
-	}
 
 	void addCache(size_type blockSize, size_type count)
 	{
@@ -80,6 +78,118 @@ struct Bucket
 
 	template<class T>
 	void deallocate(T* ptr)
+	{
+
+	}
+};
+
+template<class T>
+struct SmpVec
+{
+	SmpVec(int threads) :
+		vec{ threads }
+	{}
+
+	template<class... Args>
+	decltype(auto) emplace_back(Args&& ...args) 
+	{
+		std::unique_lock<std::shared_mutex>(mutex);
+		return vec.emplace_back(std::forward<Args>(args)...);
+	}
+
+	template<class Func>
+	decltype(auto) lIterate(Func&& func)
+	{
+		std::unique_lock<std::shared_mutex>(mutex);
+		for (auto& v : vec)
+			if (auto ptr = func(v))
+				return ptr;
+	}
+
+	template<class Func>
+	decltype(auto) siterate(Func&& func)
+	{
+		std::shared_lock<std::shared_mutex>(mutex);
+		for (auto& v : vec)
+		{
+			auto ptr = func(v);
+			if (ptr)
+				return ptr;
+		}
+			
+	}
+
+private:
+	std::vector<T> vec;
+	mutable std::shared_mutex mutex;
+};
+
+struct BucketPair
+{
+	Bucket bucket;
+	std::thread::id id;
+	std::atomic<bool> inUse;
+};
+// Interface class for SlabMulti so that
+// we can have multiple SlabMulti copies pointing
+// to same allocator
+struct Interface
+{
+	using size_type		= size_t;
+
+	SmpVec<BucketPair> buckets;
+
+	Interface(int threads = 1) :
+		buckets{ threads }
+	{
+
+	}
+
+	void addCache(size_type blockSize, size_type count) // TODO: Make this thread safe?
+	{
+		buckets.lIterate([&](BucketPair& p) -> byte*
+		{
+			p.bucket.addCache(blockSize, count);
+			return nullptr;
+		});
+	}
+
+	// Add a cache of memory == (sizeof(T) * count) bytes 
+	// divided into sizeof(T) byte blocks
+	template<class T>
+	void addCache(size_type count)
+	{
+		addCache(sizeof(T), count);
+	}
+
+	template<class T>
+	T* allocate(size_t count)
+	{
+		const auto bytes	= sizeof(T) * count;
+		const auto id		= std::this_thread::get_id();
+
+		byte* mem = buckets.siterate([&bytes, &id](BucketPair& p) -> byte*
+		{
+			if (p.id == id)
+				return p.bucket.allocate(bytes);
+
+			else if (!p.inUse)
+			{
+				p.bucket.setup();
+				return p.bucket.allocate(bytes);
+			}
+			return nullptr;
+		});
+
+		return reinterpret_cast<T*>(mem);
+
+		//std::hash<std::thread::id> hasher;
+		//auto idx = hasher(std::this_thread::get_id()) % numHeaps; // TODO: Require power of two size for heaps to avoid mod here?
+		//return reinterpret_cast<T*>(find->second.allocate(bytes)); 
+	}
+
+	template<class T>
+	void deallocate(T* ptr, size_type n)
 	{
 
 	}
@@ -111,41 +221,35 @@ public:
 	using value_type		= Type;
 
 private:
-	int numHeaps;
-	std::vector<SlabMultiImpl::Bucket>	buckets; 
+	SlabMultiImpl::Interface* interfacePtr;
 
 public:
 
 	template<class U>
 	friend class SlabMulti;
 
-	SlabMulti(int numHeaps) :
-		numHeaps{	numHeaps },
-		buckets{	numHeaps }
+	SlabMulti(int threads) :
+		interfacePtr{ new SlabMultiImpl::Interface{threads} }
 	{
 
+	}
+
+	template<class U>
+	SlabMulti(const SlabMulti<U>& other) noexcept :
+		interfacePtr{ other.interfacePtr }
+	{
 	}
 
 	template<class U>
 	SlabMulti(SlabMulti<U>&& other) noexcept :
-		numHeaps{	other.numHeaps },
-		buckets{	std::move(other.buckets) }
+		interfacePtr{ std::move(other.interfacePtr) }
 	{
+		other.interfacePtr = nullptr;
 	}
-
-	/*
-	template<class U>
-	SlabMulti(const SlabMulti<U>& other) noexcept :
-		numHeaps{ other.numHeaps },
-		buckets{ other.buckets }
-	{
-	}
-	*/
-
+	
 	void addCache(size_type blockSize, size_type count)
 	{
-		for (auto& c : buckets)
-			c.addCache(blockSize, count);
+		interfacePtr->addCache(blockSize, count);
 	}
 
 	// Add a cache of memory == (sizeof(T) * count) bytes 
@@ -159,18 +263,13 @@ public:
 	template<class T = Type>
 	T* allocate(size_t count)
 	{
-		std::hash<std::thread::id> hasher;
-
-		auto bytes	= sizeof(T) * count;
-		auto idx	= hasher(std::this_thread::get_id()) % numHeaps; // TODO: Require power of two size for heaps to avoid mod here?
-
-		return reinterpret_cast<T*>(buckets[idx].allocate(bytes)); 
+		return interfacePtr->allocate<T>(count);
 	}
 
 	template<class T = Type>
 	void deallocate(T* ptr, size_type n)
 	{
-
+		interfacePtr->deallocate(ptr, n);
 	}
 };
 
