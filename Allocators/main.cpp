@@ -15,19 +15,25 @@ constexpr int count = 1024;
 
 struct Large
 {
-	Large()
+	Large() : ar{100}
 	{
 		std::fill(std::begin(ar), std::end(ar), 0);
 	}
 
-	Large(int val)
+	Large(int sz, int val) : ar{sz}
 	{
 	std::fill(std::begin(ar), std::end(ar), val);
 	}
 
-	Large(int a, int b, int c)
+	Large(Large&& other) noexcept :
+		ar{ std::move(other.ar) }
+	{}
+
+	//Large(Large&& other) = delete;
+
+	Large(const Large& other) :
+		ar{ other.ar }
 	{
-		std::fill(std::begin(ar), std::end(ar), a * b * c);
 	}
 
 	~Large()
@@ -35,7 +41,7 @@ struct Large
 		auto a = 0;
 	}
 
-	std::array<int, count> ar;
+	std::vector<int> ar;
 };
 
 
@@ -61,10 +67,27 @@ int main()
 	multi.addCache(1 << 8, 512);
 
 	std::vector<size_t, alloc::SlabMulti<size_t>> vec(multi);
-
 	vec.reserve(10);
 
 	auto p = multi.allocate(2);
+
+	for (int num = 1024, i = 0;
+		i < 16; num *= 2, ++i)
+	{
+		auto start = Clock::now();
+
+		std::vector<Large> ar;
+		for (size_t j = 0; j < num; ++j)
+		{
+			ar.emplace_back(50000, 1);
+		}
+
+		auto end = Clock::now();
+		std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << '\n';
+		ar.clear();
+		ar.shrink_to_fit();
+	}
+
 
 	/*
 	size_t test = 0;

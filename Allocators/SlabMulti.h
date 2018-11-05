@@ -17,11 +17,142 @@ class SlabMulti;
 
 namespace SlabMultiImpl
 {
-using byte = alloc::byte;
 
-struct Slab
+constexpr auto SUPERBLOCK_SIZE	= 1 << 20;
+constexpr auto SLAB_SIZE		= 1 << 14;
+constexpr auto MAX_SLAB_SIZE	= 65535; // Max number of memory blocks a Slab can be divided into 
+constexpr auto SMALLEST_CACHE	= 64;
+constexpr auto LARGEST_CACHE	= 1 << 13;
+constexpr auto INIT_SUPERBLOCKS = 4;
+
+using byte			= alloc::byte;
+using IndexSizeT	= alloc::FindSizeT<MAX_SLAB_SIZE>::size_type;
+
+auto buildCaches = [](int startSz)
 {
+	std::vector<int> v;
+	for (int i = startSz; i <= LARGEST_CACHE; i <<= 1)
+		v.emplace_back(i);
+	return v;
+};
 
+const std::vector<int> cacheSizes = buildCaches(SMALLEST_CACHE);
+
+struct GlobalDispatch
+{
+	using FreeIndicies = std::vector<std::vector<SlabImpl::IndexSizeT>>;
+
+	GlobalDispatch() :
+		mutex{},
+		superblocks{},
+		availible{ buildIndicies() }
+	{
+		requestMem(INIT_SUPERBLOCKS);
+	}
+	
+private:
+
+	void requestMem(int blocks = 1)
+	{
+		for (int i = 0; i < blocks; ++i)
+		{
+			byte* mem = reinterpret_cast<byte*>(operator new(SUPERBLOCK_SIZE));
+			superblocks.emplace_back(mem);
+		}
+	}
+
+	// Build the vectors of superblock block indices
+	FreeIndicies buildIndicies()
+	{
+		int i = 0;
+		FreeIndicies av;
+		for (auto& a : av)
+		{
+			auto count = SUPERBLOCK_SIZE / cacheSizes[i];
+			a.resize(count);
+			std::iota(std::rbegin(a), std::rend(a), 0);
+			++i;
+		}
+		return av;
+	}
+
+	std::mutex			mutex;
+	std::vector<byte*>	superblocks;
+	const FreeIndicies	availible;
+};
+
+struct Slab // This is just a copy of SlabMem right now b
+{
+private:
+	using size_type = size_t;
+
+	byte*								mem;
+	size_type							blockSize;
+	size_type							count;		// TODO: This can be converted to IndexSizeT 
+	std::vector<SlabImpl::IndexSizeT>	availible;
+
+public:
+
+	Slab(size_t blockSize, size_t count) : 
+		mem{		reinterpret_cast<byte*>(operator new(blockSize * count)) }, // TODO: Request memory from GlobalDispatch
+		blockSize{	blockSize }, 
+		count{		count }, 
+		availible{	static_cast<IndexSizeT>(count) }
+	{
+		std::iota(std::rbegin(availible), std::rend(availible), 0);
+	}
+
+	Slab(const Slab& other) = delete;
+
+	Slab(Slab&& other) noexcept :
+		mem{		other.mem					},
+		blockSize{	other.blockSize				},
+		count{		other.count					},
+		availible{	std::move(other.availible)	}
+	{
+		other.mem = nullptr;
+	}
+
+	Slab& operator=(Slab&& other) noexcept
+	{
+		mem			= other.mem;
+		blockSize	= other.blockSize;
+		count		= other.count;
+		availible	= std::move(other.availible);
+		other.mem	= nullptr;
+		return *this;
+	}
+
+	~Slab()
+	{
+		if(mem)
+			operator delete(mem);
+	}
+		
+	bool full()			const noexcept { return availible.empty(); }
+	size_type size()	const noexcept { return count - availible.size(); }
+	bool empty()		const noexcept { return availible.size() == count; }
+
+	std::pair<byte*, bool> allocate() 
+	{
+		auto idx = availible.back();
+		availible.pop_back();
+		return { mem + (idx * blockSize), availible.empty() };
+	}
+
+	template<class P>
+	void deallocate(P* ptr)
+	{
+		auto idx = static_cast<size_type>((reinterpret_cast<byte*>(ptr) - mem)) / blockSize;
+		availible.emplace_back(idx);
+	}
+
+	template<class P>
+	bool containsMem(P* ptr) const noexcept
+	{
+		return (reinterpret_cast<byte*>(ptr) >= mem
+				&& reinterpret_cast<byte*>(ptr) < (mem + blockSize * count));
+	}
 };
 
 struct Cache
@@ -74,10 +205,17 @@ struct Bucket
 		for (auto& c : buckets)
 			if (c.blockSize >= bytes)
 				return c.allocate();
+
+		throw std::bad_alloc();
 	}
 
 	template<class T>
 	void deallocate(T* ptr)
+	{
+
+	}
+
+	void setup()
 	{
 
 	}
@@ -147,7 +285,11 @@ struct Interface
 
 	}
 
-	void addCache(size_type blockSize, size_type count) // TODO: If this is made non-thread safe it could improve performance
+	// TODO: Also thinking about getting rid of this function all together
+	// Replace with set block sizes for Caches
+	//
+	// TODO: If this is made non-thread safe it could improve performance
+	void addCache(size_type blockSize, size_type count) 
 	{
 		cacheSizes.emplace_back(blockSize, count); // TODO: Not ordered
 		buckets.lIterate([&](BucketPair& p) -> byte*
@@ -171,7 +313,8 @@ struct Interface
 		const auto bytes	= sizeof(T) * count;
 		const auto id		= std::this_thread::get_id();
 
-		byte* mem = buckets.siterate([&bytes, &id](BucketPair& p) -> byte*
+		byte* mem = nullptr;
+		mem = buckets.siterate([&bytes, &id](BucketPair& p) -> byte*
 		{
 			if (p.id == id)
 				return p.bucket.allocate(bytes);
