@@ -20,13 +20,16 @@ namespace SlabMultiImpl
 
 constexpr auto SUPERBLOCK_SIZE	= 1 << 20;
 constexpr auto SLAB_SIZE		= 1 << 14;
-constexpr auto MAX_SLAB_SIZE	= 65535;	// Max number of memory blocks a Slab can be divided into 
+constexpr auto MAX_SLAB_BLOCKS	= 65535;						// Max number of memory blocks a Slab can be divided into 
+constexpr auto NUM_CACHES		= 7;
 constexpr auto SMALLEST_CACHE	= 64;
-constexpr auto LARGEST_CACHE	= 1 << 13;
-constexpr auto INIT_SUPERBLOCKS = 4;
+constexpr auto LARGEST_CACHE	= SMALLEST_CACHE << NUM_CACHES;
+constexpr auto INIT_SUPERBLOCKS = 4;							// Number of Superblocks allocated per request
+
+static_assert(LARGEST_CACHE <= SLAB_SIZE);
 
 using byte			= alloc::byte;
-using IndexSizeT	= alloc::FindSizeT<MAX_SLAB_SIZE>::size_type;
+using IndexSizeT	= alloc::FindSizeT<MAX_SLAB_BLOCKS>::size_type;
 
 auto buildCaches = [](int startSz)
 {
@@ -88,11 +91,11 @@ private:
 	FreeIndicies buildIndicies()
 	{
 		int i = 0;
-		FreeIndicies av;
+		FreeIndicies av{ static_cast<size_t>(NUM_CACHES) };
 		for (auto& a : av)
 		{
 			a.first = SUPERBLOCK_SIZE / cacheSizes[i];
-			a.second.resize(count);
+			a.second.resize(a.first);
 			std::iota(std::rbegin(a.second), std::rend(a.second), 0);
 			++i;
 		}
@@ -104,9 +107,9 @@ private:
 	const FreeIndicies	availible;
 };
 
-inline GlobalDispatch dispatcher;
+inline GlobalDispatch dispatcher; // TODO: Make this local to the allocator?
 
-struct Slab // This is just a copy of SlabMem right now b
+struct Slab
 {
 private:
 	using size_type = size_t;
@@ -126,7 +129,13 @@ public:
 	{
 	}
 
-	Slab(const Slab& other) = delete;
+	Slab(const Slab& other) noexcept :
+		mem{		other.mem		},
+		blockSize{	other.blockSize	},
+		count{		other.count		},
+		availible{	other.availible	}
+	{
+	}
 
 	Slab(Slab&& other) noexcept :
 		mem{		other.mem					},
@@ -182,15 +191,21 @@ public:
 struct Cache
 {
 	using size_type = size_t;
+	using Container = std::list<Slab>;
+	using It		= Container::iterator;
 
-	size_type count;
-	size_type blockSize;
-
-	std::vector<Slab> slabs;
+	size_type	count;
+	size_type	blockSize;
+	int			threshold;
+	Container	slabs;
+	It			activeBlock;
+	static constexpr double freeThreshold = 0.2;
 
 	Cache(size_type count, size_type blockSize) :
 		count{		count },
-		blockSize{	blockSize }
+		blockSize{	blockSize },
+		threshold{	static_cast<int>(count * freeThreshold) },
+		slabs{		Slab{ blockSize, count } }
 	{
 	}
 

@@ -5,9 +5,9 @@
 
 namespace SlabImpl
 {
-static constexpr auto MAX_SLAB_SIZE = 65535; // Max number of memory blocks a Slab can be divided into 
+static constexpr auto MAX_SLAB_BLOCKS = 65535; // Max number of memory blocks a Slab can be divided into 
 
-using IndexSizeT = typename alloc::FindSizeT<MAX_SLAB_SIZE>::size_type;
+using IndexSizeT = typename alloc::FindSizeT<MAX_SLAB_BLOCKS>::size_type;
 	
 	
 static std::map<size_t, std::vector<IndexSizeT>> vecMap;
