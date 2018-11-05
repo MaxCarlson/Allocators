@@ -20,7 +20,7 @@ namespace SlabMultiImpl
 
 constexpr auto SUPERBLOCK_SIZE	= 1 << 20;
 constexpr auto SLAB_SIZE		= 1 << 14;
-constexpr auto MAX_SLAB_SIZE	= 65535; // Max number of memory blocks a Slab can be divided into 
+constexpr auto MAX_SLAB_SIZE	= 65535;	// Max number of memory blocks a Slab can be divided into 
 constexpr auto SMALLEST_CACHE	= 64;
 constexpr auto LARGEST_CACHE	= 1 << 13;
 constexpr auto INIT_SUPERBLOCKS = 4;
@@ -40,7 +40,7 @@ const std::vector<int> cacheSizes = buildCaches(SMALLEST_CACHE);
 
 struct GlobalDispatch
 {
-	using FreeIndicies = std::vector<std::vector<SlabImpl::IndexSizeT>>;
+	using FreeIndicies = std::vector<std::pair<size_t, std::vector<SlabImpl::IndexSizeT>>>;
 
 	GlobalDispatch() :
 		mutex{},
@@ -49,15 +49,38 @@ struct GlobalDispatch
 	{
 		requestMem(INIT_SUPERBLOCKS);
 	}
+
+	byte* getSuperblock()
+	{
+		std::unique_lock<std::mutex> lock(mutex);
+		if (superblocks.empty())
+			requestMem(INIT_SUPERBLOCKS);
+		byte* mem = superblocks.back();
+		superblocks.pop_back();
+		return mem;
+	}
+
+	std::vector<SlabImpl::IndexSizeT> getIndicies(size_t blockSz) const
+	{
+		for (const auto bs : availible)
+			if (bs.first >= blockSz)
+				return bs.second;
+	}
 	
 private:
 
-	void requestMem(int blocks = 1)
+	void requestMem(int sblocks = 1)
 	{
-		for (int i = 0; i < blocks; ++i)
+		std::unique_lock<std::mutex> lock(mutex);
+		for (int i = 0; i < sblocks; ++i)
 		{
 			byte* mem = reinterpret_cast<byte*>(operator new(SUPERBLOCK_SIZE));
-			superblocks.emplace_back(mem);
+
+			for (int idx = 0; idx < SUPERBLOCK_SIZE; idx += SLAB_SIZE)
+			{
+				auto* m = mem + idx;
+				superblocks.emplace_back(m);
+			}
 		}
 	}
 
@@ -68,9 +91,9 @@ private:
 		FreeIndicies av;
 		for (auto& a : av)
 		{
-			auto count = SUPERBLOCK_SIZE / cacheSizes[i];
-			a.resize(count);
-			std::iota(std::rbegin(a), std::rend(a), 0);
+			a.first = SUPERBLOCK_SIZE / cacheSizes[i];
+			a.second.resize(count);
+			std::iota(std::rbegin(a.second), std::rend(a.second), 0);
 			++i;
 		}
 		return av;
@@ -80,6 +103,8 @@ private:
 	std::vector<byte*>	superblocks;
 	const FreeIndicies	availible;
 };
+
+inline GlobalDispatch dispatcher;
 
 struct Slab // This is just a copy of SlabMem right now b
 {
@@ -94,12 +119,11 @@ private:
 public:
 
 	Slab(size_t blockSize, size_t count) : 
-		mem{		reinterpret_cast<byte*>(operator new(blockSize * count)) }, // TODO: Request memory from GlobalDispatch
+		mem{		dispatcher.getSuperblock() }, 
 		blockSize{	blockSize }, 
 		count{		count }, 
-		availible{	static_cast<IndexSizeT>(count) }
+		availible{	dispatcher.getIndicies(blockSize) }
 	{
-		std::iota(std::rbegin(availible), std::rend(availible), 0);
 	}
 
 	Slab(const Slab& other) = delete;
@@ -231,14 +255,14 @@ struct SmpVec
 	template<class... Args>
 	decltype(auto) emplace_back(Args&& ...args) 
 	{
-		std::unique_lock<std::shared_mutex>(mutex);
+		std::unique_lock<std::shared_mutex> lock(mutex);
 		return vec.emplace_back(std::forward<Args>(args)...);
 	}
 
 	template<class Func>
 	decltype(auto) lIterate(Func&& func)
 	{
-		std::unique_lock<std::shared_mutex>(mutex);
+		std::unique_lock<std::shared_mutex> lock(mutex);
 		for (auto& v : vec)
 			if (auto ptr = func(v))
 				return ptr;
@@ -247,7 +271,7 @@ struct SmpVec
 	template<class Func>
 	decltype(auto) siterate(Func&& func)
 	{
-		std::shared_lock<std::shared_mutex>(mutex);
+		std::shared_lock<std::shared_mutex> lock(mutex);
 		for (auto& v : vec)
 		{
 			auto ptr = func(v);
