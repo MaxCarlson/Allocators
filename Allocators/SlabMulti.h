@@ -56,20 +56,26 @@ struct GlobalDispatch
 
 	GlobalDispatch() :
 		mutex{},
-		superblocks{},
+		blocks{},
 		availible{ buildIndicies() }
 	{
 		requestMem(INIT_SUPERBLOCKS);
 	}
 
-	byte* getSuperblock()
+	byte* getBlock()
 	{
 		std::unique_lock<std::mutex> lock(mutex);
-		if (superblocks.empty())
+		if (blocks.empty())
 			requestMem(INIT_SUPERBLOCKS);
-		byte* mem = superblocks.back();
-		superblocks.pop_back();
+		byte* mem = blocks.back();
+		blocks.pop_back();
 		return mem;
+	}
+
+	void returnBlock(byte* block)
+	{
+		std::unique_lock<std::mutex> lock(mutex);
+		blocks.emplace_back(block);
 	}
 
 	std::vector<SlabImpl::IndexSizeT> getIndicies(size_t blockSz) const
@@ -91,7 +97,7 @@ private:
 			for (int idx = 0; idx < SUPERBLOCK_SIZE; idx += SLAB_SIZE)
 			{
 				auto* m = mem + idx;
-				superblocks.emplace_back(m);
+				blocks.emplace_back(m);
 			}
 		}
 	}
@@ -103,7 +109,7 @@ private:
 		FreeIndicies av{ static_cast<size_t>(NUM_CACHES) };
 		for (auto& a : av)
 		{
-			a.first = SUPERBLOCK_SIZE / cacheSizes[i];
+			a.first = SLAB_SIZE / cacheSizes[i];
 			a.second.resize(a.first);
 			std::iota(std::rbegin(a.second), std::rend(a.second), 0);
 			++i;
@@ -112,7 +118,7 @@ private:
 	}
 
 	std::mutex			mutex;
-	std::vector<byte*>	superblocks;
+	std::vector<byte*>	blocks; // TODO: Should these be kept in address sorted order to improve locality?
 	const FreeIndicies	availible;
 };
 
@@ -124,14 +130,14 @@ private:
 	using size_type = size_t;
 
 	byte*								mem;
-	size_type							blockSize;
+	size_type							blockSize;	// Size of the blocks the super block is divided into
 	size_type							count;		// TODO: This can be converted to IndexSizeT 
-	std::vector<SlabImpl::IndexSizeT>	availible;
+	std::vector<SlabImpl::IndexSizeT>	availible;	// TODO: Issue. Overtime allocation locality decreases as indicies are jumbled
 
 public:
 
 	Slab(size_t blockSize, size_t count) : 
-		mem{		dispatcher.getSuperblock() }, 
+		mem{		dispatcher.getBlock() }, 
 		blockSize{	blockSize }, 
 		count{		count }, 
 		availible{	dispatcher.getIndicies(blockSize) }
@@ -167,8 +173,8 @@ public:
 
 	~Slab()
 	{
-		if(mem)
-			operator delete(mem);
+		if (mem)
+			dispatcher.returnBlock(mem);
 	}
 		
 	bool full()			const noexcept { return availible.empty(); }
@@ -203,25 +209,46 @@ struct Cache
 	using Container = std::list<Slab>;
 	using It		= Container::iterator;
 
-	size_type	count;
-	size_type	blockSize;
-	int			threshold;
-	Container	slabs;
-	It			activeBlock;
-	static constexpr double freeThreshold = 0.2;
+	const size_type	count;
+	const size_type	blockSize;
+	int				threshold;
+	Container		slabs;
+	It				actBlock;
+	static constexpr double freeThreshold = 0.25;
 
 	Cache(size_type count, size_type blockSize) :
 		count{		count },
 		blockSize{	blockSize },
 		threshold{	static_cast<int>(count * freeThreshold) }, // TODO: Cache these values at compile time
-		slabs{		Slab{ blockSize, count } }
+		slabs{},
+		actBlock{	std::begin(slabs) }
 	{
+		slabs.emplace_back(blockSize, count); 
 	}
+
+	Cache(Cache&& other) noexcept:
+		count{		other.count },
+		blockSize{	other.blockSize },
+		threshold{	other.threshold }, // TODO: Cache these values at compile time
+		slabs{		std::move(other.slabs)},
+		actBlock{	other.actBlock }
+	{}
 
 	byte* allocate()
 	{
+		auto[mem, full] = actBlock->allocate();
 
-		return nullptr;
+		// If active block is full, create a new one and add
+		// it to the list before the previous AB
+		if (full)
+			actBlock = slabs.emplace(actBlock, blockSize, count);
+
+		return mem;
+	}
+
+	void deallocate(byte* ptr) 
+	{
+
 	}
 };
 
@@ -248,12 +275,7 @@ struct Bucket
 	}
 
 	template<class T>
-	void deallocate(T* ptr)
-	{
-
-	}
-
-	void setup()
+	void deallocate(T* ptr) 
 	{
 
 	}
@@ -316,7 +338,10 @@ struct BucketPair
 	}
 
 	BucketPair(BucketPair&& other) noexcept = default;
-	BucketPair(const BucketPair& other) noexcept {}
+	BucketPair(const BucketPair& other) noexcept: // TODO: Revisit this. This shouldn't really need to exist
+		bucket{bucket},
+		id{id}
+	{}
 
 
 	Bucket				bucket;
