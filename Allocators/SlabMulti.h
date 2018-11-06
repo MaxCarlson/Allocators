@@ -136,6 +136,8 @@ private:
 
 public:
 
+	Slab() = default;
+
 	Slab(size_t blockSize, size_t count) : 
 		mem{		dispatcher.getBlock() }, 
 		blockSize{	blockSize }, 
@@ -220,17 +222,25 @@ struct Cache
 		count{		count },
 		blockSize{	blockSize },
 		threshold{	static_cast<int>(count * freeThreshold) }, // TODO: Cache these values at compile time
-		slabs{},
-		actBlock{	std::begin(slabs) }
+		slabs{}
 	{
-		slabs.emplace_back(blockSize, count); 
+		slabs.emplace_back(blockSize, count); // TODO: Figure out how to put this in the ctor list!!!
+		actBlock = std::begin(slabs);
 	}
 
 	Cache(Cache&& other) noexcept:
 		count{		other.count },
 		blockSize{	other.blockSize },
-		threshold{	other.threshold }, // TODO: Cache these values at compile time
+		threshold{	other.threshold }, 
 		slabs{		std::move(other.slabs)},
+		actBlock{	other.actBlock }
+	{}
+
+	Cache(const Cache& other) noexcept : // TODO: Why is this needed?
+		count{		other.count },
+		blockSize{	other.blockSize },
+		threshold{	other.threshold }, 
+		slabs{		other.slabs },
 		actBlock{	other.actBlock }
 	{}
 
@@ -330,9 +340,9 @@ private:
 
 struct BucketPair
 {
-	BucketPair(Bucket bucket,
+	BucketPair(Bucket&& bucket,
 		std::thread::id id) :
-		bucket{ bucket },
+		bucket{ std::move(bucket) },
 		id{ id }
 	{
 	}
