@@ -60,12 +60,8 @@ int main()
 	//alloc::FreeList<int, 50000, alloc::TreePolicy> al;
 	
 
-	alloc::SlabMulti<size_t> multi{ 16 };
+	alloc::SlabMulti<size_t> multi;
 	
-	multi.addCache(sizeof(int), 512);
-	multi.addCache(sizeof(size_t), 512);
-	multi.addCache(1 << 8, 512);
-
 	std::vector<size_t, alloc::SlabMulti<size_t>> vec(multi);
 	vec.reserve(10);
 

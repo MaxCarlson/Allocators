@@ -39,7 +39,16 @@ auto buildCaches = [](int startSz)
 	return v;
 };
 
-const std::vector<int> cacheSizes = buildCaches(SMALLEST_CACHE);
+auto buildBlocksPer = [](const std::vector<int>& cacheSizes)
+{
+	std::vector<int> v;
+	for (const auto s : cacheSizes)
+		v.emplace_back(SLAB_SIZE / s);
+	return v;
+};
+
+const std::vector<int> cacheSizes		= buildCaches(SMALLEST_CACHE);
+const std::vector<int> blocksPerSlab	= buildBlocksPer(cacheSizes);
 
 struct GlobalDispatch
 {
@@ -107,7 +116,7 @@ private:
 	const FreeIndicies	availible;
 };
 
-inline GlobalDispatch dispatcher; // TODO: Make this local to the allocator?
+inline GlobalDispatch dispatcher; // TODO: Make this local to the allocator!
 
 struct Slab
 {
@@ -184,7 +193,7 @@ public:
 	bool containsMem(P* ptr) const noexcept
 	{
 		return (reinterpret_cast<byte*>(ptr) >= mem
-				&& reinterpret_cast<byte*>(ptr) < (mem + blockSize * count));
+			 && reinterpret_cast<byte*>(ptr) < (mem + blockSize * count));
 	}
 };
 
@@ -204,7 +213,7 @@ struct Cache
 	Cache(size_type count, size_type blockSize) :
 		count{		count },
 		blockSize{	blockSize },
-		threshold{	static_cast<int>(count * freeThreshold) },
+		threshold{	static_cast<int>(count * freeThreshold) }, // TODO: Cache these values at compile time
 		slabs{		Slab{ blockSize, count } }
 	{
 	}
@@ -223,20 +232,10 @@ struct Bucket
 
 	std::vector<Cache> buckets;
 
-	Bucket() = default;
-
-
-	void addCache(size_type blockSize, size_type count)
+	Bucket()
 	{
-		auto bytes = blockSize * count; // Extra work is done here for each Bucket
-		for(auto it = std::begin(buckets), 
-			E = std::end(buckets); it != E; ++it)
-			if (bytes < it->blockSize)
-			{
-				buckets.emplace(it, count, blockSize);
-				return;
-			}
-		buckets.emplace_back(count, blockSize);
+		for (int i = 0; i < NUM_CACHES; ++i)
+			buckets.emplace_back(blocksPerSlab[i], cacheSizes[i]);
 	}
 
 	byte* allocate(size_type bytes)
@@ -263,8 +262,7 @@ struct Bucket
 template<class T>
 struct SmpVec
 {
-	SmpVec(int threads) :
-		vec{ threads }
+	SmpVec()
 	{}
 
 	template<class... Args>
@@ -275,16 +273,17 @@ struct SmpVec
 	}
 
 	template<class Func>
-	decltype(auto) lIterate(Func&& func)
+	byte* lIterate(Func&& func)
 	{
 		std::unique_lock<std::shared_mutex> lock(mutex);
 		for (auto& v : vec)
 			if (auto ptr = func(v))
 				return ptr;
+		return nullptr;
 	}
 
 	template<class Func>
-	decltype(auto) siterate(Func&& func)
+	byte* siterate(Func&& func)
 	{
 		std::shared_lock<std::shared_mutex> lock(mutex);
 		for (auto& v : vec)
@@ -293,7 +292,13 @@ struct SmpVec
 			if (ptr)
 				return ptr;
 		}
-			
+		return nullptr;
+	}
+
+	bool empty() 
+	{
+		std::shared_lock<std::shared_mutex> lock(mutex);
+		return vec.empty();
 	}
 
 private:
@@ -303,9 +308,20 @@ private:
 
 struct BucketPair
 {
-	Bucket bucket;
-	std::thread::id id;
-	std::atomic_flag inUse = ATOMIC_FLAG_INIT;
+	BucketPair(Bucket bucket,
+		std::thread::id id) :
+		bucket{ bucket },
+		id{ id }
+	{
+	}
+
+	BucketPair(BucketPair&& other) noexcept = default;
+	BucketPair(const BucketPair& other) noexcept {}
+
+
+	Bucket				bucket;
+	std::thread::id		id;
+	//std::atomic_flag	inUse = ATOMIC_FLAG_INIT;
 };
 // Interface class for SlabMulti so that
 // we can have multiple SlabMulti copies pointing
@@ -315,35 +331,10 @@ struct Interface
 	using size_type		= size_t;
 
 	SmpVec<BucketPair> buckets;
-	SmpVec<std::pair<size_t, size_t>> cacheSizes;
 
-	Interface(int threads = 1) :
-		buckets{ threads },
-		cacheSizes{ 0 }
+	Interface() 
 	{
 
-	}
-
-	// TODO: Also thinking about getting rid of this function all together
-	// Replace with set block sizes for Caches
-	//
-	// TODO: If this is made non-thread safe it could improve performance
-	void addCache(size_type blockSize, size_type count) 
-	{
-		cacheSizes.emplace_back(blockSize, count); // TODO: Not ordered
-		buckets.lIterate([&](BucketPair& p) -> byte*
-		{
-			p.bucket.addCache(blockSize, count);
-			return nullptr;
-		});
-	}
-
-	// Add a cache of memory == (sizeof(T) * count) bytes 
-	// divided into sizeof(T) byte blocks
-	template<class T>
-	void addCache(size_type count)
-	{
-		addCache(sizeof(T), count);
 	}
 
 	template<class T>
@@ -352,20 +343,20 @@ struct Interface
 		const auto bytes	= sizeof(T) * count;
 		const auto id		= std::this_thread::get_id();
 
-		byte* mem = nullptr;
-		mem = buckets.siterate([&bytes, &id](BucketPair& p) -> byte*
+		byte* mem = buckets.siterate([&bytes, &id](BucketPair& p) -> byte*
 		{
 			if (p.id == id)
 				return p.bucket.allocate(bytes);
-
-			else if (!p.inUse.test_and_set())
-			{
-				p.id = std::this_thread::get_id();
-				p.bucket.setup();
-				return p.bucket.allocate(bytes);
-			}
 			return nullptr;
 		});
+
+		// We probably haven't made a bucket for this
+		// thread yet!
+		if (!mem)
+		{
+			auto& b = buckets.emplace_back(Bucket{}, id);
+			mem		= b.bucket.allocate(bytes);
+		}
 
 		return reinterpret_cast<T*>(mem);
 	}
@@ -412,10 +403,17 @@ public:
 	template<class U>
 	friend class SlabMulti;
 
-	SlabMulti(int threads) :
-		interfacePtr{ new SlabMultiImpl::Interface{threads} }
+	SlabMulti() :
+		interfacePtr{ new SlabMultiImpl::Interface{} }
 	{
 
+	}
+
+	// TODO: Add reference counting to interface so we know when to destory it
+	// AND benchmark the cost. Could easily be an issue with the way std::containers use allocators 
+	~SlabMulti() 
+	{
+	
 	}
 
 	template<class U>
@@ -429,19 +427,6 @@ public:
 		interfacePtr{ std::move(other.interfacePtr) }
 	{
 		other.interfacePtr = nullptr;
-	}
-	
-	void addCache(size_type blockSize, size_type count)
-	{
-		interfacePtr->addCache(blockSize, count);
-	}
-
-	// Add a cache of memory == (sizeof(T) * count) bytes 
-	// divided into sizeof(T) byte blocks
-	template<class T = Type>
-	void addCache(size_type count)
-	{
-		addCache(sizeof(T), count);
 	}
 
 	template<class T = Type>
