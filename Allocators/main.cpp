@@ -59,13 +59,11 @@ int main()
 	//alloc::SlabMem<size_t>::addCache2(sizeof(size_t), 1 << 10, 512);
 	//alloc::FreeList<int, 50000, alloc::TreePolicy> al;
 	
-	constexpr int count = 100;
+	constexpr int count = 1000;
 
 	using namespace SlabMultiImpl;
 
 	alloc::SlabMulti<size_t> multi;
-
-	std::vector<Slab> sls;
 	
 	std::vector<size_t, alloc::SlabMulti<size_t>> vec(multi);
 	vec.reserve(10);
@@ -78,37 +76,45 @@ int main()
 	std::shuffle(	std::begin(order), std::end(order), re);
 
 
+	std::vector<Slab> sls;
+	//std::list<Slab> sls;
+
 	for (int i = 0; i < count; ++i)
 		sls.emplace_back(64, 256);
-	
-	auto start = Clock::now();
-	for(auto f = 0; f < 50; ++f)
+
+	for (auto g = 1; g < 1000; g *= 10)
 	{
-		for (int i = 0; i < count / 2; ++i)
+		auto start = Clock::now();
+		for (auto f = 0; f < 100 * g; ++f)
 		{
-			int j = 0;
-			for(auto it = std::begin(sls), E = std::end(sls); it != E; ++it, ++j)
-				if (j == order[i])
-				{
-					sls.erase(it);
-					break;
-				}
-		}
-		for (int i = 0; i < count / 2; ++i)
-		{
-			int j = 0;
-			for (auto it = std::begin(sls), E = std::end(sls); it != E; ++it, ++j)
-				if (j == order[i])
-				{
-					sls.emplace(it, 64, 256);
-					break;
-				}
+			for (int i = 0; i < count / 2; ++i)
+			{
+				int j = 0;
+				for (auto it = std::begin(sls), E = std::end(sls); it != E; ++it, ++j)
+					if (j == order[i])
+					{
+						sls.erase(it); // Not all blocks are being returned by Slabs here!
+						break;
+					}
+			}
+			for (int i = 0; i < count / 2; ++i)
+			{
+				int j = 0;
+				for (auto it = std::begin(sls), E = std::end(sls); it != E; ++it, ++j)
+					if (j == order[i])
+					{
+						sls.emplace(it, 64, 256);
+						break;
+					}
+			}
+
+			std::shuffle(std::begin(order), std::end(order), re);
 		}
 
-		std::shuffle(std::begin(order), std::end(order), re);
+		std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - start).count() << '\n';
 	}
+	
 
-	std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - start).count();
 
 
 	size_t *ar[count];
