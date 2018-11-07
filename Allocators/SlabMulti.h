@@ -90,16 +90,12 @@ private:
 
 	void requestMem(int sblocks = 1)
 	{
-		std::lock_guard<std::mutex> lock(mutex);
 		for (int i = 0; i < sblocks; ++i)
 		{
 			byte* mem = reinterpret_cast<byte*>(operator new(SUPERBLOCK_SIZE));
 
 			for (int idx = 0; idx < SUPERBLOCK_SIZE; idx += SLAB_SIZE)
-			{
-				auto* m = mem + idx;
-				blocks.emplace_back(m);
-			}
+				blocks.emplace_back(mem + idx);
 		}
 		totalSBlocks += sblocks;
 	}
