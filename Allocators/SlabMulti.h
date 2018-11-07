@@ -57,6 +57,7 @@ struct GlobalDispatch
 	GlobalDispatch() :
 		mutex{},
 		blocks{},
+		totalSBlocks{ 0 },
 		availible{ buildIndicies() }
 	{
 		requestMem(INIT_SUPERBLOCKS);
@@ -64,7 +65,7 @@ struct GlobalDispatch
 
 	byte* getBlock()
 	{
-		std::unique_lock<std::mutex> lock(mutex);
+		std::lock_guard<std::mutex> lock(mutex); 
 		if (blocks.empty())
 			requestMem(INIT_SUPERBLOCKS);
 		byte* mem = blocks.back();
@@ -74,7 +75,7 @@ struct GlobalDispatch
 
 	void returnBlock(byte* block)
 	{
-		std::unique_lock<std::mutex> lock(mutex);
+		std::lock_guard<std::mutex> lock(mutex);
 		blocks.emplace_back(block);
 	}
 
@@ -89,7 +90,7 @@ private:
 
 	void requestMem(int sblocks = 1)
 	{
-		std::unique_lock<std::mutex> lock(mutex);
+		std::lock_guard<std::mutex> lock(mutex);
 		for (int i = 0; i < sblocks; ++i)
 		{
 			byte* mem = reinterpret_cast<byte*>(operator new(SUPERBLOCK_SIZE));
@@ -100,6 +101,7 @@ private:
 				blocks.emplace_back(m);
 			}
 		}
+		totalSBlocks += sblocks;
 	}
 
 	// Build the vectors of superblock block indices
@@ -119,6 +121,7 @@ private:
 
 	std::mutex			mutex;
 	std::vector<byte*>	blocks; // TODO: Should these be kept in address sorted order to improve locality?
+	int					totalSBlocks;
 	const FreeIndicies	availible;
 };
 
@@ -252,9 +255,8 @@ struct Cache
 		// it to the list before the previous AB
 		if (full)
 		{
-			auto rit = std::reverse_iterator<It>(actBlock);
-			if (rit != std::rend(slabs))
-				actBlock = rit.base();
+			if (actBlock != std::begin(slabs))
+				actBlock = --actBlock;
 			else
 				actBlock = slabs.emplace(actBlock, blockSize, count);
 
@@ -263,7 +265,8 @@ struct Cache
 		return mem;
 	}
 
-	void deallocate(byte* ptr) 
+	template<class T>
+	void deallocate(T* ptr) 
 	{
 		// Look at the active block first, then the fuller blocks after it
 		// after that start over from the beginning
@@ -285,11 +288,16 @@ struct Cache
 		}
 
 		// If the Slab is empty enough place it before the active block
+		// TODO: How to avoid this running multiple times without a random access iterator?
 		if (it->size() <= threshold
 			&& it != actBlock)
 		{
 			slabs.splice(actBlock, slabs, it);
 		}
+
+		// Return memory to Dispatcher
+		else if (it->empty())
+			slabs.erase(it);
 	}
 };
 
@@ -298,17 +306,17 @@ struct Bucket
 {
 	using size_type = size_t;
 
-	std::vector<Cache> buckets;
+	std::vector<Cache> caches;
 
 	Bucket()
 	{
 		for (int i = 0; i < NUM_CACHES; ++i)
-			buckets.emplace_back(blocksPerSlab[i], cacheSizes[i]);
+			caches.emplace_back(blocksPerSlab[i], cacheSizes[i]);
 	}
 
 	byte* allocate(size_type bytes)
 	{
-		for (auto& c : buckets)
+		for (auto& c : caches)
 			if (c.blockSize >= bytes)
 				return c.allocate();
 
@@ -316,9 +324,15 @@ struct Bucket
 	}
 
 	template<class T>
-	void deallocate(T* ptr) 
+	void deallocate(T* ptr, size_type n) 
 	{
-
+		const auto bytes = sizeof(T) * n;
+		for(auto& c : caches)
+			if (c.blockSize >= bytes)
+			{
+				c.deallocate(ptr);
+				break;
+			}
 	}
 };
 
@@ -331,14 +345,14 @@ struct SmpVec
 	template<class... Args>
 	decltype(auto) emplace_back(Args&& ...args) 
 	{
-		std::unique_lock<std::shared_mutex> lock(mutex);
+		std::lock_guard<std::shared_mutex> lock(mutex);
 		return vec.emplace_back(std::forward<Args>(args)...);
 	}
 
 	template<class Func>
 	byte* lIterate(Func&& func)
 	{
-		std::unique_lock<std::shared_mutex> lock(mutex);
+		std::lock_guard<std::shared_mutex> lock(mutex);
 		for (auto& v : vec)
 			if (auto ptr = func(v))
 				return ptr;
@@ -431,8 +445,20 @@ struct Interface
 	void deallocate(T* ptr, size_type n)
 	{
 		// Look in this threads memory Caches first
+		const auto id = std::this_thread::get_id();
+
+		buckets.siterate([&](BucketPair& p) -> byte*
+		{
+			if (p.id == id)
+			{
+				p.bucket.deallocate(ptr, n);
+				return reinterpret_cast<byte*>(ptr); // This is really a hack here
+			}
+			return nullptr;
+		});
 		
 		// Then other threads
+		// TODO: We'll have to either lock the Slab entirely or do sepperate availible lists like TBB
 	}
 };
 

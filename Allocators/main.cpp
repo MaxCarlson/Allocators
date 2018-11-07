@@ -59,69 +59,81 @@ int main()
 	//alloc::SlabMem<size_t>::addCache2(sizeof(size_t), 1 << 10, 512);
 	//alloc::FreeList<int, 50000, alloc::TreePolicy> al;
 	
+	constexpr int count = 100;
+
+	using namespace SlabMultiImpl;
 
 	alloc::SlabMulti<size_t> multi;
+
+	std::vector<Slab> sls;
 	
 	std::vector<size_t, alloc::SlabMulti<size_t>> vec(multi);
 	vec.reserve(10);
 
-	size_t *ar[270];
-	for (int i = 0; i < 270; ++i)
-	{
-		ar[i] = multi.allocate(2);
+	std::vector<int> order(count);
+	//std::uniform_int_distribution<int> dis(0, count / 4);
+	std::default_random_engine re;
 
-	}
-
-	for (int num = 1024, i = 0;
-		i < 16; num *= 2, ++i)
-	{
-		auto start = Clock::now();
-
-		std::vector<Large> ar;
-		for (size_t j = 0; j < num; ++j)
-		{
-			ar.emplace_back(50000, 1);
-		}
-
-		auto end = Clock::now();
-		std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << '\n';
-		ar.clear();
-		ar.shrink_to_fit();
-	}
+	std::iota(		std::begin(order), std::end(order), 0);
+	std::shuffle(	std::begin(order), std::end(order), re);
 
 
-	/*
-	size_t test = 0;
-	size_t deallocT = 0;
-	alloc::SlabObj<int>::addCache(100);
-
-	constexpr int count = 100000000;
-
-	size_t** ptrs = new size_t*[count];
-	size_t idx = 0;
-
+	for (int i = 0; i < count; ++i)
+		sls.emplace_back(64, 256);
+	
 	auto start = Clock::now();
-	for (size_t i = 0; i < 1000000000; ++i, ++idx)
+	for(auto f = 0; f < 50; ++f)
 	{
-		if (idx >= count)
+		for (int i = 0; i < count / 2; ++i)
 		{
-			idx = 0;
-			auto start = Clock::now();
-			alloc::SlabMem<size_t>::freeAll(sizeof(size_t));
-			//alloc::SlabObj<int>::freeAll();
-			auto end = Clock::now();
-			deallocT += std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+			int j = 0;
+			for(auto it = std::begin(sls), E = std::end(sls); it != E; ++it, ++j)
+				if (j == order[i])
+				{
+					sls.erase(it);
+					break;
+				}
 		}
-		
-		//ptrs[idx] = alloc::SlabObj<int>::allocate();
-		ptrs[idx] = alloc::SlabMem<size_t>::allocate();
-		test += *ptrs[idx];
+		for (int i = 0; i < count / 2; ++i)
+		{
+			int j = 0;
+			for (auto it = std::begin(sls), E = std::end(sls); it != E; ++it, ++j)
+				if (j == order[i])
+				{
+					sls.emplace(it, 64, 256);
+					break;
+				}
+		}
+
+		std::shuffle(std::begin(order), std::end(order), re);
 	}
 
-	auto end = Clock::now();
+	std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - start).count();
 
-	std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() - deallocT << ' ' << test;
-	*/
+
+	size_t *ar[count];
+	for (int i = 0; i < count; ++i)
+	{
+		ar[i] = multi.allocate(1);
+	}
+
+	while (true)
+	{
+		for (int i = 0; i < count / 3; ++i)
+		{
+			multi.deallocate(ar[order[i]], 1);
+		}
+
+		for (int i = 0; i < count / 3; ++i)
+			ar[order[i]] = multi.allocate(1);
+
+		std::shuffle(std::begin(order), std::end(order), re);
+	}
+
+
+
+	//auto start = Clock::now();
+
 
 	return 0;
 }
