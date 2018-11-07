@@ -65,7 +65,12 @@ int main()
 	std::vector<size_t, alloc::SlabMulti<size_t>> vec(multi);
 	vec.reserve(10);
 
-	auto p = multi.allocate(2);
+	size_t *ar[270];
+	for (int i = 0; i < 270; ++i)
+	{
+		ar[i] = multi.allocate(2);
+
+	}
 
 	for (int num = 1024, i = 0;
 		i < 16; num *= 2, ++i)

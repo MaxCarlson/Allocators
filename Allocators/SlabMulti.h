@@ -236,7 +236,7 @@ struct Cache
 		actBlock{	other.actBlock }
 	{}
 
-	Cache(const Cache& other) noexcept : // TODO: Why is this needed?
+	Cache(const Cache& other) : // TODO: Why is this needed?
 		count{		other.count },
 		blockSize{	other.blockSize },
 		threshold{	other.threshold }, 
@@ -251,14 +251,45 @@ struct Cache
 		// If active block is full, create a new one and add
 		// it to the list before the previous AB
 		if (full)
-			actBlock = slabs.emplace(actBlock, blockSize, count);
+		{
+			auto rit = std::reverse_iterator<It>(actBlock);
+			if (rit != std::rend(slabs))
+				actBlock = rit.base();
+			else
+				actBlock = slabs.emplace(actBlock, blockSize, count);
+
+		}
 
 		return mem;
 	}
 
 	void deallocate(byte* ptr) 
 	{
+		// Look at the active block first, then the fuller blocks after it
+		// after that start over from the beginning
+		//
+		// TODO: Try benchmarking after looking at blocks after actBlock looking in reverse order
+		// from active block
+		auto it = actBlock;
+		for (auto E = std::end(slabs);;)
+		{
+			if (it->containsMem(ptr))
+			{
+				it->deallocate(ptr);
+				break;
+			}
 
+			++it;
+			if (it == E)
+				it = std::begin(slabs); // TODO: Look into better ways to do this block
+		}
+
+		// If the Slab is empty enough place it before the active block
+		if (it->size() <= threshold
+			&& it != actBlock)
+		{
+			slabs.splice(actBlock, slabs, it);
+		}
 	}
 };
 
