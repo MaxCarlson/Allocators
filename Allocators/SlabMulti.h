@@ -306,10 +306,9 @@ struct Bucket
 {
 	using size_type = size_t;
 
-	std::vector<Cache> caches;
-
 	Bucket()
 	{
+		caches.reserve(NUM_CACHES);
 		for (int i = 0; i < NUM_CACHES; ++i)
 			caches.emplace_back(blocksPerSlab[i], cacheSizes[i]);
 	}
@@ -320,7 +319,7 @@ struct Bucket
 			if (c.blockSize >= bytes)
 				return c.allocate();
 
-		throw std::bad_alloc();
+		return reinterpret_cast<byte*>(operator new(bytes)); // TODO: Make sure the de/allocations past Slab sizes are working!
 	}
 
 	template<class T>
@@ -331,9 +330,14 @@ struct Bucket
 			if (c.blockSize >= bytes)
 			{
 				c.deallocate(ptr);
-				break;
+				return;
 			}
+
+		operator delete(ptr, bytes); // TODO: Make sure the de/allocations past Slab sizes are working!
 	}
+
+private:
+	std::vector<Cache> caches;
 };
 
 template<class T>
@@ -410,8 +414,6 @@ struct Interface
 {
 	using size_type		= size_t;
 
-	SmpVec<BucketPair> buckets;
-
 	Interface() 
 	{
 
@@ -460,6 +462,9 @@ struct Interface
 		// Then other threads
 		// TODO: We'll have to either lock the Slab entirely or do sepperate availible lists like TBB
 	}
+
+private:
+	SmpVec<BucketPair> buckets;
 };
 
 }// End SlabMultiImpl::
