@@ -296,15 +296,19 @@ struct Cache
 		}
 
 		// Return memory to Dispatcher
-		else if (it->empty())
+		else if (it->empty()) // TODO: If we switch to vector more work will have to be done to keep iterator correct!
 		{
 			if (it != actBlock)
 				slabs.erase(it);
 			else
-				actBlock = slabs.erase(it);
+			{
+				if (actBlock != std::begin(slabs))
+					actBlock = std::prev(it);
+				else
+					actBlock = std::next(it);
+				slabs.erase(it);
+			}
 		}
-
-		auto&b = *actBlock;
 	}
 };
 
