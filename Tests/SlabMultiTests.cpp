@@ -3,6 +3,7 @@
 #include "CppUnitTest.h"
 #include "../Allocators/SlabMulti.h"
 #include <vector>
+#include <map>
 #include <random>
 
 constexpr int count = 1000;
@@ -72,8 +73,28 @@ public:
 
 	TEST_METHOD(Dealloc_Serial)
 	{
-
+		// TODO: How to test alloc/dealloc sepperatly here,
+		// Probably would help to have a special helper type
 	}
+
+	TEST_METHOD(Container_Map)
+	{
+		decltype(multi)::rebind<std::pair<const size_t, int>>::other al(multi);
+		std::map<size_t, int, std::less<size_t>, decltype(al)> m(al);
+		
+		for (int i = 0; i < count; ++i)
+		{
+			m.emplace(i, i);
+		}
+
+		for (int i = 0; i < count; ++i)
+		{
+			auto find = m.find(i);
+			Assert::IsTrue(find->first == find->second);
+			Assert::IsTrue(find->first == i);
+		}
+	}
+
 };
 
 }

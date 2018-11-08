@@ -75,51 +75,6 @@ int main()
 	std::iota(		std::begin(order), std::end(order), 0);
 	std::shuffle(	std::begin(order), std::end(order), re);
 
-	const std::vector<int> szs = { 64,  128, 256, 512, 1024, 2048, 4096, 8192 };
-	const std::vector<int> zsz = { 256, 128,  64,  32,   16,	8,	  4,	2 };
-
-
-	std::vector<Slab> sls;
-	//std::list<Slab> sls;
-
-	for (int i = 0; i < count; ++i)
-		sls.emplace_back(szs[i % 8], zsz[i % 8]);
-
-	for (auto g = 1; g < 1000; g *= 5)
-	{
-		auto start = Clock::now();
-		for (auto f = 0; f < 100 * g; ++f)
-		{
-			for (int i = 0; i < count; ++i)
-			{
-				int j = 0;
-				for (auto it = std::begin(sls), E = std::end(sls); it != E; ++it, ++j)
-					if (j == order[i])
-					{
-						sls.erase(it); // Not all blocks are being returned by Slabs here!
-						break;
-					}
-			}
-			for (int i = 0; i < count; ++i)
-			{
-				int j = 0;
-				for (auto it = std::begin(sls), E = std::end(sls); it != E; ++it, ++j)
-					if (j == order[i])
-					{
-						sls.emplace(it, szs[i % 8], zsz[i % 8]);
-						break;
-					}
-			}
-
-			std::shuffle(std::begin(order), std::end(order), re);
-		}
-
-		std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - start).count() << '\n';
-	}
-	
-
-
-
 	size_t *ar[count];
 	for (int i = 0; i < count; ++i)
 	{
@@ -138,7 +93,6 @@ int main()
 
 		std::shuffle(std::begin(order), std::end(order), re);
 	}
-
 
 
 	//auto start = Clock::now();

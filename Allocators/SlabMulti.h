@@ -511,6 +511,9 @@ public:
 	template<class U>
 	friend class SlabMulti;
 
+	template<class U>
+	struct rebind { using other = SlabMulti<U>; };
+
 	SlabMulti() :
 		interfacePtr{ new SlabMultiImpl::Interface{} }
 	{
