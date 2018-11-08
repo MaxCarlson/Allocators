@@ -21,9 +21,9 @@ namespace SlabMultiImpl
 constexpr auto SUPERBLOCK_SIZE	= 1 << 20;
 constexpr auto SLAB_SIZE		= 1 << 14;
 constexpr auto MAX_SLAB_BLOCKS	= 65535;						// Max number of memory blocks a Slab can be divided into 
-constexpr auto NUM_CACHES		= 7;
+constexpr auto NUM_CACHES		= 8;
 constexpr auto SMALLEST_CACHE	= 64;
-constexpr auto LARGEST_CACHE	= SMALLEST_CACHE << NUM_CACHES;
+constexpr auto LARGEST_CACHE	= SMALLEST_CACHE << NUM_CACHES - 1;
 constexpr auto INIT_SUPERBLOCKS = 4;							// Number of Superblocks allocated per request
 
 static_assert(LARGEST_CACHE <= SLAB_SIZE);
@@ -84,6 +84,8 @@ struct GlobalDispatch
 		for (const auto bs : availible)
 			if (bs.first >= blockSz)
 				return bs.second;
+
+		throw std::runtime_error("Incorrect Cache size request");
 	}
 	
 private:
@@ -101,14 +103,14 @@ private:
 	}
 
 	// Build the vectors of superblock block indices
-	FreeIndicies buildIndicies()
+	FreeIndicies buildIndicies() const
 	{
 		int i = 0;
 		FreeIndicies av{ static_cast<size_t>(NUM_CACHES) };
 		for (auto& a : av)
 		{
-			a.first = SLAB_SIZE / cacheSizes[i];
-			a.second.resize(a.first);
+			a.first = cacheSizes[i];
+			a.second.resize(SLAB_SIZE / a.first);
 			std::iota(std::rbegin(a.second), std::rend(a.second), 0);
 			++i;
 		}
@@ -116,7 +118,7 @@ private:
 	}
 
 	std::mutex			mutex;
-	std::vector<byte*>	blocks; // TODO: Should these be kept in address sorted order to improve locality?
+	std::vector<byte*>	blocks;			// TODO: Should these be kept in address sorted order to improve locality?
 	int					totalSBlocks;
 	const FreeIndicies	availible;
 };
@@ -131,7 +133,7 @@ private:
 	byte*								mem;
 	size_type							blockSize;	// Size of the blocks the super block is divided into
 	size_type							count;		// TODO: This can be converted to IndexSizeT 
-	std::vector<SlabImpl::IndexSizeT>	availible;	// TODO: Issue. Overtime allocation locality decreases as indicies are jumbled
+	std::vector<SlabImpl::IndexSizeT>	availible;	// TODO: Issue: Over time allocation locality decreases as indicies are jumbled
 
 public:
 
@@ -164,6 +166,8 @@ public:
 
 	Slab& operator=(Slab&& other) noexcept
 	{
+		if (mem)
+			dispatcher.returnBlock(mem);
 		mem			= other.mem;
 		blockSize	= other.blockSize;
 		count		= other.count;
