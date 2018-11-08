@@ -297,7 +297,14 @@ struct Cache
 
 		// Return memory to Dispatcher
 		else if (it->empty())
-			slabs.erase(it);
+		{
+			if (it != actBlock)
+				slabs.erase(it);
+			else
+				actBlock = slabs.erase(it);
+		}
+
+		auto&b = *actBlock;
 	}
 };
 

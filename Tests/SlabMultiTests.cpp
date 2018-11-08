@@ -23,7 +23,7 @@ public:
 
 	std::vector<int> getOrder(int seed, int num = count)
 	{
-		std::vector<int> order{ num };
+		std::vector<int> order(num);
 		std::default_random_engine re(seed);
 		std::iota(std::begin(order), std::end(order), 0);
 		std::shuffle(std::begin(order), std::end(order), re);
@@ -41,8 +41,25 @@ public:
 		{
 			const auto n = dis(re);
 			ptrs.emplace_back(multi.allocate<T>(n), n);
+
+			for (int j = 0; j < n; ++j)
+				*(ptrs.back().first + j) = n;
 		}
 		return ptrs;
+	}
+
+	template<class T>
+	void dealloc(std::vector<std::pair<T*, int>>& ptrs, const std::vector<int>& order, int num = count)
+	{
+		for (int i = 0; i < ptrs.size(); ++i)
+		{
+			auto it = std::begin(ptrs) + order[i];
+
+			for (int j = 0; j < it->second; ++j)
+				Assert::IsTrue(*(it->first + j) == it->second);
+
+			multi.deallocate(it->first, it->second);
+		}
 	}
 
 	TEST_METHOD(Alloc_Serial)
@@ -50,6 +67,7 @@ public:
 		auto ptrs		= alloc<size_t>(64, 1);
 		auto order		= getOrder(1);
 
+		dealloc(ptrs, order);
 	}
 
 	TEST_METHOD(Dealloc_Serial)
