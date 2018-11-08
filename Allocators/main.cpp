@@ -79,8 +79,8 @@ int main()
 	const std::vector<int> zsz = { 256, 128,  64,  32,   16,	8,	  4,	2 };
 
 
-	//std::vector<Slab> sls;
-	std::list<Slab> sls;
+	std::vector<Slab> sls;
+	//std::list<Slab> sls;
 
 	for (int i = 0; i < count; ++i)
 		sls.emplace_back(szs[i % 8], zsz[i % 8]);

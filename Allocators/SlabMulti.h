@@ -23,7 +23,7 @@ constexpr auto SLAB_SIZE		= 1 << 14;
 constexpr auto MAX_SLAB_BLOCKS	= 65535;						// Max number of memory blocks a Slab can be divided into 
 constexpr auto NUM_CACHES		= 8;
 constexpr auto SMALLEST_CACHE	= 64;
-constexpr auto LARGEST_CACHE	= SMALLEST_CACHE << NUM_CACHES - 1;
+constexpr auto LARGEST_CACHE	= SMALLEST_CACHE << (NUM_CACHES - 1);
 constexpr auto INIT_SUPERBLOCKS = 4;							// Number of Superblocks allocated per request
 
 static_assert(LARGEST_CACHE <= SLAB_SIZE);
@@ -52,7 +52,7 @@ const std::vector<int> blocksPerSlab	= buildBlocksPer(cacheSizes);
 
 struct GlobalDispatch
 {
-	using FreeIndicies = std::vector<std::pair<size_t, std::vector<SlabImpl::IndexSizeT>>>;
+	using FreeIndicies = std::vector<std::pair<size_t, std::vector<IndexSizeT>>>;
 
 	GlobalDispatch() :
 		mutex{},
@@ -79,7 +79,7 @@ struct GlobalDispatch
 		blocks.emplace_back(block);
 	}
 
-	std::vector<SlabImpl::IndexSizeT> getIndicies(size_t blockSz) const
+	std::vector<IndexSizeT> getIndicies(size_t blockSz) const
 	{
 		for (const auto bs : availible)
 			if (bs.first >= blockSz)
@@ -130,10 +130,10 @@ struct Slab
 private:
 	using size_type = size_t;
 
-	byte*								mem;
-	size_type							blockSize;	// Size of the blocks the super block is divided into
-	size_type							count;		// TODO: This can be converted to IndexSizeT 
-	std::vector<SlabImpl::IndexSizeT>	availible;	// TODO: Issue: Over time allocation locality decreases as indicies are jumbled
+	byte*					mem;
+	size_type				blockSize;	// Size of the blocks the super block is divided into
+	size_type				count;		// TODO: This can be converted to IndexSizeT 
+	std::vector<IndexSizeT>	availible;	// TODO: Issue: Over time allocation locality decreases as indicies are jumbled
 
 public:
 
@@ -211,7 +211,7 @@ public:
 struct Cache
 {
 	using size_type = size_t;
-	using Container = std::list<Slab>;
+	using Container = std::list<Slab>; // TODO: Will test with std::vector<Slab> as in testing with Slabs it appears near as fast in bad senarios
 	using It		= Container::iterator;
 
 	const size_type	count;
@@ -283,7 +283,7 @@ struct Cache
 			}
 
 			++it;
-			if (it == E)
+			if (it == E)				// TODO: Optimization: Move another loop outside of this one, get rid of branch
 				it = std::begin(slabs); // TODO: Look into better ways to do this block
 		}
 
