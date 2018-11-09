@@ -5,11 +5,11 @@
 #include <vector>
 #include <map>
 #include <random>
+#include <future>
 
 constexpr int count = 1000;
 
-
-
+// Figure out a better way to do this
 struct TestStruct
 {
 	inline static std::atomic<size_t> DtorCount = 0;
@@ -24,9 +24,11 @@ struct TestStruct
 	}
 
 	bool operator==(const TestStruct& other) const { return i == other.i; }
+	int& operator*() { return i; }
 
 	int i;
 };
+
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace Tests
@@ -55,17 +57,17 @@ public:
 	struct AlRet
 	{
 		int totalAllocs = 0;
-		std::vector<std::pair<T*, int>> ptrs;
+		std::vector<std::pair<T*, T>> ptrs;
 	};
 
 	template<class T>
-	AlRet<T> alloc(int maxPerAl, int seed, int num = count)
+	AlRet<T> allocate(int maxPerAl, int seed, int num = count)
 	{
 		AlRet<T> val;
 		std::default_random_engine		re(seed);
 		std::uniform_int_distribution	dis(1, maxPerAl);
 
-		for(int i = 0; i < num; ++i)
+		for (int i = 0; i < num; ++i)
 		{
 			const auto n = dis(re);
 			val.ptrs.emplace_back(multi.allocate<T>(n), n);
@@ -80,7 +82,7 @@ public:
 	}
 
 	template<class T>
-	void dealloc(std::vector<std::pair<T*, int>>& ptrs, const std::vector<int>& order, int num = count)
+	void dealloc(std::vector<std::pair<T*, T>>& ptrs, const std::vector<int>& order, int num = count)
 	{
 		for (int i = 0; i < ptrs.size(); ++i)
 		{
@@ -96,14 +98,9 @@ public:
 	TEST_METHOD(AlDe_Serial)
 	{
 		auto order		= getOrder(1);
-		auto ptrsSt		= alloc<size_t>(64, 1);
-		auto ptrsTs		= alloc<TestStruct>(64, 2);
+		auto ptrsSt		= allocate<size_t>(64, 1);
 
 		dealloc(ptrsSt.ptrs, order);
-
-		auto tsDtorPre = static_cast<size_t>(TestStruct::DtorCount);
-		dealloc(ptrsTs.ptrs, order);
-		Assert::IsTrue(TestStruct::DtorCount == tsDtorPre + ptrsTs.totalAllocs);
 	}
 
 	TEST_METHOD(Dealloc_Serial)
@@ -132,7 +129,11 @@ public:
 
 	TEST_METHOD(Alloc_Parallel)
 	{
+		std::vector<std::promise<AlRet<size_t>>> pvec;
 
+		//auto f1 = std::async(std::launch::async, allocate<AlRet<size_t>>, 128, 5, count);
+		//auto retf1 = f1.get();
+		
 	}
 
 	TEST_METHOD(Dealloc_Parallel)
