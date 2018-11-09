@@ -129,11 +129,26 @@ public:
 
 	TEST_METHOD(Alloc_Parallel)
 	{
-		std::vector<std::promise<AlRet<size_t>>> pvec;
+		constexpr int threads = 4;
+		std::vector<std::future<AlRet<size_t>>> fvec;
 
-		//auto f1 = std::async(std::launch::async, allocate<AlRet<size_t>>, 128, 5, count);
-		//auto retf1 = f1.get();
+		for(int i = 0; i < threads; ++i)
+			fvec.emplace_back(std::async(std::launch::async, &SlabMultiTests::allocate<size_t>, this, 128, 5, count));
 		
+		std::vector<std::vector<int>> orders;
+		for (int i = 0; i < threads; ++i)
+			orders.emplace_back(getOrder(i));
+
+		std::vector<AlRet<size_t>> retVec;
+		for (int i = 0; i < threads; ++i)
+			retVec.emplace_back(fvec[i].get());
+
+		std::vector<std::thread> thVec;
+		for (int i = 0; i < threads; ++i)
+			thVec.emplace_back(std::thread([&](SlabMultiTests * t) {t->dealloc<size_t>(retVec[i].ptrs, orders[i]); }, this));
+		
+		for (int i = 0; i < threads; ++i)
+			thVec[i].join();
 	}
 
 	TEST_METHOD(Dealloc_Parallel)
