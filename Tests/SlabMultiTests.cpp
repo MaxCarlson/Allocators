@@ -8,6 +8,26 @@
 
 constexpr int count = 1000;
 
+
+
+struct TestStruct
+{
+	inline static std::atomic<size_t> DtorCount = 0;
+
+	TestStruct(int i) : 
+		i{ i } 
+	{}
+
+	~TestStruct() 
+	{
+		++DtorCount;
+	}
+
+	bool operator==(const TestStruct& other) const { return i == other.i; }
+
+	int i;
+};
+
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace Tests
 {
@@ -32,21 +52,31 @@ public:
 	}
 
 	template<class T>
-	std::vector<std::pair<T*, int>> alloc(int maxPerAl, int seed, int num = count)
+	struct AlRet
 	{
+		int totalAllocs = 0;
 		std::vector<std::pair<T*, int>> ptrs;
+	};
+
+	template<class T>
+	AlRet<T> alloc(int maxPerAl, int seed, int num = count)
+	{
+		AlRet<T> val;
 		std::default_random_engine		re(seed);
 		std::uniform_int_distribution	dis(1, maxPerAl);
 
 		for(int i = 0; i < num; ++i)
 		{
 			const auto n = dis(re);
-			ptrs.emplace_back(multi.allocate<T>(n), n);
+			val.ptrs.emplace_back(multi.allocate<T>(n), n);
 
+			// Set sentinal values so we can make sure everything
+			// is working correctly later
 			for (int j = 0; j < n; ++j)
-				*(ptrs.back().first + j) = n;
+				new (val.ptrs.back().first + j) T(n);
+			val.totalAllocs += n;
 		}
-		return ptrs;
+		return val;
 	}
 
 	template<class T>
@@ -63,12 +93,17 @@ public:
 		}
 	}
 
-	TEST_METHOD(Alloc_Serial)
+	TEST_METHOD(AlDe_Serial)
 	{
-		auto ptrs		= alloc<size_t>(64, 1);
 		auto order		= getOrder(1);
+		auto ptrsSt		= alloc<size_t>(64, 1);
+		auto ptrsTs		= alloc<TestStruct>(64, 2);
 
-		dealloc(ptrs, order);
+		dealloc(ptrsSt.ptrs, order);
+
+		auto tsDtorPre = static_cast<size_t>(TestStruct::DtorCount);
+		dealloc(ptrsTs.ptrs, order);
+		Assert::IsTrue(TestStruct::DtorCount == tsDtorPre + ptrsTs.totalAllocs);
 	}
 
 	TEST_METHOD(Dealloc_Serial)
@@ -93,6 +128,16 @@ public:
 			Assert::IsTrue(find->first == find->second);
 			Assert::IsTrue(find->first == i);
 		}
+	}
+
+	TEST_METHOD(Alloc_Parallel)
+	{
+
+	}
+
+	TEST_METHOD(Dealloc_Parallel)
+	{
+
 	}
 
 };
