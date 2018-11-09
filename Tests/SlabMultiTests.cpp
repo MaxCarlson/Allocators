@@ -127,28 +127,42 @@ public:
 		}
 	}
 
-	TEST_METHOD(Alloc_Parallel)
+	template<class T>
+	std::pair<std::vector<AlRet<T>>, std::vector<std::vector<int>>> parallelAlloc(int threads)
 	{
-		constexpr int threads = 4;
-		std::vector<std::future<AlRet<size_t>>> fvec;
+		std::vector<std::future<AlRet<T>>> fvec;
 
-		for(int i = 0; i < threads; ++i)
-			fvec.emplace_back(std::async(std::launch::async, &SlabMultiTests::allocate<size_t>, this, 128, 5, count));
-		
+		for (int i = 0; i < threads; ++i)
+			fvec.emplace_back(std::async(std::launch::async, &SlabMultiTests::allocate<T>, this, 128, 5, count));
+
 		std::vector<std::vector<int>> orders;
 		for (int i = 0; i < threads; ++i)
 			orders.emplace_back(getOrder(i));
 
-		std::vector<AlRet<size_t>> retVec;
+		std::vector<AlRet<T>> retVec;
 		for (int i = 0; i < threads; ++i)
 			retVec.emplace_back(fvec[i].get());
 
+		return { retVec, orders };
+	}
+
+	template<class T, class Obj>
+	void parallelDealloc(int threads, Obj* obj, std::vector<AlRet<T>>& retVec, std::vector<std::vector<int>>& orders)
+	{
 		std::vector<std::thread> thVec;
 		for (int i = 0; i < threads; ++i)
-			thVec.emplace_back(std::thread([&](SlabMultiTests * t) {t->dealloc<size_t>(retVec[i].ptrs, orders[i]); }, this));
-		
-		for (int i = 0; i < threads; ++i)
-			thVec[i].join();
+			thVec.emplace_back(std::thread([&](Obj * t) { t->dealloc<T>(retVec[i].ptrs, orders[i]); }, obj));
+
+		for (auto& thr : thVec)
+			thr.join();
+	}
+
+	TEST_METHOD(Alloc_Parallel)
+	{
+		constexpr int threads = 4;
+		auto [retVec, orders] = parallelAlloc<size_t>(threads);
+
+		parallelDealloc(threads, this, retVec, orders);
 	}
 
 	TEST_METHOD(Dealloc_Parallel)
