@@ -1,6 +1,6 @@
 #include "../Allocators/Slab.h"
 #include "../Allocators/FreeList.h"
-
+#include "../Allocators/SlabMulti.h"
 #include <memory>
 #include "TestTypes.h"
 #include "Tests.h"
@@ -9,6 +9,7 @@
 DefaultAlloc<int> defaultAl;
 alloc::SlabMem<int> slabM;
 alloc::SlabObj<int> slabO;
+alloc::SlabMulti<int> multi;
 constexpr auto FreeListBytes = (150 + sizeof(alloc::FreeList<PartialInit, 999999999>::OurHeader)) * (maxAllocs * 2); // TODO: Better size needs prediciton
 alloc::FreeList<int, FreeListBytes, alloc::ListPolicy> freeAlList;
 alloc::FreeList<int, FreeListBytes, alloc::FlatPolicy> freeAlFlat;
@@ -22,7 +23,8 @@ enum AllocMasks
 	FL_TREE		= 1 << 3,
 	SLAB_MEM	= 1 << 4,
 	SLAB_OBJ	= 1 << 5,
-	ALL_ALLOCS	= (1 << 6) - 1
+	SLAB_MULTI	= 1 << 6,
+	ALL_ALLOCS	= (1 << 7) - 1
 };
 
 enum BenchMasks
@@ -50,25 +52,14 @@ void destroyDealloc(Al& al, Ptr* ptr, size_t n)
 // Allocator allocate/deallocate wrappers.
 // Needed so tests don't complain about compile time stuff 
 // on benches where we can't use a particular allocator
-decltype(auto) defWrappers()
-{
-	auto al = [](auto t, auto cnt = 1) { return defaultAl.allocate<decltype(t)>(cnt); };
-	auto de = [](auto ptr, size_t n) { destroyDealloc(defaultAl, ptr, n); };
-	return std::pair(al, de);
-}
 
+// The basic wrapper for most our allocators
 template<class Al>
-decltype(auto) flWrappers(Al& al)
+decltype(auto) alWrapper(Al& al)
 {
 	auto all = [&](auto t, auto cnt) { return al.allocate<decltype(t)>(cnt); };
 	auto de  = [&](auto ptr, size_t n) { destroyDealloc(al, ptr, n); };
 	return std::pair(all, de);
-}
-decltype(auto) sMemWrappers()
-{
-	auto al = [&](auto t, auto cnt) { return slabM.allocate<decltype(t)>(cnt); };
-	auto de = [&](auto ptr, size_t n) { destroyDealloc(slabM, ptr, n); };
-	return std::pair(al, de);
 }
 
 template<class Xtors>
@@ -204,7 +195,7 @@ decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t alMask = ALL_ALLOCS, siz
 	// Default allocator
 	if (alMask & DEFAULT)
 	{
-		auto[Al, De] = defWrappers();
+		auto[Al, De] = alWrapper(defaultAl);
 		BenchT init(T{}, ctor, Al, De, re);
 		scores.emplace_back(benchAlT(init, defaultAl, ctor, nonType, runs, DEFAULT, bMask));
 	}
@@ -212,7 +203,7 @@ decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t alMask = ALL_ALLOCS, siz
 	// FreeList: ListPolicy
 	if (alMask & FL_LIST)
 	{
-		auto[Al, De] = flWrappers(freeAlList);
+		auto[Al, De] = alWrapper(freeAlList);
 		BenchT init(T{}, ctor, Al, De, re);
 		scores.emplace_back(benchAlT(init, freeAlList, ctor, nonType, runs, FL_LIST, bMask));
 	}
@@ -220,7 +211,7 @@ decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t alMask = ALL_ALLOCS, siz
 	// FreeList: FlatPolicy
 	if (alMask & FL_FLAT)
 	{
-		auto[Al, De] = flWrappers(freeAlFlat);
+		auto[Al, De] = alWrapper(freeAlFlat);
 		BenchT init(T{}, ctor, Al, De, re);
 		scores.emplace_back(benchAlT(init, freeAlFlat, ctor, nonType, runs, FL_FLAT, bMask));
 	}
@@ -228,7 +219,7 @@ decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t alMask = ALL_ALLOCS, siz
 	// FreeList: TreePolicy
 	if (alMask & FL_TREE)
 	{
-		auto[Al, De] = flWrappers(freeAlTree);
+		auto[Al, De] = alWrapper(freeAlTree);
 		BenchT init(T{}, ctor, Al, De, re);
 		scores.emplace_back(benchAlT(init, freeAlTree, ctor, nonType, runs, FL_TREE, bMask));
 	}
@@ -236,7 +227,7 @@ decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t alMask = ALL_ALLOCS, siz
 	// SlabMem
 	if (alMask & SLAB_MEM)
 	{
-		auto[Al, De] = sMemWrappers();
+		auto[Al, De] = alWrapper(slabM);
 		BenchT init(T{}, ctor, Al, De, re);
 		scores.emplace_back(benchAlT(init, slabM, ctor, nonType, runs, SLAB_MEM, bMask));
 	}
@@ -248,6 +239,13 @@ decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t alMask = ALL_ALLOCS, siz
 		BenchT init(T{}, ctor, Al, De, re, true, false);
 		scores.emplace_back(benchAlT(init, slabO, ctor, nonType, runs, SLAB_OBJ, bMask));
 		slabO.freeAll<T, Ctor>(); // Needed to destroy cache of objects (as it's an object pool)
+	}
+
+	if (alMask & SLAB_MULTI)
+	{
+		auto[Al, De] = alWrapper(multi);
+		BenchT init(T{}, ctor, Al, De, re);
+		scores.emplace_back(benchAlT(init, multi, ctor, nonType, runs, SLAB_MEM, bMask));
 	}
 
 	printScores<T>(scores, alMask, bMask);
@@ -271,11 +269,11 @@ int main()
 {
 	//constexpr size_t allocMask = ALL_ALLOCS;
 
-	constexpr size_t allocMask		= SLAB_OBJ | SLAB_MEM;	
-	//constexpr size_t allocMask		= AllocMasks::ALL_ALLOCS; // SLAB_MEM | SLAB_OBJ;	
+	//constexpr size_t allocMask		= SLAB_OBJ | SLAB_MEM;	
+	constexpr size_t allocMask		= AllocMasks::ALL_ALLOCS; // SLAB_MEM | SLAB_OBJ;	
 	constexpr size_t benchMask		= BenchMasks::ALL_BENCH;
 
-	constexpr int numTests			= 6;
+	constexpr int numTests			= 2;
 
 	slabM.addCache2(1 << 5, 1 << 13, cacheSz);
 
