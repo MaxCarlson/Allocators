@@ -10,7 +10,7 @@ DefaultAlloc<int> defaultAl;
 alloc::SlabMem<int> slabM;
 alloc::SlabObj<int> slabO;
 alloc::SlabMulti<int> multi;
-constexpr auto FreeListBytes = (150 + sizeof(alloc::FreeList<PartialInit, 999999999>::OurHeader)) * (maxAllocs * 2); // TODO: Better size needs prediciton
+constexpr auto FreeListBytes = (150 + sizeof(alloc::FreeList<PartialInit, 999999999>::OurHeader)) * (maxAllocs * 4); // TODO: Better size needs prediciton
 alloc::FreeList<int, FreeListBytes, alloc::ListPolicy> freeAlList;
 alloc::FreeList<int, FreeListBytes, alloc::FlatPolicy> freeAlFlat;
 alloc::FreeList<int, FreeListBytes, alloc::TreePolicy> freeAlTree;
@@ -269,8 +269,8 @@ int main()
 {
 	//constexpr size_t allocMask = ALL_ALLOCS;
 
-	//constexpr size_t allocMask		= SLAB_OBJ | SLAB_MEM;	
-	constexpr size_t allocMask		= AllocMasks::ALL_ALLOCS; // SLAB_MEM | SLAB_OBJ;	
+	constexpr size_t allocMask		= SLAB_OBJ | SLAB_MEM | SLAB_MULTI;	
+	//constexpr size_t allocMask		= AllocMasks::ALL_ALLOCS; // SLAB_MEM | SLAB_OBJ;	
 	constexpr size_t benchMask		= BenchMasks::ALL_BENCH;
 
 	constexpr int numTests			= 2;

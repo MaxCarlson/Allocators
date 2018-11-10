@@ -82,7 +82,7 @@ template<size_t bytes, class size_type,
 
 		auto it = lower_bound(availible, start);
 
-		if (it->first > start)
+		if (it == std::end(availible) || it->first > start)
 			it = emplace(availible, it, start, size + Interface::headerSize);
 
 		// Perform coalescence of adjacent blocks

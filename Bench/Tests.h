@@ -218,7 +218,10 @@ double strAl(Init& init, Alloc& al, std::true_type t)
 	using Al		= typename Alloc::template rebind<char>::other; // TODO: Crap we can't use allocators like this with non-standard allocs
 	using String	= std::basic_string<char, std::char_traits<char>, Al>;
 
-	std::vector<String> strings;
+	// All we're doing here is creating a vector of type String which 
+	// uses the allocator in the constructor (because we don't have direct access
+	// to the template we 'rebind' the allocator to String
+	std::vector<String, typename Alloc::template rebind<String>::other> strings(al);
 	std::vector<uint16_t> lens;
 	lens.reserve(maxAllocs);
 
@@ -227,17 +230,18 @@ double strAl(Init& init, Alloc& al, std::true_type t)
 	for (int i = 0; i < maxAllocs; ++i)
 		lens.emplace_back(dis(init.re));
 
-	int idx = 0;
-	auto start = Clock::now();
+	int idx		= 0;
+	auto start	= Clock::now();
 	for (auto i = 0; i < iterations; ++i)
 	{
-		if (i % maxAllocs == 0)
+		if (idx % maxAllocs == 0)
 		{
 			idx = 0;
 			strings.clear();
 		}
 
 		strings.emplace_back(String(lens[idx], static_cast<char>(lens[idx])));
+		++idx;
 	}
 
 	auto end = Clock::now();
