@@ -143,9 +143,9 @@ inline void buildNames(const std::vector<std::string>& allNames,
 template<class T>
 void printScores(std::vector<std::vector<double>>& scores, size_t alMask, size_t bMask, bool isStruct = true)
 {
-	static constexpr int printWidth = 10;
+	static constexpr int printWidth = 11;
 	static const std::vector<std::string> benchNames	= { "Alloc", "Al/De", "R Al/De", "SeqRead", "RandRead", "StrAl/De" };
-	static const std::vector<std::string> allocNames	= { "Default: ", "FLstList: ", "FLstFlat: ", "FLstTree: ", "SlabMem: ", "SlabObj: " };
+	static const std::vector<std::string> allocNames	= { "Default: ", "FLstList: ", "FLstFlat: ", "FLstTree: ", "SlabMem: ", "SlabObj: ", "SlabMulti: " };
 
 	std::vector<std::string> bNames;
 	std::vector<std::string> alNames;

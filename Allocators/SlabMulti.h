@@ -219,7 +219,8 @@ struct Cache
 	int				threshold;
 	Container		slabs;
 	It				actBlock;
-	static constexpr double freeThreshold = 0.25;
+	static constexpr double freeThreshold	= 0.25;
+	static constexpr double MIN_SLABS		= 1;
 
 	Cache(size_type count, size_type blockSize) :
 		count{		count },
@@ -296,7 +297,7 @@ struct Cache
 		}
 
 		// Return memory to Dispatcher
-		else if (it->empty()) // TODO: If we switch to vector more work will have to be done to keep iterator correct!
+		else if (it->empty() && slabs.size() > MIN_SLABS) // TODO: If we switch to vector more work will have to be done to keep iterator correct!
 		{
 			if (it != actBlock)
 				slabs.erase(it);
@@ -309,6 +310,8 @@ struct Cache
 				slabs.erase(it);
 			}
 		}
+
+		auto& bb = *actBlock;
 	}
 };
 

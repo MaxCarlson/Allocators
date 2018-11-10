@@ -14,10 +14,10 @@ using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
 
 constexpr auto cacheSz		= 1024;
 
-constexpr auto iterations	= 1000000;
-constexpr auto maxAllocs	= 160000;
-//constexpr auto iterations	= 1000;
-//constexpr auto maxAllocs	= 1500;
+//constexpr auto iterations	= 100000;
+//constexpr auto maxAllocs	= 100000;
+constexpr auto iterations	= 1000;
+constexpr auto maxAllocs	= 1500;
 
 
 
