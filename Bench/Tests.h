@@ -240,7 +240,7 @@ double strAl(Init& init, Alloc& al, std::true_type t)
 			strings.clear();
 		}
 
-		strings.emplace_back(String(lens[idx], static_cast<char>(lens[idx])));
+		strings.emplace_back(String(lens[idx], static_cast<char>(lens[idx]))); // There's an issue with our allocator here
 		++idx;
 	}
 

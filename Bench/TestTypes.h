@@ -27,7 +27,7 @@ struct DefaultAlloc
 	using value_type		= Type;
 
 	template<class T = Type>
-	T* allocate() { return reinterpret_cast<T*>(operator new(sizeof(Type))); }
+	T* allocate() { return reinterpret_cast<T*>(operator new(sizeof(T))); }
 
 	template<class T = Type>
 	T* allocate(size_t count) { return reinterpret_cast<T*>(operator new(sizeof(T) * count)); }

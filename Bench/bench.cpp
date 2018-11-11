@@ -275,7 +275,7 @@ int main()
 
 	constexpr int numTests			= 2;
 
-	slabM.addCache2(1 << 5, 1 << 13, cacheSz);
+	slabM.addCache2(1 << 5, 1 << 14, cacheSz);
 
 	// Custom ctor for slabObj test structs
 	// Note: Ctor is also used to construct the object for other allocators in tests

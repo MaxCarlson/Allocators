@@ -137,6 +137,8 @@ struct Interface
 			E = std::end(buckets); it != E; ++it)
 			if (it->blockSize >= bytes)
 				return it->allocate<T>();
+
+		return reinterpret_cast<T*>(operator new(bytes));
 	}
 
 	template<class T>
@@ -150,6 +152,7 @@ struct Interface
 				it->deallocate(ptr);
 				return;
 			}
+		operator delete(ptr, count);
 	}
 
 	static std::vector<alloc::CacheInfo> info() noexcept
