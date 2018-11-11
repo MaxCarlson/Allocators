@@ -483,15 +483,10 @@ private:
 
 }// End SlabMultiImpl::
 
-namespace alloc // Move this to Slab.h eventually
+namespace alloc 
 {
 
 // TODO IDEAS:
-// TODO: Should this have a bookeeping thread for other-than-alloc-operations?
-// TODO: Create a global Pool of Slabs that can be passed to Caches in need 
-// (that way we can treat the issue of possibly having Slabs that are never used
-// in the vector of Caches)
-//
 template<class Type>
 class SlabMulti
 {
@@ -544,7 +539,7 @@ public:
 	}
 
 	template<class T = Type>
-	T* allocate(size_t count)
+	T* allocate(size_t count = 1)
 	{
 		return interfacePtr->allocate<T>(count);
 	}
@@ -556,4 +551,4 @@ public:
 	}
 };
 
-}
+} // End alloc::

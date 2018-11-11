@@ -14,10 +14,10 @@ using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
 
 constexpr auto cacheSz		= 1024;
 
-//constexpr auto iterations	= 100000;
-//constexpr auto maxAllocs	= 100000;
-constexpr auto iterations	= 1000;
-constexpr auto maxAllocs	= 1500;
+constexpr auto iterations	= 100000;
+constexpr auto maxAllocs	= 100000;
+//constexpr auto iterations	= 1000;
+//constexpr auto maxAllocs	= 1500;
 
 
 
@@ -39,7 +39,7 @@ struct BenchT
 };
 
 template<class Init>
-decltype(auto) allocMax(Init& init)
+std::vector<typename Init::MyType*> allocMax(Init& init)
 {
 	using T = typename Init::MyType;
 	std::vector<T*> ptrs;
@@ -131,15 +131,15 @@ double randomAlDe(Init& init, Alloc& al)
 
 	std::shuffle(std::begin(ptrs), std::end(ptrs), init.re);
 
-	auto start = Clock::now();
 
 	int allocs		= 0;
 	int deallocs	= 0;
 	auto dis		= std::uniform_int_distribution<int>(1, IN_ROW);
+	auto start		= Clock::now();
 
 	for (auto i = 0; i < iterations; ++i)
 	{
-		if (deallocs > ptrs.size() || (allocs <= 0 || !ptrs.size()))
+		if (deallocs > ptrs.size() || (allocs <= 0 || ptrs.empty()))
 			allocs = dis(init.re);
 
 		else if (deallocs <= 0)
@@ -153,7 +153,7 @@ double randomAlDe(Init& init, Alloc& al)
 				init.ctor.construct(ptrs.back());
 			--allocs;
 		}
-		else if (deallocs || ptrs.size() + allocs >= maxAllocs)
+		else if (deallocs > 0 || ptrs.size() + allocs >= maxAllocs)
 		{
 			auto disDe	= std::uniform_int_distribution<int>(0, ptrs.size() - 1);
 			auto idx	= disDe(init.re);
@@ -161,6 +161,9 @@ double randomAlDe(Init& init, Alloc& al)
 			init.de(ptrs.back(), 1);
 			ptrs.pop_back();
 			--deallocs;
+
+			if (deallocs < 0)
+				deallocs = 0;
 		}
 	}
 	auto end = Clock::now();
@@ -240,7 +243,7 @@ double strAl(Init& init, Alloc& al, std::true_type t)
 			strings.clear();
 		}
 
-		strings.emplace_back(String(lens[idx], static_cast<char>(lens[idx]))); // There's an issue with our allocator here
+		strings.emplace_back(String{ lens[idx], static_cast<char>(lens[idx]), al }); // There's an issue with our allocator here
 		++idx;
 	}
 

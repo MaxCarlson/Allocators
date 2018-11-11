@@ -269,7 +269,7 @@ int main()
 {
 	//constexpr size_t allocMask = ALL_ALLOCS;
 
-	constexpr size_t allocMask		= SLAB_OBJ | SLAB_MEM | SLAB_MULTI;	
+	constexpr size_t allocMask		= SLAB_MULTI;	
 	//constexpr size_t allocMask		= AllocMasks::ALL_ALLOCS; // SLAB_MEM | SLAB_OBJ;	
 	constexpr size_t benchMask		= BenchMasks::ALL_BENCH;
 
