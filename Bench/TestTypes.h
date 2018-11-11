@@ -50,15 +50,34 @@ struct LockedAl
 		mutex{}
 	{}
 
-	template<class T>
-	T* allocate(size_t n)
+	template<class U>
+	LockedAl(const LockedAl<U>& other) : // TODO: This probably doesn't work?
+		init{ other.init },
+		mutex{}
+	{}
+
+	using Type				= typename Init::MyType;
+	using STD_Compatible	= std::true_type;
+	using size_type			= size_t;
+	using difference_type	= std::ptrdiff_t;
+	using pointer			= Type*;
+	using const_pointer		= const pointer;
+	using reference			= Type&;
+	using const_reference	= const reference;
+	using value_type		= Type;
+
+	template<class U>
+	struct rebind { using other = LockedAl<U>; }; // TODO: This may or may not work with the Init lambdas?
+
+	template<class T = Type>
+	T* allocate(size_t n = 1)
 	{
 		std::lock_guard lock(mutex);
 		return init.al(T{}, n);
 	}
 
 	template<class T>
-	void deallocate(T* ptr, size_t n)
+	void deallocate(T* ptr, size_t n = 1)
 	{
 		std::lock_guard lock(mutex);
 		init.de(T{}, n);

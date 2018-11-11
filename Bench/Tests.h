@@ -265,7 +265,7 @@ double stringAl(Init& init, Alloc& al)
 }
 
 template<class Init, class Alloc>
-double multiStrAl(Init& init, Alloc& al)
+double multiStrAl(Init& init, Alloc& al) // TODO: Call strAl with paramers / numThreads on multiple threads
 {
 
 }
