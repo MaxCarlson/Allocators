@@ -15,9 +15,11 @@ using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
 constexpr auto cacheSz		= 1024;
 
 constexpr auto iterations	= 100000;
-constexpr auto maxAllocs	= 100000;
+constexpr auto maxAllocs	= 40000;
 //constexpr auto iterations	= 1000;
 //constexpr auto maxAllocs	= 1500;
+
+constexpr auto numThreads	= 4;
 
 
 
@@ -240,10 +242,10 @@ double strAl(Init& init, Alloc& al, std::true_type t)
 		if (idx % maxAllocs == 0)
 		{
 			idx = 0;
-			strings.clear();
+			strings.clear(); // There's an issue with FreeList allocator here
 		}
 
-		strings.emplace_back(String{ lens[idx], static_cast<char>(lens[idx]), al }); // There's an issue with our allocator here
+		strings.emplace_back(String{ lens[idx], static_cast<char>(lens[idx]), al }); 
 		++idx;
 	}
 
@@ -260,4 +262,10 @@ double stringAl(Init& init, Alloc& al)
 {
 	using TType = typename Alloc::STD_Compatible;
 	return strAl<Init, Alloc>(init, al, TType{});
+}
+
+template<class Init, class Alloc>
+double multiStrAl(Init& init, Alloc& al)
+{
+
 }

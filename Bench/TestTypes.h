@@ -1,6 +1,7 @@
 #pragma once
 #include <array>
 #include <string>
+#include <mutex>
 
 // Helper struct for printing average 
 // scores over all test ( Must be outside of main for good printing)
@@ -37,6 +38,34 @@ struct DefaultAlloc
 
 	template<class U>
 	struct rebind { using other = DefaultAlloc<U>; };
+};
+
+// A wrapper class for the allocator wrappers on non multi-threaded
+// allocators to use in multi-threaded tests
+template<class Init>
+struct LockedAl
+{
+	LockedAl(Init& init) :
+		init{ init },
+		mutex{}
+	{}
+
+	template<class T>
+	T* allocate(size_t n)
+	{
+		std::lock_guard lock(mutex);
+		return init.al(T{}, n);
+	}
+
+	template<class T>
+	void deallocate(T* ptr, size_t n)
+	{
+		std::lock_guard lock(mutex);
+		init.de(T{}, n);
+	}
+
+	Init& init;
+	std::mutex mutex;
 };
 
 inline static int TestV = 0;
