@@ -515,6 +515,12 @@ public:
 	template<class U>
 	struct rebind { using other = SlabMulti<U>; };
 
+	template<class U>
+	bool operator==(const SlabMulti<U>& other) const noexcept { return other.interfacePtr == interfacePtr; }
+
+	template<class U>
+	bool operator!=(const SlabMulti<U>& other) const noexcept { return *this == other; }
+
 	SlabMulti() :
 		interfacePtr{ new SlabMultiImpl::Interface{} }
 	{

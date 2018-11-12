@@ -44,11 +44,13 @@ struct DefaultAlloc
 // A wrapper class for the allocator wrappers on non multi-threaded
 // allocators to use in multi-threaded tests
 template<class Init, class Type, class Al>
-struct LockedAl
+class LockedAl
 {
-	LockedAl() :
-		init{nullptr}
-	{}
+public:
+
+	//LockedAl() :
+	//	init{nullptr}
+	//{}
 
 	LockedAl(Init& init) :
 		init{ &init }
@@ -63,10 +65,23 @@ struct LockedAl
 		init{ other.init }
 	{}
 
+	LockedAl(LockedAl&& other) noexcept :
+		init{ other.init }
+	{}
+
 	template<class U>
 	LockedAl(LockedAl<Init, U, Al>&& other) noexcept :
 		init{ other.init }
 	{}
+
+	template<class U>
+	bool operator==(const LockedAl<Init, U, Al>& other) const noexcept { return other.init == init; }
+
+	template<class U>
+	bool operator!=(const LockedAl<Init, U, Al>& other) const noexcept { return *this == other; }
+
+	template<class Init, class U, class Al>
+	friend class LockedAl;
 
 	using STD_Compatible	= std::true_type;
 	using Thread_Safe		= typename Al::Thread_Safe;
@@ -85,7 +100,7 @@ struct LockedAl
 	template<class T = Type>
 	T* allocate(size_t n = 1)
 	{
-		if constexpr (std::is_same_v<Thread_Safe, std::true_type>)
+		if constexpr (std::is_same_v<Thread_Safe, std::false_type>)
 		{
 			std::lock_guard lock(mutex);
 			return init->al(T{}, n);
@@ -96,7 +111,7 @@ struct LockedAl
 
 	void deallocate(Type* ptr, size_t n = 1)
 	{
-		if constexpr (std::is_same_v<Thread_Safe, std::true_type>)
+		if constexpr (std::is_same_v<Thread_Safe, std::false_type>)
 		{
 			std::lock_guard lock(mutex);
 			init->de(ptr, n);
@@ -105,6 +120,7 @@ struct LockedAl
 			init->de(ptr, n);
 	}
 
+private:
 	Init* init;
 	mutable std::mutex mutex;
 };

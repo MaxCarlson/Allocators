@@ -14,10 +14,10 @@ using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
 
 constexpr auto cacheSz		= 1024;
 
-constexpr auto iterations	= 100000;
-constexpr auto maxAllocs	= 40000;
-//constexpr auto iterations	= 1000;
-//constexpr auto maxAllocs	= 1500;
+//constexpr auto iterations	= 100000;
+//constexpr auto maxAllocs	= 40000;
+constexpr auto iterations	= 1000;
+constexpr auto maxAllocs	= 1500;
 
 constexpr auto numThreads	= 4;
 
@@ -270,6 +270,8 @@ double multiStrAl(Init& init, Alloc& al) // TODO: Call strAl with paramers / num
 	using T			= typename Init::MyType;
 	using STDCompat = typename Alloc::STD_Compatible;
 	using T_Safe	= typename Alloc::Thread_Safe;
+
+	LockedAl<Init, T, Alloc> lAl{ init };
 
 	return strAl(init, lAl, STDCompat{});
 }
