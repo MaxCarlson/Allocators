@@ -65,7 +65,7 @@ struct GlobalDispatch
 
 	byte* getBlock()
 	{
-		std::lock_guard<std::mutex> lock(mutex); 
+		std::lock_guard lock(mutex); 
 		if (blocks.empty())
 			requestMem(INIT_SUPERBLOCKS);
 		byte* mem = blocks.back();
@@ -75,7 +75,7 @@ struct GlobalDispatch
 
 	void returnBlock(byte* block)
 	{
-		std::lock_guard<std::mutex> lock(mutex);
+		std::lock_guard lock(mutex);
 		blocks.emplace_back(block);
 	}
 
@@ -363,14 +363,14 @@ struct SmpVec
 	template<class... Args>
 	decltype(auto) emplace_back(Args&& ...args) 
 	{
-		std::lock_guard<std::shared_mutex> lock(mutex);
+		std::lock_guard lock(mutex);
 		return vec.emplace_back(std::forward<Args>(args)...);
 	}
 
 	template<class Func>
 	byte* lIterate(Func&& func)
 	{
-		std::lock_guard<std::shared_mutex> lock(mutex);
+		std::lock_guard lock(mutex);
 		for (auto& v : vec)
 			if (auto ptr = func(v))
 				return ptr;
@@ -380,7 +380,10 @@ struct SmpVec
 	template<class Func>
 	byte* siterate(Func&& func)
 	{
-		std::shared_lock<std::shared_mutex> lock(mutex);
+		// TODO: Benchmark different lock types here 
+		// TODO: Also look into how to not lock unless neccasary here
+
+		std::shared_lock lock(mutex); 
 		for (auto& v : vec)
 		{
 			auto ptr = func(v);
@@ -392,13 +395,13 @@ struct SmpVec
 
 	bool empty() 
 	{
-		std::shared_lock<std::shared_mutex> lock(mutex);
+		std::shared_lock lock(mutex);
 		return vec.empty();
 	}
 
 private:
 	std::vector<T> vec;
-	mutable std::shared_mutex mutex;
+	std::shared_mutex mutex; // TODO: Benchmark speed with normal mutex
 };
 
 struct BucketPair
@@ -430,7 +433,6 @@ struct Interface
 
 	Interface() 
 	{
-
 	}
 
 	template<class T>
