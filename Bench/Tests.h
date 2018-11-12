@@ -81,7 +81,7 @@ double basicAlloc(Init& init, Alloc& al)
 			ptrs.clear();
 
 			auto end = Clock::now();
-			deallocTime += std::chrono::duration_cast<TimeType>(end - start).count();
+			deallocTime += static_cast<int>(std::chrono::duration_cast<TimeType>(end - start).count());
 		}
 
 		ptrs.emplace_back(init.al(T{}, 1));
@@ -96,7 +96,7 @@ double basicAlloc(Init& init, Alloc& al)
 	for (auto ptr : ptrs)
 		init.de(ptr, 1);
 
-	return std::chrono::duration_cast<TimeType>(end - start).count() - deallocTime;
+	return static_cast<double>(std::chrono::duration_cast<TimeType>(end - start).count() - deallocTime);
 }
 
 template<class Init, class Alloc>
@@ -118,7 +118,7 @@ double basicAlDea(Init& init, Alloc& al)
 	}
 
 	auto end = Clock::now();
-	return std::chrono::duration_cast<TimeType>(end - start).count();
+	return static_cast<double>(std::chrono::duration_cast<TimeType>(end - start).count());
 }
 
 template<class Init, class Alloc>
@@ -157,7 +157,7 @@ double randomAlDe(Init& init, Alloc& al)
 		}
 		else if (deallocs > 0 || ptrs.size() + allocs >= maxAllocs)
 		{
-			auto disDe	= std::uniform_int_distribution<int>(0, ptrs.size() - 1);
+			auto disDe	= std::uniform_int_distribution<int>(0, static_cast<int>(ptrs.size()) - 1);
 			auto idx	= disDe(init.re);
 			std::swap(ptrs[idx], ptrs.back());
 			init.de(ptrs.back(), 1);
@@ -173,7 +173,7 @@ double randomAlDe(Init& init, Alloc& al)
 	for (auto& ptr : ptrs)
 		init.de(ptr, 1);
 
-	return std::chrono::duration_cast<TimeType>(end - start).count();
+	return static_cast<double>(std::chrono::duration_cast<TimeType>(end - start).count());
 }
 
 // Measure memory access times, both randomly and sequentially 
@@ -203,7 +203,7 @@ double memAccess(Init& init, Alloc& al, bool seq)
 	for (auto& ptr : ptrs)
 		init.de(ptr, 1);
 
-	return std::chrono::duration_cast<TimeType>(end - start).count();
+	return static_cast<double>(std::chrono::duration_cast<TimeType>(end - start).count());
 }
 
 template<class Init, class Alloc>
@@ -220,7 +220,7 @@ double strAl(Init& init, Alloc& al, std::true_type t)
 {
 	using T			= typename Init::MyType;
 	using TimeType	= std::chrono::milliseconds;
-	using Al		= typename Alloc::template rebind<char>::other; // TODO: Crap we can't use allocators like this with non-standard allocs
+	using Al		= typename Alloc::template rebind<char>::other; 
 	using String	= std::basic_string<char, std::char_traits<char>, Al>;
 
 	// All we're doing here is creating a vector of type String which 
@@ -251,7 +251,7 @@ double strAl(Init& init, Alloc& al, std::true_type t)
 
 	auto end = Clock::now();
 
-	return std::chrono::duration_cast<TimeType>(end - start).count();
+	return static_cast<double>(std::chrono::duration_cast<TimeType>(end - start).count());
 }
 
 template<class Init, class Alloc>
@@ -267,5 +267,9 @@ double stringAl(Init& init, Alloc& al)
 template<class Init, class Alloc>
 double multiStrAl(Init& init, Alloc& al) // TODO: Call strAl with paramers / numThreads on multiple threads
 {
+	using T			= typename Init::MyType;
+	using STDCompat = typename Alloc::STD_Compatible;
+	using T_Safe	= typename Alloc::Thread_Safe;
 
+	return strAl(init, lAl, STDCompat{});
 }

@@ -277,6 +277,7 @@ class FreeList
 {
 public:
 	using STD_Compatible	= std::true_type;
+	using Thread_Safe		= std::false_type;
 
 	using OurPolicy			= FreeListImpl::PolicyInterface<bytes, Policy>;
 	using size_type			= typename OurPolicy::size_type;

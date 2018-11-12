@@ -494,6 +494,7 @@ class SlabMulti
 {
 public:
 	using STD_Compatible	= std::true_type;
+	using Thread_Safe		= std::true_type;
 
 	using size_type			= size_t;
 	using difference_type	= std::ptrdiff_t;

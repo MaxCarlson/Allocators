@@ -19,6 +19,7 @@ struct DefaultAlloc
 	DefaultAlloc(const DefaultAlloc<U>& other) {};
 
 	using STD_Compatible	= std::true_type;
+	using Thread_Safe		= std::true_type;
 	using size_type			= size_t;
 	using difference_type	= std::ptrdiff_t;
 	using pointer			= Type*;
@@ -42,22 +43,34 @@ struct DefaultAlloc
 
 // A wrapper class for the allocator wrappers on non multi-threaded
 // allocators to use in multi-threaded tests
-template<class Init>
+template<class Init, class Type, class Al>
 struct LockedAl
 {
+	LockedAl() :
+		init{nullptr}
+	{}
+
 	LockedAl(Init& init) :
-		init{ init },
-		mutex{}
+		init{ &init }
 	{}
 
 	template<class U>
-	LockedAl(const LockedAl<U>& other) : // TODO: This probably doesn't work?
-		init{ other.init },
-		mutex{}
+	LockedAl(const LockedAl<Init, U, Al>& other) noexcept : 
+		init{ other.init }
 	{}
 
-	using Type				= typename Init::MyType;
+	LockedAl(const LockedAl& other) noexcept : // TODO: Look into why this is needed, and why the one above can't deduce?
+		init{ other.init }
+	{}
+
+	template<class U>
+	LockedAl(LockedAl<Init, U, Al>&& other) noexcept :
+		init{ other.init }
+	{}
+
 	using STD_Compatible	= std::true_type;
+	using Thread_Safe		= typename Al::Thread_Safe;
+
 	using size_type			= size_t;
 	using difference_type	= std::ptrdiff_t;
 	using pointer			= Type*;
@@ -67,24 +80,33 @@ struct LockedAl
 	using value_type		= Type;
 
 	template<class U>
-	struct rebind { using other = LockedAl<U>; }; // TODO: This may or may not work with the Init lambdas?
+	struct rebind { using other = LockedAl<Init, U, Al>; }; 
 
 	template<class T = Type>
 	T* allocate(size_t n = 1)
 	{
-		std::lock_guard lock(mutex);
-		return init.al(T{}, n);
+		if constexpr (std::is_same_v<Thread_Safe, std::true_type>)
+		{
+			std::lock_guard lock(mutex);
+			return init->al(T{}, n);
+		}
+		else
+			return init->al(T{}, n);
 	}
 
-	template<class T>
-	void deallocate(T* ptr, size_t n = 1)
+	void deallocate(Type* ptr, size_t n = 1)
 	{
-		std::lock_guard lock(mutex);
-		init.de(T{}, n);
+		if constexpr (std::is_same_v<Thread_Safe, std::true_type>)
+		{
+			std::lock_guard lock(mutex);
+			init->de(ptr, n);
+		}
+		else
+			init->de(ptr, n);
 	}
 
-	Init& init;
-	std::mutex mutex;
+	Init* init;
+	mutable std::mutex mutex;
 };
 
 inline static int TestV = 0;
@@ -92,14 +114,15 @@ inline static int TestV = 0;
 struct SimpleStruct
 {
 	SimpleStruct() = default;
-	SimpleStruct(int a, int b, size_t e, size_t f) : a(a), b(b), c(a), d(b), e(e), f(f) { TestV += a + b + c + d + e + f; }
+	SimpleStruct(int a, int b, size_t e, size_t f) : a(a), b(b), c(a), d(b), e(e), f(f) 
+	{ TestV += a + b + c + d + int(e) + int(f); }
 
 	void meddle()
 	{
 		a = d + b;
 		c = a + b;
 		e = f + a;
-		TestV += a + b + c + d + e + f;
+		TestV += a + b + c + d + int(e) + int(f);
 	}
 
 	int a;

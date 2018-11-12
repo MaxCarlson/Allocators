@@ -37,7 +37,8 @@ enum BenchMasks
 	TYPE_MSK	= (1 << 5) - 1,			// Mask for all Type dependent benchmarks
 
 	STR_AL_DE	= 1 << 5,
-	ALL_BENCH	= (1 << 6) - 1,
+	MULTI_STR	= 1 << 6,
+	ALL_BENCH	= (1 << 7) - 1,
 	NON_T_MSK	= ALL_BENCH ^ TYPE_MSK,	// Mask for all non-type dependent benchmarks
 };
 
@@ -57,8 +58,8 @@ void destroyDealloc(Al& al, Ptr* ptr, size_t n)
 template<class Al>
 decltype(auto) alWrapper(Al& al)
 {
-	auto all = [&](auto t, auto cnt) { return al.allocate<decltype(t)>(cnt); };
-	auto de  = [&](auto ptr, size_t n) { destroyDealloc(al, ptr, n); };
+	auto all = [&al](auto t, auto cnt) { return al.allocate<decltype(t)>(cnt); };
+	auto de  = [&al](auto ptr, size_t n) { destroyDealloc(al, ptr, n); };
 	return std::pair(all, de);
 }
 
@@ -120,6 +121,8 @@ decltype(auto) benchAlT(Init& init, Alloc& al, Ctor& ctor, bool nonType, int cou
 		{
 			if (isValid(alMask, bMask, BenchMasks::STR_AL_DE))
 				scores[5] += stringAl(init, al);
+			if (isValid(alMask, bMask, BenchMasks::MULTI_STR))
+				scores[6] += multiStrAl(init, al);
 		}
 	}
 	
@@ -144,7 +147,7 @@ template<class T>
 void printScores(std::vector<std::vector<double>>& scores, size_t alMask, size_t bMask, bool isStruct = true)
 {
 	static constexpr int printWidth = 11;
-	static const std::vector<std::string> benchNames	= { "Alloc", "Al/De", "R Al/De", "SeqRead", "RandRead", "StrAl/De" };
+	static const std::vector<std::string> benchNames	= { "Alloc", "Al/De", "R Al/De", "SeqRead", "RandRead", "StrAl/De", "MultiStr" };
 	static const std::vector<std::string> allocNames	= { "Default: ", "FLstList: ", "FLstFlat: ", "FLstTree: ", "SlabMem: ", "SlabObj: ", "SlabMulti: " };
 
 	std::vector<std::string> bNames;

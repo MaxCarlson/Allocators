@@ -24,6 +24,7 @@ class SlabMem
 
 public:
 	using STD_Compatible	= std::true_type;
+	using Thread_Safe		= std::false_type;
 
 	using size_type			= size_t;
 	using difference_type	= std::ptrdiff_t;
@@ -112,6 +113,8 @@ public:
 
 	using size_type			= size_t;
 	using STD_Compatible	= std::false_type;
+	using Thread_Safe		= std::false_type;
+
 
 	template<class U>
 	struct rebind { using other = SlabObj<U>; };
