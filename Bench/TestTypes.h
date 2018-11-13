@@ -2,12 +2,32 @@
 #include <array>
 #include <string>
 #include <mutex>
+#include <random>
 
 // Helper struct for printing average 
 // scores over all test ( Must be outside of main for good printing)
 struct AveragedScores {};
 // Helper struct for non-type dependent tests
 struct NonType { void meddle() {} };
+
+template<class T, class Ctor, class Al, class De>
+struct BenchT
+{
+	using RngEngine = std::default_random_engine;
+	using MyType = T;
+
+	BenchT(T t, Ctor& ctor, Al& al, De& de, 
+		std::default_random_engine& re, bool singleAl = false, bool useCtor = true)
+		: ctor(ctor), al(al), de(de), re(re), 
+		singleAl(singleAl), useCtor(useCtor) {}
+
+	Ctor&		ctor;
+	Al&			al;
+	De&			de;
+	RngEngine	re;
+	bool		singleAl;
+	bool		useCtor;
+};
 
 
 template<class Type>
@@ -43,44 +63,40 @@ struct DefaultAlloc
 
 // A wrapper class for the allocator wrappers on non multi-threaded
 // allocators to use in multi-threaded tests
-template<class Init, class Type, class Al>
+template<class Al, class Type>
 class LockedAl
 {
 public:
 
-	//LockedAl() :
-	//	init{nullptr}
-	//{}
-
-	LockedAl(Init& init) :
-		init{ &init }
+	LockedAl(Al& al) noexcept :
+		al{ &al }
 	{}
 
 	template<class U>
-	LockedAl(const LockedAl<Init, U, Al>& other) noexcept : 
-		init{ other.init }
+	LockedAl(const LockedAl<Al, U>& other) noexcept :
+		al{ other.al }
 	{}
 
 	LockedAl(const LockedAl& other) noexcept : // TODO: Look into why this is needed, and why the one above can't deduce?
-		init{ other.init }
+		al{ other.al }
+	{}
+
+	template<class U>
+	LockedAl(LockedAl<Al, U>&& other) noexcept :
+		al{ other.al }
 	{}
 
 	LockedAl(LockedAl&& other) noexcept :
-		init{ other.init }
+		al{ other.al }
 	{}
 
 	template<class U>
-	LockedAl(LockedAl<Init, U, Al>&& other) noexcept :
-		init{ other.init }
-	{}
+	bool operator==(const LockedAl<Al, U>& other) const noexcept { return other.al == al; }
 
 	template<class U>
-	bool operator==(const LockedAl<Init, U, Al>& other) const noexcept { return other.init == init; }
+	bool operator!=(const LockedAl<Al, U>& other) const noexcept { return *this == other; }
 
-	template<class U>
-	bool operator!=(const LockedAl<Init, U, Al>& other) const noexcept { return *this == other; }
-
-	template<class Init, class U, class Al>
+	template<class Al, class T>
 	friend class LockedAl;
 
 	using STD_Compatible	= std::true_type;
@@ -95,7 +111,7 @@ public:
 	using value_type		= Type;
 
 	template<class U>
-	struct rebind { using other = LockedAl<Init, U, Al>; }; 
+	struct rebind { using other = LockedAl<Al, U>; }; 
 
 	template<class T = Type>
 	T* allocate(size_t n = 1)
@@ -103,10 +119,10 @@ public:
 		if constexpr (std::is_same_v<Thread_Safe, std::false_type>)
 		{
 			std::lock_guard lock(mutex);
-			return init->al(T{}, n);
+			return al->allocate<T>(n);
 		}
 		else
-			return init->al(T{}, n);
+			return al->allocate<T>(n);
 	}
 
 	void deallocate(Type* ptr, size_t n = 1)
@@ -114,14 +130,14 @@ public:
 		if constexpr (std::is_same_v<Thread_Safe, std::false_type>)
 		{
 			std::lock_guard lock(mutex);
-			init->de(ptr, n);
+			al->deallocate(ptr, n);
 		}
 		else
-			init->de(ptr, n);
+			al->deallocate(ptr, n);
 	}
 
 private:
-	Init* init;
+	Al*		al;
 	mutable std::mutex mutex;
 };
 

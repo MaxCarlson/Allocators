@@ -21,25 +21,6 @@ constexpr auto maxAllocs	= 1500;
 
 constexpr auto numThreads	= 4;
 
-
-
-template<class T, class Ctor, class Al, class De>
-struct BenchT
-{
-	using RngEngine = std::default_random_engine;
-	using MyType = T;
-
-	BenchT(T t, Ctor& ctor, Al& al, De& de, std::default_random_engine& re, bool singleAl = false, bool useCtor = true)
-		: ctor(ctor), al(al), de(de), re(re), singleAl(singleAl), useCtor(useCtor) {}
-
-	Ctor&		ctor;
-	Al&			al;
-	De&			de;
-	RngEngine	re;
-	bool		singleAl;
-	bool		useCtor;
-};
-
 template<class Init>
 std::vector<typename Init::MyType*> allocMax(Init& init)
 {
@@ -218,10 +199,9 @@ double sMemAccess(Init& init, Alloc& al) { return memAccess(init, al, true); }
 template<class Init, class Alloc>
 double strAl(Init& init, Alloc& al, std::true_type t)
 {
-	using T			= typename Init::MyType;
 	using TimeType	= std::chrono::milliseconds;
-	using Al		= typename Alloc::template rebind<char>::other; 
-	using String	= std::basic_string<char, std::char_traits<char>, Al>;
+	using CharAl	= typename Alloc::template rebind<char>::other; 
+	using String	= std::basic_string<char, std::char_traits<char>, CharAl>;
 
 	// All we're doing here is creating a vector of type String which 
 	// uses the allocator in the constructor (because we don't have direct access
@@ -242,13 +222,16 @@ double strAl(Init& init, Alloc& al, std::true_type t)
 		if (idx % maxAllocs == 0)
 		{
 			idx = 0;
-			strings.clear(); // There's an issue with FreeList allocator here
+			strings.clear(); 
 		}
 
-		strings.emplace_back(String{ lens[idx], static_cast<char>(lens[idx]), al }); 
+		// TODO: At some point after the vector grows MyFirst and MyLast are moved and lose their copies
+		// of the allocator. When the vector tries to destroy these old ptrs it fails too since they try to use a nullptr to their allocator
+		// WHAT the HELL?
+		strings.emplace_back(lens[idx], static_cast<char>(lens[idx]), al); 
 		++idx;
 	}
-
+	strings.clear();
 	auto end = Clock::now();
 
 	return static_cast<double>(std::chrono::duration_cast<TimeType>(end - start).count());
@@ -260,18 +243,33 @@ double strAl(Init& init, Alloc& al, std::false_type f) { return 0.0; }
 template<class Init, class Alloc>
 double stringAl(Init& init, Alloc& al) 
 {
-	using TType = typename Alloc::STD_Compatible;
-	return strAl<Init, Alloc>(init, al, TType{});
+	using STDCompat = typename Alloc::STD_Compatible;
+	return strAl<Init, Alloc>(init, al, STDCompat{});
+}
+
+template<class Init, class Alloc>
+double multiStrAl(Init& init, Alloc& al, std::false_type f) { return 0.0; }
+
+template<class Init, class Alloc>
+double multiStrAl(Init& init, Alloc& al, std::true_type tt)
+{
+	using T			= typename Init::MyType;
+	using CharAl	= typename Alloc::template rebind<char>::other;
+	using String	= std::basic_string<char, std::char_traits<char>, CharAl>;
+	using StrAl		= typename Alloc::template rebind<String>::other;
+
+	LockedAl<Alloc, int> lAl{ al };
+
+	// TODO: FIX!
+	// It looks like the issue with using the 2nd wrapper is that 
+	// when it tries to allocate a basic_string during lambda 
+	// type deduction it can't because the string isn't passed the alloc it needs
+	return strAl(init, lAl, tt);
 }
 
 template<class Init, class Alloc>
 double multiStrAl(Init& init, Alloc& al) // TODO: Call strAl with paramers / numThreads on multiple threads
 {
-	using T			= typename Init::MyType;
 	using STDCompat = typename Alloc::STD_Compatible;
-	using T_Safe	= typename Alloc::Thread_Safe;
-
-	LockedAl<Init, T, Alloc> lAl{ init };
-
-	return strAl(init, lAl, STDCompat{});
+	return multiStrAl(init, al, STDCompat{});
 }

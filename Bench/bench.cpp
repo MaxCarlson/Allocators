@@ -99,7 +99,7 @@ inline bool isValid(size_t alMask, size_t bMask, size_t testMask)
 template<class Init, class Alloc, class Ctor>
 decltype(auto) benchAlT(Init& init, Alloc& al, Ctor& ctor, bool nonType, int count, size_t alMask, size_t bMask)
 {
-	std::vector<double> scores(6, 0.0);
+	std::vector<double> scores(7, 0.0);
 
 	int i;
 	for (i = 0; i < count; ++i)
@@ -272,8 +272,8 @@ int main()
 {
 	//constexpr size_t allocMask = ALL_ALLOCS;
 
-	//constexpr size_t allocMask		= SLAB_OBJ | SLAB_MEM | SLAB_MULTI;	
-	constexpr size_t allocMask		= AllocMasks::ALL_ALLOCS; // SLAB_MEM | SLAB_OBJ;	
+	constexpr size_t allocMask		= SLAB_OBJ | SLAB_MEM | SLAB_MULTI;	
+	//constexpr size_t allocMask		= AllocMasks::ALL_ALLOCS; // SLAB_MEM | SLAB_OBJ;	
 	constexpr size_t benchMask		= BenchMasks::ALL_BENCH;
 
 	constexpr int numTests			= 2;

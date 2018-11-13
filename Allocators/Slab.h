@@ -40,6 +40,9 @@ public:
 	SlabMem(const SlabMem<U>& other) {} // Note: Needed for debug mode to compile with std::containers
 
 	template<class U>
+	SlabMem(SlabMem<U>&& other) {} 
+
+	template<class U>
 	struct rebind { using other = SlabMem<U>; };
 
 	template<class U>
@@ -111,13 +114,29 @@ class SlabObj
 {
 public:
 
-	using size_type			= size_t;
 	using STD_Compatible	= std::false_type;
 	using Thread_Safe		= std::false_type;
-
+	
+	using size_type			= size_t;
+	using difference_type	= std::ptrdiff_t;
+	using pointer			= Type*;
+	using const_pointer		= const pointer;
+	using reference			= Type&;
+	using const_reference	= const reference;
+	using value_type		= Type;
 
 	template<class U>
 	struct rebind { using other = SlabObj<U>; };
+
+	SlabObj() = default;
+
+	template<class U>
+	SlabObj(const SlabObj<U>& other) noexcept 
+	{}
+
+	template<class U>
+	SlabObj(SlabObj<U>&& other) noexcept 
+	{}
 
 	// TODO: I think this is right, since SlabObj can deallocate anything allocated by SlabObj,
 	// it just has to be passed the right parameters in the deallocation
