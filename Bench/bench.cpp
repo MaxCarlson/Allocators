@@ -265,15 +265,22 @@ inline void addScores(std::vector<std::vector<double>>& first,
 
 //
 // Benchmark the allocators
+//
+//
+// TODO: Add command line args for masks
+//
 int main()
 {
 	//constexpr size_t allocMask = ALL_ALLOCS;
 
-	constexpr size_t allocMask		= DEFAULT | SLAB_OBJ | SLAB_MEM | SLAB_MULTI;	
-	//constexpr size_t allocMask		= AllocMasks::ALL_ALLOCS; // SLAB_MEM | SLAB_OBJ;	
-	constexpr size_t benchMask		= BenchMasks::ALL_BENCH;
+	constexpr size_t allocMask = SLAB_MULTI; // | SLAB_MEM;
+	constexpr size_t benchMask = BenchMasks::MULTI_STR;
 
-	constexpr int numTests			= 2;
+	//constexpr size_t allocMask		= DEFAULT | SLAB_OBJ | SLAB_MEM | SLAB_MULTI;	
+	//constexpr size_t allocMask		= AllocMasks::ALL_ALLOCS; // SLAB_MEM | SLAB_OBJ;	
+	//constexpr size_t benchMask		= BenchMasks::ALL_BENCH;
+
+	constexpr int numTests			= 70;
 
 	slabM.addCache2(1 << 5, 1 << 14, cacheSz);
 

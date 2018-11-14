@@ -470,7 +470,7 @@ struct Interface
 			if (p.id == id)
 			{
 				p.bucket.deallocate(ptr, n);
-				return reinterpret_cast<byte*>(ptr); // This is really a hack here
+				return reinterpret_cast<byte*>(ptr); 
 			}
 			return nullptr;
 		});
@@ -524,7 +524,6 @@ public:
 	SlabMulti() :
 		interfacePtr{ new SlabMultiImpl::Interface{} }
 	{
-
 	}
 
 	// TODO: Add reference counting to interface so we know when to destory it
