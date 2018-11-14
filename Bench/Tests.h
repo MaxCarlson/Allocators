@@ -15,10 +15,13 @@ using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
 
 constexpr auto cacheSz		= 1024;
 
-//constexpr auto iterations	= 100000;
-//constexpr auto maxAllocs	= 40000;
-constexpr auto iterations	= 1000;
-constexpr auto maxAllocs	= 1500;
+#ifdef NDEBUG
+	constexpr auto iterations	= 1000000;
+	constexpr auto maxAllocs	= 80000;
+#else
+	constexpr auto iterations	= 1000;
+	constexpr auto maxAllocs	= 1500;
+#endif
 
 constexpr auto TestThreads	= 4;
 
@@ -198,7 +201,7 @@ double sMemAccess(Init& init, Alloc& al) { return memAccess(init, al, true); }
 // Non-Type benchmarks after this point
 
 template<class Init, class Alloc>
-double strAl(Init& init, Alloc& al, std::true_type t)
+double strAl(Init& init, Alloc& al, std::true_type t, size_t iterations, size_t maxAllocs)
 {
 	using TimeType	= std::chrono::milliseconds;
 	using CharAl	= typename Alloc::template rebind<char>::other; 
@@ -239,13 +242,13 @@ double strAl(Init& init, Alloc& al, std::true_type t)
 }
 
 template<class Init, class Alloc>
-double strAl(Init& init, Alloc& al, std::false_type f) { return 0.0; }
+double strAl(Init& init, Alloc& al, std::false_type f, size_t i, size_t a) { return 0.0; }
 
 template<class Init, class Alloc>
 double stringAl(Init& init, Alloc& al) 
 {
 	using STDCompat = typename Alloc::STD_Compatible;
-	return strAl<Init, Alloc>(init, al, STDCompat{});
+	return strAl<Init, Alloc>(init, al, STDCompat{}, iterations, maxAllocs);
 }
 
 template<class Init, class Alloc>
@@ -264,7 +267,9 @@ double multiStrAl(Init& init, Alloc& al, std::true_type tt)
 
 	for (int i = 0; i < TestThreads; ++i)
 		futures.emplace_back(
-			std::async(std::launch::async, [&]() { return strAl(init, lockAl, tt); })
+			std::async(std::launch::async, [&]() { 
+				return strAl(init, lockAl, tt, iterations / TestThreads, maxAllocs / TestThreads); 
+			})
 		);
 
 	double total = 0.0;

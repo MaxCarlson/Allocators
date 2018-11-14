@@ -263,16 +263,13 @@ inline void addScores(std::vector<std::vector<double>>& first,
 			first[i][j] += second[i][j];
 }
 
-// TODO: As it stands now, SlabObj and SlabMem's internal Slab's
-// lists get changed and never reset after the first test, affecting future results (especially locality tests)
-//
 //
 // Benchmark the allocators
 int main()
 {
 	//constexpr size_t allocMask = ALL_ALLOCS;
 
-	constexpr size_t allocMask		= SLAB_OBJ | SLAB_MEM | SLAB_MULTI;	
+	constexpr size_t allocMask		= DEFAULT | SLAB_OBJ | SLAB_MEM | SLAB_MULTI;	
 	//constexpr size_t allocMask		= AllocMasks::ALL_ALLOCS; // SLAB_MEM | SLAB_OBJ;	
 	constexpr size_t benchMask		= BenchMasks::ALL_BENCH;
 
