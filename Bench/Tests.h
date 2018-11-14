@@ -6,8 +6,9 @@
 #include <random>
 #include <iomanip>
 #include <string>
+#include <future>
 
-// TODO: Concurrency Benchmarks
+// TODO: Encapsualte in "Benchs" namespace
 
 using Clock		= std::chrono::high_resolution_clock;
 using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
@@ -19,7 +20,7 @@ constexpr auto cacheSz		= 1024;
 constexpr auto iterations	= 1000;
 constexpr auto maxAllocs	= 1500;
 
-constexpr auto numThreads	= 4;
+constexpr auto TestThreads	= 4;
 
 template<class Init>
 std::vector<typename Init::MyType*> allocMax(Init& init)
@@ -258,13 +259,19 @@ double multiStrAl(Init& init, Alloc& al, std::true_type tt)
 	using String	= std::basic_string<char, std::char_traits<char>, CharAl>;
 	using StrAl		= typename Alloc::template rebind<String>::other;
 
-	LockedAl<Alloc, int> lAl{ al };
+	LockedAl<Alloc, int>				lockAl{ al };
+	std::vector<std::future<double>>	futures;
 
-	// TODO: FIX!
-	// It looks like the issue with using the 2nd wrapper is that 
-	// when it tries to allocate a basic_string during lambda 
-	// type deduction it can't because the string isn't passed the alloc it needs
-	return strAl(init, lAl, tt);
+	for (int i = 0; i < TestThreads; ++i)
+		futures.emplace_back(
+			std::async(std::launch::async, [&]() { return strAl(init, lockAl, tt); })
+		);
+
+	double total = 0.0;
+	for (auto& f : futures)
+		total += f.get();
+
+	return total / TestThreads;
 }
 
 template<class Init, class Alloc>

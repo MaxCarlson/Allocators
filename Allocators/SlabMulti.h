@@ -540,11 +540,6 @@ public:
 	{
 	}
 
-	SlabMulti(const SlabMulti& other) noexcept :
-		interfacePtr{ other.interfacePtr }
-	{
-	}
-
 	template<class U>
 	SlabMulti(SlabMulti<U>&& other) noexcept :
 		interfacePtr{ other.interfacePtr }

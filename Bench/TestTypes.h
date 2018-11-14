@@ -61,6 +61,46 @@ struct DefaultAlloc
 	struct rebind { using other = DefaultAlloc<U>; };
 };
 
+// This is the interface LockedAl uses to ensure
+// thread safe access for non-thread safe allocators
+template<class Al>
+struct LockedAlInterface
+{
+	using Thread_Safe = typename Al::Thread_Safe;
+
+	LockedAlInterface(Al& al) :
+		al{ &al },
+		mutex{}
+	{}
+
+	template<class T>
+	T* allocate(size_t n)
+	{
+		if constexpr (std::is_same_v<Thread_Safe, std::false_type>)
+		{
+			std::lock_guard lock(mutex);
+			return al->allocate<T>(n);
+		}
+		else
+			return al->allocate<T>(n);
+	}
+
+	template<class T>
+	void deallocate(T* ptr, size_t n)
+	{
+		if constexpr (std::is_same_v<Thread_Safe, std::false_type>)
+		{
+			std::lock_guard lock(mutex);
+			al->deallocate(ptr, n);
+		}
+		else
+			al->deallocate(ptr, n);
+	}
+
+	Al*					al;
+	mutable std::mutex	mutex;
+};
+
 // A wrapper class for the allocator wrappers on non multi-threaded
 // allocators to use in multi-threaded tests
 template<class Al, class Type>
@@ -68,30 +108,32 @@ class LockedAl
 {
 public:
 
+	using Interface = LockedAlInterface<Al>;
+
 	LockedAl(Al& al) noexcept :
-		al{ &al }
+		sharedInterface{ new Interface{ al } }
 	{}
 
 	template<class U>
 	LockedAl(const LockedAl<Al, U>& other) noexcept :
-		al{ other.al }
+		sharedInterface{ other.sharedInterface }
 	{}
 
 	LockedAl(const LockedAl& other) noexcept : // TODO: Look into why this is needed, and why the one above can't deduce?
-		al{ other.al }
+		sharedInterface{ other.sharedInterface }
 	{}
 
 	template<class U>
 	LockedAl(LockedAl<Al, U>&& other) noexcept :
-		al{ other.al }
+		sharedInterface{ other.sharedInterface }
 	{}
 
 	LockedAl(LockedAl&& other) noexcept :
-		al{ other.al }
+		sharedInterface{ other.sharedInterface }
 	{}
 
 	template<class U>
-	bool operator==(const LockedAl<Al, U>& other) const noexcept { return other.al == al; }
+	bool operator==(const LockedAl<Al, U>& other) const noexcept { return other.sharedInterface == sharedInterface; }
 
 	template<class U>
 	bool operator!=(const LockedAl<Al, U>& other) const noexcept { return *this == other; }
@@ -116,29 +158,16 @@ public:
 	template<class T = Type>
 	T* allocate(size_t n = 1)
 	{
-		if constexpr (std::is_same_v<Thread_Safe, std::false_type>)
-		{
-			std::lock_guard lock(mutex);
-			return al->allocate<T>(n);
-		}
-		else
-			return al->allocate<T>(n);
+		return sharedInterface->allocate<T>(n);
 	}
 
 	void deallocate(Type* ptr, size_t n = 1)
 	{
-		if constexpr (std::is_same_v<Thread_Safe, std::false_type>)
-		{
-			std::lock_guard lock(mutex);
-			al->deallocate(ptr, n);
-		}
-		else
-			al->deallocate(ptr, n);
+		sharedInterface->deallocate(ptr, n);
 	}
 
 private:
-	Al*		al;
-	mutable std::mutex mutex;
+	Interface* sharedInterface;
 };
 
 inline static int TestV = 0;
