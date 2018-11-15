@@ -261,7 +261,13 @@ struct Cache
 
 			// TODO: Look into emplacing new block at back and swapping
 			else
-				actBlock = slabs.emplace(actBlock, blockSize, count);
+			{
+				//actBlock = slabs.emplace(actBlock, blockSize, count);
+				auto idx = static_cast<size_t>(actBlock - std::begin(slabs));
+				slabs.emplace_back(blockSize, count);
+				std::swap(slabs[idx], slabs.back());
+				actBlock = std::begin(slabs) + idx;
+			}
 
 		}
 
@@ -296,9 +302,6 @@ struct Cache
 			if (it == E)				
 				it = std::begin(slabs); // TODO: Look into better ways to do this block
 		}
-
-		//if (slabs.size() >= 5)
-		//	splice(slabs.begin() + 2, slabs.begin() + 4);
 
 		// If the Slab is empty enough place it before the active block
 		if (it->size() <= threshold
