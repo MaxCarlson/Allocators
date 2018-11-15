@@ -215,7 +215,8 @@ double strAl(Init& init, Alloc& al, std::true_type t, size_t iterations, size_t 
 	lens.reserve(maxAllocs);
 
 	// Build string length list
-	auto dis = std::uniform_int_distribution<size_t>(34, 170); // Use numbers beyond small string optimizations
+	// Use numbers beyond small string optimizations
+	auto dis = std::uniform_int_distribution<size_t>(37, 170); 
 	for (int i = 0; i < maxAllocs; ++i)
 		lens.emplace_back(dis(init.re));
 
@@ -229,9 +230,6 @@ double strAl(Init& init, Alloc& al, std::true_type t, size_t iterations, size_t 
 			strings.clear(); 
 		}
 
-		// TODO: At some point after the vector grows MyFirst and MyLast are moved and lose their copies
-		// of the allocator. When the vector tries to destroy these old ptrs it fails too since they try to use a nullptr to their allocator
-		// WHAT the HELL?
 		strings.emplace_back(lens[idx], static_cast<char>(lens[idx]), al); 
 		++idx;
 	}

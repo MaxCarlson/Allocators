@@ -204,14 +204,131 @@ public:
 	bool containsMem(P* ptr) const noexcept
 	{
 		return (reinterpret_cast<byte*>(ptr) >= mem
-			 && reinterpret_cast<byte*>(ptr) < (mem + blockSize * count));
+			 && reinterpret_cast<byte*>(ptr) < (mem + blockSize * count)); // TODO: Cache this blocksize * count?
 	}
 };
 
 struct Cache
 {
 	using size_type = size_t;
-	using Container = std::list<Slab>; // TODO: Will test with std::vector<Slab> as in testing with Slabs it appears near as fast in bad senarios
+	using Container = std::vector<Slab>; 
+	using It		= Container::iterator;
+
+	const size_type	count;
+	const size_type	blockSize;
+	int				threshold;
+	Container		slabs;
+	It				actBlock;
+	static constexpr double freeThreshold	= 0.25;
+	static constexpr double MIN_SLABS		= 1;
+
+	Cache(size_type count, size_type blockSize) :
+		count{		count },
+		blockSize{	blockSize },
+		threshold{	static_cast<int>(count * freeThreshold) }, // TODO: Cache these values at compile time
+		slabs{}
+	{
+		slabs.emplace_back(blockSize, count); // TODO: Figure out how to put this in the ctor list!!!
+		actBlock = std::begin(slabs);
+	}
+
+	Cache(Cache&& other) noexcept:
+		count{		other.count },
+		blockSize{	other.blockSize },
+		threshold{	other.threshold }, 
+		slabs{		std::move(other.slabs)},
+		actBlock{	other.actBlock }
+	{}
+
+	Cache(const Cache& other) : // TODO: Why is this needed?
+		count{		other.count },
+		blockSize{	other.blockSize },
+		threshold{	other.threshold }, 
+		slabs{		other.slabs },
+		actBlock{	other.actBlock }
+	{}
+
+	byte* allocate()
+	{
+		auto[mem, full] = actBlock->allocate();
+
+		// If active block is full, create a new one and add
+		// it to the list before the previous AB
+		if (full)
+		{
+			if (actBlock != std::begin(slabs))
+				actBlock = --actBlock;
+			else
+				actBlock = slabs.emplace(actBlock, blockSize, count);
+
+		}
+
+		return mem;
+	}
+
+	void splice(It pos, It it)
+	{
+		auto val	= std::move(*it);
+		std::memmove(&*(pos + 1), &*pos, sizeof(Slab) * static_cast<size_t>(it - pos));
+		*(pos)		= std::move(val);
+	}
+
+	template<class T>
+	void deallocate(T* ptr) 
+	{
+		// Look at the active block first, then the fuller blocks after it
+		// after that start over from the beginning
+		//
+		// TODO: Try benchmarking: After looking at blocks after actBlock looking in reverse order
+		// from active block
+		auto it = actBlock;
+		for (auto E = std::end(slabs);;)
+		{
+			if (it->containsMem(ptr))
+			{
+				it->deallocate(ptr);
+				break;
+			}
+
+			++it;
+			if (it == E)				
+				it = std::begin(slabs); // TODO: Look into better ways to do this block
+		}
+
+		if (slabs.size() >= 5)
+			splice(slabs.begin() + 2, slabs.begin() + 4);
+
+		// If the Slab is empty enough place it before the active block
+		// TODO: How to avoid this running multiple times without a random access iterator?
+		if (it->size() <= threshold
+			&& it < actBlock)
+		{
+			splice(actBlock, it);
+			//slabs.splice(actBlock, slabs, it);
+		}
+
+		// Return memory to Dispatcher
+		else if (it->empty() && slabs.size() > MIN_SLABS) // TODO: If we switch to vector more work will have to be done to keep iterator correct!
+		{
+			if (it != actBlock)
+				slabs.erase(it);
+			else
+			{
+				if (actBlock != std::begin(slabs))
+					actBlock = std::prev(it);
+				else
+					actBlock = std::next(it);
+				slabs.erase(it);
+			}
+		}
+	}
+};
+
+/*
+struct Cache
+{
+	using size_type = size_t;
+	using Container = std::list<Slab>; 
 	using It		= Container::iterator;
 
 	const size_type	count;
@@ -284,7 +401,7 @@ struct Cache
 			}
 
 			++it;
-			if (it == E)				// TODO: Optimization: Move another loop outside of this one, get rid of branch
+			if (it == E)				
 				it = std::begin(slabs); // TODO: Look into better ways to do this block
 		}
 
@@ -314,7 +431,7 @@ struct Cache
 		auto& bb = *actBlock;
 	}
 };
-
+*/
 // Bucket of Caches
 struct Bucket
 {
@@ -401,7 +518,7 @@ struct SmpVec
 
 private:
 	std::vector<T> vec;
-	std::shared_mutex mutex; // TODO: Benchmark speed with normal mutex
+	std::shared_mutex mutex; 
 };
 
 struct BucketPair
@@ -429,7 +546,7 @@ struct BucketPair
 // to same allocator
 struct Interface
 {
-	using size_type		= size_t;
+	using size_type	= size_t;
 
 	Interface() 
 	{
@@ -475,7 +592,7 @@ struct Interface
 			return nullptr;
 		});
 		
-		// Then other threads
+		// If not found search other threads
 		// TODO: We'll have to either lock the Slab entirely or do sepperate availible lists like TBB
 	}
 
