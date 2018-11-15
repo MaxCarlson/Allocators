@@ -258,6 +258,8 @@ struct Cache
 		{
 			if (actBlock != std::begin(slabs))
 				actBlock = --actBlock;
+
+			// TODO: Look into emplacing new block at back and swapping
 			else
 				actBlock = slabs.emplace(actBlock, blockSize, count);
 
@@ -295,30 +297,41 @@ struct Cache
 				it = std::begin(slabs); // TODO: Look into better ways to do this block
 		}
 
-		if (slabs.size() >= 5)
-			splice(slabs.begin() + 2, slabs.begin() + 4);
+		//if (slabs.size() >= 5)
+		//	splice(slabs.begin() + 2, slabs.begin() + 4);
 
 		// If the Slab is empty enough place it before the active block
-		// TODO: How to avoid this running multiple times without a random access iterator?
 		if (it->size() <= threshold
 			&& it < actBlock)
 		{
 			splice(actBlock, it);
-			//slabs.splice(actBlock, slabs, it);
 		}
 
 		// Return memory to Dispatcher
-		else if (it->empty() && slabs.size() > MIN_SLABS) // TODO: If we switch to vector more work will have to be done to keep iterator correct!
+		else if (it->empty() && slabs.size() > MIN_SLABS) 
 		{
 			if (it != actBlock)
-				slabs.erase(it);
+			{
+				// TODO: Look into doing a swap here instead
+				//Slab* abPtr = &*actBlock;
+				//slabs.erase(it);
+				//if (abPtr != &*actBlock)
+				//	--actBlock;
+				if (it > actBlock)
+				{
+					std::swap(*it, slabs.back());
+					slabs.pop_back();
+				}
+				else
+				{
+					slabs.erase(it);
+					--actBlock;
+				}
+			}
 			else
 			{
-				if (actBlock != std::begin(slabs))
-					actBlock = std::prev(it);
-				else
-					actBlock = std::next(it);
-				slabs.erase(it);
+				std::swap(*actBlock, slabs.back());
+				slabs.pop_back();
 			}
 		}
 	}

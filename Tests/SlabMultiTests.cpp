@@ -98,7 +98,7 @@ public:
 	TEST_METHOD(AlDe_Serial)
 	{
 		auto order		= getOrder(1);
-		auto ptrsSt		= allocate<size_t>(64, 1);
+		auto ptrsSt		= allocate<size_t>(128, 1);
 
 		dealloc(ptrsSt.ptrs, order);
 	}
