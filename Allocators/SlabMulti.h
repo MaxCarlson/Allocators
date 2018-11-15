@@ -259,7 +259,6 @@ struct Cache
 			if (actBlock != std::begin(slabs))
 				actBlock = --actBlock;
 
-			// TODO: Look into emplacing new block at back and swapping
 			else
 			{
 				//actBlock = slabs.emplace(actBlock, blockSize, count);
@@ -274,6 +273,7 @@ struct Cache
 		return mem;
 	}
 
+	// TODO: Probably issue is coming from here!
 	void splice(It pos, It it)
 	{
 		auto val	= std::move(*it);
@@ -305,7 +305,7 @@ struct Cache
 
 		// If the Slab is empty enough place it before the active block
 		if (it->size() <= threshold
-			&& it < actBlock)
+			&& it > actBlock) // TODO: Tests no longer passing because of this line! Figure out what is wrong, this is how it should be (not it < actBlock!)
 		{
 			splice(actBlock, it);
 		}
