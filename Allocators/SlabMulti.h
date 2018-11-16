@@ -261,7 +261,6 @@ struct Cache
 
 			else
 			{
-				//actBlock = slabs.emplace(actBlock, blockSize, count);
 				auto idx = static_cast<size_t>(actBlock - std::begin(slabs));
 				slabs.emplace_back(blockSize, count);
 				std::swap(slabs[idx], slabs.back());
@@ -275,15 +274,14 @@ struct Cache
 
 	void splice(It& pos, It it)
 	{
-		auto idx	= static_cast<size_t>(pos - std::begin(slabs));
-		auto val	= std::move(*it);
+		auto val = std::move(*it);
 		std::memmove(&*(pos + 1), &*pos, sizeof(Slab) * static_cast<size_t>(it - pos));
 
 		// Two of the same Slab exist after the memmove above.
-		// To avoid the destructor call destroying both vectors we placement new
-		// the old it value into the redundent Slab
+		// To avoid the destructor call destroying the Slab we want to keep
+		// we placement new the value of 'it' into the redundent Slab (pos is then set to correct position)
 		new(&*pos) Slab{ std::move(val) };
-		pos			= std::begin(slabs) + (idx + 1);
+		pos	= std::begin(slabs) + (static_cast<size_t>(pos - std::begin(slabs)) + 1);
 	}
 
 	template<class T>
@@ -294,7 +292,7 @@ struct Cache
 		//
 		// TODO: Try benchmarking: After looking at blocks after actBlock looking in reverse order
 		// from active block
-		auto it = actBlock;
+		auto it		= actBlock;
 		for (auto E = std::end(slabs);;)
 		{
 			if (it->containsMem(ptr))
@@ -487,6 +485,13 @@ struct Bucket
 
 private:
 	std::vector<Cache> caches;
+};
+
+struct OptionalMutex
+{
+	std::mutex mutex;
+	std::atomic_flag flag = ATOMIC_FLAG_INIT;
+
 };
 
 template<class T>
