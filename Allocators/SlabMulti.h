@@ -273,12 +273,13 @@ struct Cache
 		return mem;
 	}
 
-	// TODO: Probably issue is coming from here!
-	void splice(It pos, It it)
+	void splice(It& pos, It it)
 	{
+		auto idx	= static_cast<size_t>(pos - std::begin(slabs));
 		auto val	= std::move(*it);
 		std::memmove(&*(pos + 1), &*pos, sizeof(Slab) * static_cast<size_t>(it - pos));
-		*(pos)		= std::move(val);
+		new(&*pos) Slab{ std::move(val) };
+		pos			= std::begin(slabs) + (idx + 1);
 	}
 
 	template<class T>
@@ -305,7 +306,7 @@ struct Cache
 
 		// If the Slab is empty enough place it before the active block
 		if (it->size() <= threshold
-			&& it > actBlock) // TODO: Tests no longer passing because of this line! Figure out what is wrong, this is how it should be (not it < actBlock!)
+			&& it > actBlock) 
 		{
 			splice(actBlock, it);
 		}
@@ -315,11 +316,6 @@ struct Cache
 		{
 			if (it != actBlock)
 			{
-				// TODO: Look into doing a swap here instead
-				//Slab* abPtr = &*actBlock;
-				//slabs.erase(it);
-				//if (abPtr != &*actBlock)
-				//	--actBlock;
 				if (it > actBlock)
 				{
 					std::swap(*it, slabs.back());
