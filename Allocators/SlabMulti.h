@@ -278,6 +278,10 @@ struct Cache
 		auto idx	= static_cast<size_t>(pos - std::begin(slabs));
 		auto val	= std::move(*it);
 		std::memmove(&*(pos + 1), &*pos, sizeof(Slab) * static_cast<size_t>(it - pos));
+
+		// Two of the same Slab exist after the memmove above.
+		// To avoid the destructor call destroying both vectors we placement new
+		// the old it value into the redundent Slab
 		new(&*pos) Slab{ std::move(val) };
 		pos			= std::begin(slabs) + (idx + 1);
 	}
@@ -323,14 +327,16 @@ struct Cache
 				}
 				else
 				{
+					auto idx = static_cast<size_t>(actBlock - std::begin(slabs));
 					slabs.erase(it);
-					--actBlock;
+					actBlock = std::begin(slabs) + (idx - 1);
 				}
 			}
 			else
 			{
 				std::swap(*actBlock, slabs.back());
 				slabs.pop_back();
+				actBlock = std::end(slabs) - 1;
 			}
 		}
 	}
