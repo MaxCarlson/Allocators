@@ -1,18 +1,99 @@
 #pragma once
 #include "AllocHelpers.h"
-
+#include <array>
 #include <numeric>
 #include <vector>
 #include <thread>
 #include <mutex>
 #include <atomic>
 #include <shared_mutex>
+//#include "SharedMutex.h"
 
 namespace alloc
 {
 template<class T>
 class SlabMulti;
 }
+
+struct ContentionFreeFlag
+{
+	enum Flags
+	{
+		Unregistered,
+		Registered,
+		Locked
+	};
+
+	ContentionFreeFlag() :
+		id{},
+		flag{ Unregistered }
+	{}
+
+	std::thread::id id;
+	std::atomic<int> flag;
+	char falseSharing[60];
+};
+
+
+template<size_t threads = 16>
+struct SharedMutex
+{
+
+public:
+
+	SharedMutex() :
+		flags{}
+	{
+	}
+
+	void sharedLock()
+	{
+
+	}
+
+	void sharedUnlock()
+	{
+
+	}
+
+	void lock()
+	{
+
+	}
+
+	void unlock()
+	{
+
+	}
+
+private:
+
+	ContentionFreeFlag* registerThread()
+	{
+		ContentionFreeFlag* flag;
+		auto id = std::thread::get_id();
+		for (ContentionFreeFlag& f : flags)
+			if (f.id == id)
+			{
+				flag = &f;
+				break;
+			}
+			else if (f.flag.load() == ContentionFreeFlag::Unregistered)
+			{
+				int val = 0;
+				if (f.flag.compare_exchange_strong(val, ContentionFreeFlag::Registered))
+				{
+					flag		= &f;
+					flag->id	= id;
+					break;
+				}
+			}
+		return flag;
+	}
+
+	std::atomic<bool> lockFlags;
+	std::array<ContentionFreeFlag, threads> flags;
+};
 
 
 namespace SlabMultiImpl
