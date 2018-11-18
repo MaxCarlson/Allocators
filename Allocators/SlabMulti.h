@@ -73,14 +73,15 @@ public:
 	}
 
 	// Acquire a lock on every thread object
+	// TODO: There's probably a better way to do this?
 	void lock()
 	{
 		for (ContentionFreeFlag& f : flags)
 		{
 			int notShared		= ContentionFreeFlag::Registered;
 			int unregistered	= ContentionFreeFlag::Unregistered;
-			while (!f.flag.compare_exchange_strong(notShared, ContentionFreeFlag::Locked)
-				|| f.flag.compare_exchange_strong(unregistered, ContentionFreeFlag::Locked))
+			while (!(f.flag.compare_exchange_strong(notShared, ContentionFreeFlag::Locked)
+				|| f.flag.compare_exchange_strong(unregistered, ContentionFreeFlag::Locked)))
 			{
 				notShared		= ContentionFreeFlag::Registered;
 				unregistered	= ContentionFreeFlag::Unregistered;
@@ -90,8 +91,10 @@ public:
 
 	void unlock()
 	{
+		static const auto defaultThread = std::thread::id{};
+
 		for (ContentionFreeFlag& f : flags)
-			if (f.id != 0)
+			if (f.id != defaultThread)
 				f.flag.exchange(ContentionFreeFlag::Registered);
 			else
 				f.flag.exchange(ContentionFreeFlag::Unregistered);
