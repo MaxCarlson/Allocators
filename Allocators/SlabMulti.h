@@ -30,13 +30,13 @@ struct ContentionFreeFlag
 		flag{ Unregistered }
 	{}
 
-	std::thread::id id;
-	std::atomic<int> flag;
-	char falseSharing[60];
+	std::thread::id		id;
+	std::atomic<int>	flag;
+	alloc::byte			noFalseSharing[60];
 };
 
 
-template<size_t threads = 16>
+template<size_t threads = 4>
 struct SharedMutex
 {
 
@@ -77,23 +77,32 @@ public:
 	{
 		for (ContentionFreeFlag& f : flags)
 		{
-			int free = ContentionFreeFlag::Registered;
-			while (!f.flag.compare_exchange_strong(free, ContentionFreeFlag::Locked))
-				free = ContentionFreeFlag::Registered;
+			int notShared		= ContentionFreeFlag::Registered;
+			int unregistered	= ContentionFreeFlag::Unregistered;
+			while (!f.flag.compare_exchange_strong(notShared, ContentionFreeFlag::Locked)
+				|| f.flag.compare_exchange_strong(unregistered, ContentionFreeFlag::Locked))
+			{
+				notShared		= ContentionFreeFlag::Registered;
+				unregistered	= ContentionFreeFlag::Unregistered;
+			}
 		}
 	}
 
 	void unlock()
 	{
 		for (ContentionFreeFlag& f : flags)
-			f.flag.exchange(ContentionFreeFlag::Registered);
+			if (f.id != 0)
+				f.flag.exchange(ContentionFreeFlag::Registered);
+			else
+				f.flag.exchange(ContentionFreeFlag::Unregistered);
 	}
 
 private:
 
 	// Find the index of this thread in our array
-	// if it's never been registered, prepare it to be
-	int getOrSetIndex(int idx)
+	// If it's never been registered, prepare it to 
+	// be or set it's registered index
+	int getOrSetIndex(int idx = 0)
 	{
 		static thread_local int index	= -1;
 		static thread_local bool unset	= true;
@@ -117,8 +126,10 @@ private:
 		// Thread has never been registered
 		if (idx == -1)
 		{
-			auto id = std::thread::get_id();
-			for (ContentionFreeFlag& f : flags)
+			auto id = std::this_thread::get_id();
+			for (int i = 0; i < flags.max_size(); ++i)
+			{
+				ContentionFreeFlag& f = flags[i];
 				if (f.id == id)
 				{
 					idx = i;
@@ -126,21 +137,25 @@ private:
 				}
 				else if (f.flag.load() == ContentionFreeFlag::Unregistered)
 				{
-					int val = 0;
+					int val = ContentionFreeFlag::Unregistered;
 					if (f.flag.compare_exchange_strong(val, ContentionFreeFlag::Registered))
 					{
-						idx		= i;
-						f.id	= id;
+						idx = i;
+						f.id = id;
 						getOrSetIndex(idx);
 						break;
 					}
 				}
+			}
+
 		}
 		
 		return &flags[idx];
 	}
 
-	std::atomic<bool> lockFlags;
+	//std::atomic<bool> lockFlags;
+
+	// Thead private locks
 	std::array<ContentionFreeFlag, threads> flags;
 };
 
@@ -615,13 +630,6 @@ struct Bucket
 
 private:
 	std::vector<Cache> caches;
-};
-
-struct OptionalMutex
-{
-	std::mutex mutex;
-	std::atomic_flag flag = ATOMIC_FLAG_INIT;
-
 };
 
 template<class T>

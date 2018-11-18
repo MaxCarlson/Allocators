@@ -61,38 +61,18 @@ int main()
 	
 	constexpr int count = 1000;
 
-	using namespace SlabMultiImpl;
 
-	alloc::SlabMulti<size_t> multi;
-	
-	std::vector<size_t, alloc::SlabMulti<size_t>> vec(multi);
-	vec.reserve(10);
+	alloc::SlabMulti<size_t>						multi;
+	std::vector<size_t, alloc::SlabMulti<size_t>>	vec(multi);
 
-	std::vector<int> order(count);
-	//std::uniform_int_distribution<int> dis(0, count / 4);
-	std::default_random_engine re;
+	SharedMutex tex;
 
-	std::iota(		std::begin(order), std::end(order), 0);
-	std::shuffle(	std::begin(order), std::end(order), re);
+	tex.lockShared();
 
-	size_t *ar[count];
-	for (int i = 0; i < count; ++i)
-	{
-		ar[i] = multi.allocate(1);
-	}
+	tex.unlockShared();
 
-	while (true)
-	{
-		for (int i = 0; i < count / 3; ++i)
-		{
-			multi.deallocate(ar[order[i]], 1);
-		}
-
-		for (int i = 0; i < count / 3; ++i)
-			ar[order[i]] = multi.allocate(1);
-
-		std::shuffle(std::begin(order), std::end(order), re);
-	}
+	tex.lock();
+	tex.unlock();
 
 
 	//auto start = Clock::now();
