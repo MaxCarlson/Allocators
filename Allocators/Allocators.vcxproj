@@ -145,6 +145,7 @@
     <ClInclude Include="Slab.h" />
     <ClInclude Include="Linear.h" />
     <ClInclude Include="Pool.h" />
+    <ClInclude Include="TMP.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
