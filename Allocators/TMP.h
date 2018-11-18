@@ -145,17 +145,26 @@ public:
 	void lock_shared() {
 		int const register_index = register_thread();
 
-		if (register_index >= 0) {
+		if (register_index >= 0) 
+		{
 			int recursion_depth = shared_locks_array[register_index].value.load(std::memory_order_acquire);
 			assert(recursion_depth >= 1);
 
 			if (recursion_depth > 1)
 				shared_locks_array[register_index].value.store(recursion_depth + 1, std::memory_order_release); // if recursive -> release
-			else {
+			
+			else 
+			{
 				shared_locks_array[register_index].value.store(recursion_depth + 1, std::memory_order_seq_cst); // if first -> sequential
-				while (want_x_lock.load(std::memory_order_seq_cst)) {
+
+				while (want_x_lock.load(std::memory_order_seq_cst)) 
+				{
 					shared_locks_array[register_index].value.store(recursion_depth, std::memory_order_seq_cst);
-					for (volatile size_t i = 0; want_x_lock.load(std::memory_order_seq_cst); ++i) if (i % 100000 == 0) std::this_thread::yield();
+
+					for (volatile size_t i = 0; want_x_lock.load(std::memory_order_seq_cst); ++i) 
+						if (i % 100000 == 0) 
+							std::this_thread::yield();
+
 					shared_locks_array[register_index].value.store(recursion_depth + 1, std::memory_order_seq_cst);
 				}
 			}
@@ -163,10 +172,13 @@ public:
 			// (shared_locks_array[register_index] > 2)                                 // recursive shared lock
 		}
 		else {
-			if (owner_thread_id.load(std::memory_order_acquire) != get_fast_this_thread_id()) {
+			if (owner_thread_id.load(std::memory_order_acquire) != get_fast_this_thread_id()) 
+			{
 				size_t i = 0;
 				for (bool flag = false; !want_x_lock.compare_exchange_weak(flag, true, std::memory_order_seq_cst); flag = false)
-					if (++i % 100000 == 0) std::this_thread::yield();
+					if (++i % 100000 == 0) 
+						std::this_thread::yield();
+
 				owner_thread_id.store(get_fast_this_thread_id(), std::memory_order_release);
 			}
 			++recursive_xlock_count;

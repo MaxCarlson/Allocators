@@ -41,22 +41,14 @@ public:
 
 		// Perform the SharedLock
 		int free = ContentionFreeFlag::Registered;
-		if (flag->flag.compare_exchange_strong(free, ContentionFreeFlag::SharedLock))
-			;
-
-		// We can't SharedLock so we'll wait until we can
-		else
-		{
+		while (!flag->flag.compare_exchange_strong(free, ContentionFreeFlag::SharedLock))
 			free = ContentionFreeFlag::Registered;
-			while (!flag->flag.compare_exchange_strong(free, ContentionFreeFlag::SharedLock))
-				free = ContentionFreeFlag::Registered;
-		}
-
 	}
 
 	void unlockShared()
 	{
 		ContentionFreeFlag* flag = registerThread();
+
 		flag->flag.exchange(ContentionFreeFlag::Registered);
 	}
 
@@ -66,13 +58,13 @@ public:
 	{
 		for (ContentionFreeFlag& f : flags)
 		{
-			int notShared = ContentionFreeFlag::Registered;
-			int unregistered = ContentionFreeFlag::Unregistered;
+			int notShared		= ContentionFreeFlag::Registered;
+			int unregistered	= ContentionFreeFlag::Unregistered;
 			while (!(f.flag.compare_exchange_strong(notShared, ContentionFreeFlag::Locked)
 				|| f.flag.compare_exchange_strong(unregistered, ContentionFreeFlag::Locked)))
 			{
-				notShared = ContentionFreeFlag::Registered;
-				unregistered = ContentionFreeFlag::Unregistered;
+				notShared		= ContentionFreeFlag::Registered;
+				unregistered	= ContentionFreeFlag::Unregistered;
 			}
 		}
 	}
@@ -82,19 +74,48 @@ public:
 		static const auto defaultThread = std::thread::id{};
 
 		for (ContentionFreeFlag& f : flags)
+		{
 			if (f.id != defaultThread)
 				f.flag.exchange(ContentionFreeFlag::Registered);
 			else
 				f.flag.exchange(ContentionFreeFlag::Unregistered);
+		}
+
 	}
 
 private:
+
+	struct ThreadRegister
+	{
+		ThreadRegister(SharedMutex& cont) :
+			index{ -1 },
+			unset{ true },
+			cont{ cont }
+		{}
+
+		~ThreadRegister()
+		{
+			const auto id = std::this_thread::get_id();
+			for(ContentionFreeFlag& cf : cont.flags)
+				if (cf.id == id)
+				{
+					int free = ContentionFreeFlag::Registered;
+					while (!cf.flag.compare_exchange_weak(free, ContentionFreeFlag::Unregistered))
+						free = ContentionFreeFlag::Registered;
+				}
+		}
+
+		int				index;
+		bool			unset;
+		SharedMutex&	cont;
+	};
 
 	// Find the index of this thread in our array
 	// If it's never been registered, prepare it to 
 	// be or set it's registered index
 	int getOrSetIndex(int idx = -1)
 	{
+		//static thread_local ThreadRegister tr;
 		static thread_local int index	= -1;
 		static thread_local bool unset	= true;
 
@@ -139,13 +160,13 @@ private:
 					}
 				}
 			}
-			auto b = &flags[idx];
+			//auto* b = &flags[idx];
 		}
 
 		return &flags[idx];
 	}
 
-	//std::atomic<bool> lockFlags;
+	std::atomic<bool> xLock;
 
 	// Thead (mostly) private locks
 	std::array<ContentionFreeFlag, threads> flags;

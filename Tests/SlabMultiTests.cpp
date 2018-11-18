@@ -38,7 +38,7 @@ TEST_CLASS(SlabMultiTests)
 {
 public:
 
-	alloc::SlabMulti<size_t> multi;
+	inline static alloc::SlabMulti<size_t> multi;
 
 	TEST_CLASS_INITIALIZE(init)
 	{
