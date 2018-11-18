@@ -495,14 +495,18 @@ struct SmpVec
 	template<class... Args>
 	decltype(auto) emplace_back(Args&& ...args) 
 	{
-		std::lock_guard lock(mutex);
+		//std::lock_guard lock(mutex);
+		LockGuard lock(mutex);
+
 		return vec.emplace_back(std::forward<Args>(args)...);
 	}
 
 	template<class Func>
 	byte* lIterate(Func&& func)
 	{
-		std::lock_guard lock(mutex);
+		//std::lock_guard lock(mutex);
+		LockGuard lock(mutex);
+
 		for (auto& v : vec)
 			if (auto ptr = func(v))
 				return ptr;
@@ -515,7 +519,8 @@ struct SmpVec
 		// TODO: Benchmark different lock types here 
 		// TODO: Also look into how to not lock unless neccasary here
 
-		std::shared_lock lock(mutex); 
+		//std::shared_lock lock(mutex); 
+		SharedLock lock(mutex);
 		for (auto& v : vec)
 		{
 			auto ptr = func(v);
@@ -527,13 +532,16 @@ struct SmpVec
 
 	bool empty() 
 	{
-		std::shared_lock lock(mutex);
+		//std::shared_lock lock(mutex);
+		SharedLock lock(mutex);
+
 		return vec.empty();
 	}
 
 private:
 	std::vector<T> vec;
-	std::shared_mutex mutex; 
+	//std::shared_mutex mutex; 
+	SharedMutex<8> mutex;
 };
 
 struct BucketPair

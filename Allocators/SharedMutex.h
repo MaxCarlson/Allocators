@@ -18,11 +18,11 @@ struct ContentionFreeFlag
 		flag{ Unregistered }
 	{}
 
-	std::thread::id		id;
-	std::atomic<int>	flag;
-	alloc::byte			noFalseSharing[60];
+	std::thread::id			id;
+	std::atomic<int>		flag;
+	static constexpr int	SizeOffset = (sizeof(decltype(id)) + sizeof(decltype(flag)));
+	alloc::byte				noFalseSharing[64 - SizeOffset];
 };
-
 
 template<size_t threads = 4>
 class SharedMutex
@@ -93,14 +93,15 @@ private:
 	// Find the index of this thread in our array
 	// If it's never been registered, prepare it to 
 	// be or set it's registered index
-	int getOrSetIndex(int idx = 0)
+	int getOrSetIndex(int idx = -1)
 	{
-		static thread_local int index = -1;
-		static thread_local bool unset = true;
+		static thread_local int index	= -1;
+		static thread_local bool unset	= true;
 
-		if (index == -1 && unset)
+		if (unset)
 			unset = false;
-		else
+
+		else if(idx != -1)
 			index = idx;
 
 		return index;
@@ -118,7 +119,7 @@ private:
 		if (idx == -1)
 		{
 			auto id = std::this_thread::get_id();
-			for (int i = 0; i < flags.max_size(); ++i)
+			for (int i = 0; i < threads; ++i)
 			{
 				ContentionFreeFlag& f = flags[i];
 				if (f.id == id)
@@ -138,7 +139,7 @@ private:
 					}
 				}
 			}
-
+			auto b = &flags[idx];
 		}
 
 		return &flags[idx];
@@ -146,7 +147,7 @@ private:
 
 	//std::atomic<bool> lockFlags;
 
-	// Thead private locks
+	// Thead (mostly) private locks
 	std::array<ContentionFreeFlag, threads> flags;
 };
 
