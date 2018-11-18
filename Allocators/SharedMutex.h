@@ -41,7 +41,7 @@ public:
 
 		// Perform the SharedLock
 		int free = ContentionFreeFlag::Registered;
-		while (!flag->flag.compare_exchange_strong(free, ContentionFreeFlag::SharedLock))
+		while (!flag->flag.compare_exchange_strong(free, ContentionFreeFlag::SharedLock)) // TODO: Switch loops to compare_exchange_weak()
 			free = ContentionFreeFlag::Registered;
 	}
 
@@ -88,9 +88,8 @@ private:
 	struct ThreadRegister
 	{
 		ThreadRegister(SharedMutex& cont) :
-			index{ -1 },
-			unset{ true },
-			cont{ cont }
+			index{	-2 },
+			cont{	cont }
 		{}
 
 		~ThreadRegister()
@@ -99,33 +98,38 @@ private:
 			for(ContentionFreeFlag& cf : cont.flags)
 				if (cf.id == id)
 				{
+					cf.id = std::thread::id{};
 					int free = ContentionFreeFlag::Registered;
 					while (!cf.flag.compare_exchange_weak(free, ContentionFreeFlag::Unregistered))
 						free = ContentionFreeFlag::Registered;
 				}
 		}
 
+		enum Status
+		{
+			Unregistered = -2,
+			PrepareToRegister,
+			Registered,
+		};
+
 		int				index;
-		bool			unset;
 		SharedMutex&	cont;
 	};
 
 	// Find the index of this thread in our array
 	// If it's never been registered, prepare it to 
 	// be or set it's registered index
-	int getOrSetIndex(int idx = -1)
+	int getOrSetIndex(int idx = ThreadRegister::Unregistered)
 	{
-		//static thread_local ThreadRegister tr;
-		static thread_local int index	= -1;
-		static thread_local bool unset	= true;
+		static thread_local ThreadRegister tr(*this);
 
-		if (unset)
-			unset = false;
+		if (tr.index == ThreadRegister::Unregistered)
+			tr.index = ThreadRegister::PrepareToRegister;
 
-		else if(idx != -1)
-			index = idx;
+		else if(idx != ThreadRegister::Unregistered)
+			tr.index = idx;
 
-		return index;
+		return tr.index;
 	}
 
 	// Check if this thread has been registered before,
@@ -137,7 +141,7 @@ private:
 		int idx = getOrSetIndex();
 
 		// Thread has never been registered
-		if (idx == -1)
+		if (idx == ThreadRegister::PrepareToRegister)
 		{
 			auto id = std::this_thread::get_id();
 			for (int i = 0; i < threads; ++i)

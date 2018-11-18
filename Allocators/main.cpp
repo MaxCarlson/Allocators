@@ -11,40 +11,6 @@
 
 using Clock = std::chrono::high_resolution_clock;
 
-constexpr int count = 1024;
-
-struct Large
-{
-	Large() : ar{100}
-	{
-		std::fill(std::begin(ar), std::end(ar), 0);
-	}
-
-	Large(int sz, int val) : ar{sz}
-	{
-	std::fill(std::begin(ar), std::end(ar), val);
-	}
-
-	Large(Large&& other) noexcept :
-		ar{ std::move(other.ar) }
-	{}
-
-	//Large(Large&& other) = delete;
-
-	Large(const Large& other) :
-		ar{ other.ar }
-	{
-	}
-
-	~Large()
-	{
-		auto a = 0;
-	}
-
-	std::vector<int> ar;
-};
-
-
 // Just a temporary main to test allocators from
 // Should be removed in any actual use case
 //
@@ -60,7 +26,6 @@ int main()
 	//alloc::FreeList<int, 50000, alloc::TreePolicy> al;
 	
 	constexpr int count = 1000;
-
 
 	alloc::SlabMulti<size_t>						multi;
 	std::vector<size_t, alloc::SlabMulti<size_t>>	vec(multi);
