@@ -19,8 +19,8 @@ constexpr auto cacheSz		= 1024;
 	constexpr auto iterations	= 1000000;
 	constexpr auto maxAllocs	= 80000;
 #else
-	constexpr auto iterations	= 1000;
-	constexpr auto maxAllocs	= 1500;
+	constexpr auto iterations	= 100;
+	constexpr auto maxAllocs	= 80;
 #endif
 
 constexpr auto TestThreads	= 4;

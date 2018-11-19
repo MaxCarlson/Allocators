@@ -41,12 +41,18 @@ struct Cache
 	SlabStore slabsPart;
 	SlabStore slabsFull;
 
-	Cache() = default;
+	Cache() :
+		count{		0 }, 
+		blockSize{	0 },
+		myCapacity{ 0 },
+		mySize{		0 },
+	{}
+
 	Cache(size_type blockSize, size_type count) : 
 		count{		count },
 		blockSize{	blockSize },
 		myCapacity{ 0 },
-		mySize{		0 }
+		mySize{		0 },
 	{
 		newSlab();
 	}
