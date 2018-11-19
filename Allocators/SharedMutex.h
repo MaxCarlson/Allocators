@@ -87,11 +87,20 @@ private:
 
 	struct ThreadRegister
 	{
+		enum Status
+		{
+			Unregistered = -2,
+			PrepareToRegister,
+			Registered,
+		};
+
 		ThreadRegister(SharedMutex& cont) :
-			index{	-2 },
+			index{	Status::Unregistered },
 			cont{	cont }
 		{}
 
+		// Unregister the thread and reset it's ID on thread's dtor call
+		// (acheived through static thread_local variable)
 		~ThreadRegister()
 		{
 			const auto id = std::this_thread::get_id();
@@ -102,15 +111,10 @@ private:
 					int free = ContentionFreeFlag::Registered;
 					while (!cf.flag.compare_exchange_weak(free, ContentionFreeFlag::Unregistered))
 						free = ContentionFreeFlag::Registered;
+
+					break;
 				}
 		}
-
-		enum Status
-		{
-			Unregistered = -2,
-			PrepareToRegister,
-			Registered,
-		};
 
 		int				index;
 		SharedMutex&	cont;
@@ -141,7 +145,7 @@ private:
 		int idx = getOrSetIndex();
 
 		// Thread has never been registered
-		if (idx == ThreadRegister::PrepareToRegister)
+		while (idx == ThreadRegister::PrepareToRegister)
 		{
 			auto id = std::this_thread::get_id();
 			for (int i = 0; i < threads; ++i)
@@ -157,22 +161,21 @@ private:
 					int val = ContentionFreeFlag::Unregistered;
 					if (f.flag.compare_exchange_strong(val, ContentionFreeFlag::Registered))
 					{
-						idx = i;
-						f.id = id;
+						idx		= i;
+						f.id	= id;
 						getOrSetIndex(idx);
 						break;
 					}
 				}
 			}
-			//auto* b = &flags[idx];
 		}
 
 		return &flags[idx];
 	}
 
-	std::atomic<bool> xLock;
+	//std::atomic<bool> xLock;
 
-	// Thead (mostly) private locks
+	// Thead (shared) private locks
 	std::array<ContentionFreeFlag, threads> flags;
 };
 

@@ -17,6 +17,8 @@ class SlabMulti;
 namespace SlabMultiImpl
 {
 
+struct Bucket;
+
 constexpr auto SUPERBLOCK_SIZE	= 1 << 20;
 constexpr auto SLAB_SIZE		= 1 << 14;
 constexpr auto MAX_SLAB_BLOCKS	= 65535;						// Max number of memory blocks a Slab can be divided into 
@@ -207,31 +209,41 @@ public:
 	}
 };
 
-struct Cache
+class Cache
 {
 	using size_type = size_t;
 	using Container = std::vector<Slab>; 
 	using It		= Container::iterator;
 
+	size_type		mySize;
+	size_type		myCapacity;
 	const size_type	count;
 	const size_type	blockSize;
 	int				threshold;
 	Container		slabs;
 	It				actBlock;
 	static constexpr double freeThreshold	= 0.25;
-	static constexpr double MIN_SLABS		= 1;
+	static constexpr int MIN_SLABS			= 1;
+
+public:
+
+	friend struct Bucket;
 
 	Cache(size_type count, size_type blockSize) :
+		mySize{		0 },
+		myCapacity{ 0 },
 		count{		count },
 		blockSize{	blockSize },
 		threshold{	static_cast<int>(count * freeThreshold) }, // TODO: Cache these values at compile time
 		slabs{}
 	{
-		slabs.emplace_back(blockSize, count); // TODO: Figure out how to put this in the ctor list!!!
+		addCache();
 		actBlock = std::begin(slabs);
 	}
 
-	Cache(Cache&& other) noexcept:
+	Cache(Cache&& other) noexcept :
+		mySize{		other.mySize },
+		myCapacity{ other.myCapacity },
 		count{		other.count },
 		blockSize{	other.blockSize },
 		threshold{	other.threshold }, 
@@ -240,13 +252,35 @@ struct Cache
 	{}
 
 	Cache(const Cache& other) : // TODO: Why is this needed?
+		mySize{		other.mySize },
+		myCapacity{ other.myCapacity },
 		count{		other.count },
 		blockSize{	other.blockSize },
 		threshold{	other.threshold }, 
 		slabs{		other.slabs },
 		actBlock{	other.actBlock }
 	{}
+private:
 
+	void splice(It& pos, It it)
+	{
+		auto val = std::move(*it);
+		std::memmove(&*(pos + 1), &*pos, sizeof(Slab) * static_cast<size_t>(it - pos));
+
+		// Two of the same Slab exist after the memmove above.
+		// To avoid the destructor call destroying the Slab we want to keep
+		// we placement new the value of 'it' into the redundent Slab (pos is then set to correct position)
+		new(&*pos) Slab{ std::move(val) };
+		pos	= std::begin(slabs) + (static_cast<size_t>(pos - std::begin(slabs)) + 1);
+	}
+
+	void addCache()
+	{
+		slabs.emplace_back(blockSize, count);
+		myCapacity += count;
+	}
+
+public:
 	byte* allocate()
 	{
 		auto[mem, full] = actBlock->allocate();
@@ -261,26 +295,14 @@ struct Cache
 			else
 			{
 				auto idx = static_cast<size_t>(actBlock - std::begin(slabs));
-				slabs.emplace_back(blockSize, count);
+				addCache();
 				std::swap(slabs[idx], slabs.back());
 				actBlock = std::begin(slabs) + idx;
 			}
 
 		}
-
+		++mySize;
 		return mem;
-	}
-
-	void splice(It& pos, It it)
-	{
-		auto val = std::move(*it);
-		std::memmove(&*(pos + 1), &*pos, sizeof(Slab) * static_cast<size_t>(it - pos));
-
-		// Two of the same Slab exist after the memmove above.
-		// To avoid the destructor call destroying the Slab we want to keep
-		// we placement new the value of 'it' into the redundent Slab (pos is then set to correct position)
-		new(&*pos) Slab{ std::move(val) };
-		pos	= std::begin(slabs) + (static_cast<size_t>(pos - std::begin(slabs)) + 1);
 	}
 
 	template<class T>
@@ -291,6 +313,8 @@ struct Cache
 		//
 		// TODO: Try benchmarking: After looking at blocks after actBlock looking in reverse order
 		// from active block
+		--mySize;
+
 		auto it		= actBlock;
 		for (auto E = std::end(slabs);;)
 		{
@@ -300,8 +324,7 @@ struct Cache
 				break;
 			}
 
-			++it;
-			if (it == E)				
+			if (++it == E)				
 				it = std::begin(slabs); // TODO: Look into better ways to do this block
 		}
 
@@ -313,8 +336,12 @@ struct Cache
 		}
 
 		// Return memory to Dispatcher
-		else if (it->empty() && slabs.size() > MIN_SLABS) 
+		else if (it->empty() 
+			&& slabs.size() > MIN_SLABS
+			&& mySize > myCapacity - count) 
 		{
+			myCapacity -= count;
+
 			if (it != actBlock)
 			{
 				if (it > actBlock)
@@ -554,15 +581,10 @@ struct BucketPair
 	}
 
 	BucketPair(BucketPair&& other) noexcept = default;
-	BucketPair(const BucketPair& other) noexcept: // TODO: Revisit this. This shouldn't really need to exist
-		bucket{bucket},
-		id{id}
-	{}
-
+	BucketPair(const BucketPair& other) noexcept = default;
 
 	Bucket				bucket;
 	std::thread::id		id;
-	//std::atomic_flag	inUse = ATOMIC_FLAG_INIT;
 };
 // Interface class for SlabMulti so that
 // we can have multiple SlabMulti copies pointing
