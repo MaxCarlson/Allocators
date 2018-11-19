@@ -6,10 +6,11 @@
 #include "Tests.h"
 
 // Allocators
-DefaultAlloc<int> defaultAl;
-alloc::SlabMem<int> slabM;
-alloc::SlabObj<int> slabO;
-alloc::SlabMulti<int> multi;
+DefaultAlloc<int>		defaultAl;
+alloc::SlabMem<int>		slabM;
+alloc::SlabObj<int>		slabO;
+alloc::SlabMulti<int>	multi;
+
 constexpr auto FreeListBytes = (150 + sizeof(alloc::FreeList<PartialInit, 999999999>::OurHeader)) * (maxAllocs * 4); // TODO: Better size needs prediciton
 alloc::FreeList<int, FreeListBytes, alloc::ListPolicy> freeAlList;
 alloc::FreeList<int, FreeListBytes, alloc::FlatPolicy> freeAlFlat;
@@ -273,14 +274,14 @@ int main()
 {
 	//constexpr size_t allocMask = ALL_ALLOCS;
 
-	constexpr size_t allocMask = SLAB_MULTI;
+	//constexpr size_t allocMask = SLAB_MULTI;
 	constexpr size_t benchMask = BenchMasks::MULTI_STR;
 
-	//constexpr size_t allocMask		= DEFAULT | SLAB_OBJ | SLAB_MEM | SLAB_MULTI;	
+	constexpr size_t allocMask		= DEFAULT | SLAB_OBJ | SLAB_MEM | SLAB_MULTI;	
 	//constexpr size_t allocMask		= AllocMasks::ALL_ALLOCS; // SLAB_MEM | SLAB_OBJ;	
 	//constexpr size_t benchMask		= BenchMasks::ALL_BENCH;
 
-	constexpr int numTests			= 10000020;
+	constexpr int numTests			= 10;
 
 	slabM.addCache2(1 << 5, 1 << 14, cacheSz);
 

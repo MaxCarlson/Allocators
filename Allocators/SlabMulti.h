@@ -314,8 +314,7 @@ public:
 		// TODO: Try benchmarking: After looking at blocks after actBlock looking in reverse order
 		// from active block
 		--mySize;
-		if (mySize > 10000000)
-			int a = 4;
+
 		auto it		= actBlock;
 		for (auto E = std::end(slabs);;)
 		{
