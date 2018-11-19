@@ -17,15 +17,16 @@ struct BenchT
 	using MyType = T;
 
 	BenchT(T t, Ctor& ctor, Al& al, De& de, 
-		std::default_random_engine& re, bool singleAl = false, bool useCtor = true)
-		: ctor(ctor), al(al), de(de), re(re), 
-		singleAl(singleAl), useCtor(useCtor) {}
+		std::default_random_engine& re, bool useCtor = true) : 
+		ctor(ctor), 
+		al(al), de(de), 
+		re(re), useCtor(useCtor) 
+	{}
 
 	Ctor&		ctor;
 	Al&			al;
 	De&			de;
 	RngEngine	re;
-	bool		singleAl;
 	bool		useCtor;
 };
 

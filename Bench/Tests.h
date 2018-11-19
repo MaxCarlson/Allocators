@@ -118,7 +118,7 @@ double randomAlDe(Init& init, Alloc& al)
 
 	std::shuffle(std::begin(ptrs), std::end(ptrs), init.re);
 
-
+	auto tt			= T{};
 	int allocs		= 0;
 	int deallocs	= 0;
 	auto dis		= std::uniform_int_distribution<int>(1, IN_ROW);
@@ -134,7 +134,7 @@ double randomAlDe(Init& init, Alloc& al)
 
 		if (allocs && ptrs.size() < maxAllocs)
 		{
-			ptrs.emplace_back(init.al(T{}, 1));
+			ptrs.emplace_back(init.al(tt, 1));
 
 			if (init.useCtor)
 				init.ctor.construct(ptrs.back());

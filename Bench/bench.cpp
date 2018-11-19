@@ -111,8 +111,8 @@ decltype(auto) benchAlT(Init& init, Alloc& al, Ctor& ctor, bool nonType, int cou
 				scores[0] += basicAlloc(init, al);
 			if (isValid(alMask, bMask, BenchMasks::AL_DE))
 				scores[1] += basicAlDea(init, al);
-			if (isValid(alMask, bMask, BenchMasks::R_AL_DE))
-				scores[2] += randomAlDe(init, al);
+			//if (isValid(alMask, bMask, BenchMasks::R_AL_DE))
+			//	scores[2] += randomAlDe(init, al);
 			if (isValid(alMask, bMask, BenchMasks::SEQ_READ))
 				scores[3] += sMemAccess(init, al);
 			if (isValid(alMask, bMask, BenchMasks::R_READ))
@@ -240,7 +240,7 @@ decltype(auto) benchAllocs(Ctor& ctor, int runs, size_t alMask = ALL_ALLOCS, siz
 	if (alMask & SLAB_OBJ)
 	{
 		auto[Al, De] = sObjWrappers<Ctor>();
-		BenchT init(T{}, ctor, Al, De, re, true, false);
+		BenchT init(T{}, ctor, Al, De, re, false);
 		scores.emplace_back(benchAlT(init, slabO, ctor, nonType, runs, SLAB_OBJ, bMask));
 		slabO.freeAll<T, Ctor>(); // Needed to destroy cache of objects (as it's an object pool)
 	}
@@ -274,14 +274,14 @@ int main()
 {
 	//constexpr size_t allocMask = ALL_ALLOCS;
 
-	//constexpr size_t allocMask = SLAB_MULTI;
-	constexpr size_t benchMask = BenchMasks::MULTI_STR;
+	constexpr size_t allocMask = SLAB_MULTI;
+	//constexpr size_t benchMask = BenchMasks::MULTI_STR;
 
-	constexpr size_t allocMask		= DEFAULT | SLAB_OBJ | SLAB_MEM | SLAB_MULTI;	
+	//constexpr size_t allocMask		= DEFAULT | SLAB_OBJ | SLAB_MEM | SLAB_MULTI;	
 	//constexpr size_t allocMask		= AllocMasks::ALL_ALLOCS; // SLAB_MEM | SLAB_OBJ;	
-	//constexpr size_t benchMask		= BenchMasks::ALL_BENCH;
+	constexpr size_t benchMask		= BenchMasks::ALL_BENCH;
 
-	constexpr int numTests			= 10;
+	constexpr int numTests			= 5;
 
 	slabM.addCache2(1 << 5, 1 << 14, cacheSz);
 

@@ -20,7 +20,7 @@ struct ContentionFreeFlag
 
 	std::thread::id			id;
 	std::atomic<int>		flag;
-	static constexpr int	SizeOffset = (sizeof(decltype(id)) + sizeof(decltype(flag)));
+	static constexpr auto	SizeOffset = (sizeof(decltype(id)) + sizeof(decltype(flag)));
 	alloc::byte				noFalseSharing[64 - SizeOffset];
 };
 
@@ -41,7 +41,7 @@ public:
 
 		// Perform the SharedLock
 		int free = ContentionFreeFlag::Registered;
-		while (!flag->flag.compare_exchange_strong(free, ContentionFreeFlag::SharedLock)) // TODO: Switch loops to compare_exchange_weak()
+		while (!flag->flag.compare_exchange_weak(free, ContentionFreeFlag::SharedLock)) 
 			free = ContentionFreeFlag::Registered;
 	}
 
@@ -60,8 +60,8 @@ public:
 		{
 			int notShared		= ContentionFreeFlag::Registered;
 			int unregistered	= ContentionFreeFlag::Unregistered;
-			while (!(f.flag.compare_exchange_strong(notShared, ContentionFreeFlag::Locked)
-				|| f.flag.compare_exchange_strong(unregistered, ContentionFreeFlag::Locked)))
+			while (!(f.flag.compare_exchange_weak(notShared, ContentionFreeFlag::Locked)
+				|| f.flag.compare_exchange_weak(unregistered, ContentionFreeFlag::Locked)))
 			{
 				notShared		= ContentionFreeFlag::Registered;
 				unregistered	= ContentionFreeFlag::Unregistered;
