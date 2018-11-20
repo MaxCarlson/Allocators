@@ -44,6 +44,7 @@ int main()
 	//alloc::SlabMem<size_t>::addCache2(sizeof(size_t), 1 << 10, 512);
 	//alloc::FreeList<int, 50000, alloc::TreePolicy> al;
 
+	/*
 	while (true)
 	{
 		auto t1 = std::thread{ []() {testFences(true); } };
@@ -54,15 +55,15 @@ int main()
 		A = r1 = r2 = ready = 0;
 		
 	}
-
+	*/
 
 
 	constexpr int count = 1000;
 
 	alloc::SlabMulti<size_t>						multi;
-	std::vector<size_t, alloc::SlabMulti<size_t>>	vec(multi);
+//	std::vector<size_t, alloc::SlabMulti<size_t>>	vec(multi);
 
-	SharedMutex tex;
+	SharedMutex<0> tex;
 
 	tex.lockShared();
 

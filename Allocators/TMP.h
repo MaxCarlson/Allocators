@@ -62,8 +62,8 @@ template<typename T, typename mutex_t = std::recursive_mutex, typename x_lock_t 
 	void unlock() { mtx_ptr->unlock(); }
 	friend struct link_safe_ptrs;
 	template<typename, typename, size_t, size_t> friend class lock_timed_transaction;
-	//template<typename mutex_type> friend class std::lock_guard;   // MSVC 2013
-	template<class... mutex_types> friend class std::lock_guard;    // C++17, MSVC 2015
+	template<typename mutex_type> friend class std::lock_guard;   // MSVC 2013
+	//template<class... mutex_types> friend class std::lock_guard;    // C++17, MSVC 2015
 public:
 	template<typename... Args>
 	safe_ptr(Args... args) : ptr(std::make_shared<T>(args...)), mtx_ptr(std::make_shared<mutex_t>()) {}
@@ -76,7 +76,7 @@ public:
 // ---------------------------------------------------------------
 
 // contention free shared mutex (same-lock-type is recursive for X->X, X->S or S->S locks), but (S->X - is UB)
-template<unsigned contention_free_count = 20, bool shared_flag = false>
+template<unsigned contention_free_count = 36, bool shared_flag = false>
 class contention_free_shared_mutex
 {
 	std::atomic<bool> want_x_lock;
@@ -93,19 +93,44 @@ class contention_free_shared_mutex
 	int recursive_xlock_count;
 
 
+	enum index_op_t { unregister_thread_op, get_index_op, register_thread_op };
+
 	typedef std::thread::id thread_id_t;
 	std::atomic<std::thread::id> owner_thread_id;
 	std::thread::id get_fast_this_thread_id() { return std::this_thread::get_id(); }
 
-	int get_or_set_index(int set_index = -1) {
-		thread_local static std::unordered_map<void *, int> thread_local_index_hashmap;
-		if (set_index < 0) {  // get index
-			auto it = thread_local_index_hashmap.find(this);
-			if (it != thread_local_index_hashmap.cend())
-				set_index = it->second;
+	struct unregister_t
+	{
+		int thread_index;
+		std::shared_ptr<array_slock_t> array_slock_ptr;
+		unregister_t(int index, std::shared_ptr<array_slock_t> const& ptr) : thread_index(index), array_slock_ptr(ptr) {}
+		unregister_t(unregister_t &&src) : thread_index(src.thread_index), array_slock_ptr(std::move(src.array_slock_ptr)) {}
+		~unregister_t() { if (array_slock_ptr.use_count() > 0) (*array_slock_ptr)[thread_index].value--; }
+	};
+
+	int get_or_set_index(index_op_t index_op = get_index_op, int set_index = -1) {
+		thread_local static std::unordered_map<void *, unregister_t> thread_local_index_hashmap;
+		// get thread index - in any cases
+		auto it = thread_local_index_hashmap.find(this);
+		if (it != thread_local_index_hashmap.cend())
+			set_index = it->second.thread_index;
+
+		if (index_op == unregister_thread_op) {  // unregister thread
+			if (shared_locks_array[set_index].value == 1) // if isn't shared_lock now
+				thread_local_index_hashmap.erase(this);
+			else
+				return -1;
 		}
-		else {
-			thread_local_index_hashmap.emplace(this, set_index);
+		else if (index_op == register_thread_op) {  // register thread
+			thread_local_index_hashmap.emplace(this, unregister_t(set_index, shared_locks_array_ptr));
+
+			// remove info about deleted contfree-mutexes
+			for (auto it = thread_local_index_hashmap.begin(), ite = thread_local_index_hashmap.end(); it != ite;) {
+				if (it->second.array_slock_ptr->at(it->second.thread_index).value < 0)    // if contfree-mtx was deleted
+					it = thread_local_index_hashmap.erase(it);
+				else
+					++it;
+			}
 		}
 		return set_index;
 	}
@@ -120,6 +145,8 @@ public:
 	}
 
 
+	bool unregister_thread() { return get_or_set_index(unregister_thread_op) >= 0; }
+
 	int register_thread() {
 		int cur_index = get_or_set_index();
 
@@ -131,12 +158,12 @@ public:
 					if (shared_locks_array[i].value == 0)
 						if (shared_locks_array[i].value.compare_exchange_strong(unregistred_value, 1)) {
 							cur_index = i;
-							get_or_set_index(cur_index);   // thread registred success
+							get_or_set_index(register_thread_op, cur_index);   // thread registred success
 							break;
 						}
 				}
 				//std::cout << "\n thread_id = " << std::this_thread::get_id() << ", register_thread_index = " << cur_index <<
-					//", shared_locks_array[cur_index].value = " << shared_locks_array[cur_index].value << std::endl;
+				//    ", shared_locks_array[cur_index].value = " << shared_locks_array[cur_index].value << std::endl;
 			}
 		}
 		return cur_index;
@@ -145,26 +172,17 @@ public:
 	void lock_shared() {
 		int const register_index = register_thread();
 
-		if (register_index >= 0) 
-		{
+		if (register_index >= 0) {
 			int recursion_depth = shared_locks_array[register_index].value.load(std::memory_order_acquire);
 			assert(recursion_depth >= 1);
 
 			if (recursion_depth > 1)
 				shared_locks_array[register_index].value.store(recursion_depth + 1, std::memory_order_release); // if recursive -> release
-			
-			else 
-			{
+			else {
 				shared_locks_array[register_index].value.store(recursion_depth + 1, std::memory_order_seq_cst); // if first -> sequential
-
-				while (want_x_lock.load(std::memory_order_seq_cst)) 
-				{
+				while (want_x_lock.load(std::memory_order_seq_cst)) {
 					shared_locks_array[register_index].value.store(recursion_depth, std::memory_order_seq_cst);
-
-					for (volatile size_t i = 0; want_x_lock.load(std::memory_order_seq_cst); ++i) 
-						if (i % 100000 == 0) 
-							std::this_thread::yield();
-
+					for (volatile size_t i = 0; want_x_lock.load(std::memory_order_seq_cst); ++i) if (i % 100000 == 0) std::this_thread::yield();
 					shared_locks_array[register_index].value.store(recursion_depth + 1, std::memory_order_seq_cst);
 				}
 			}
@@ -172,13 +190,10 @@ public:
 			// (shared_locks_array[register_index] > 2)                                 // recursive shared lock
 		}
 		else {
-			if (owner_thread_id.load(std::memory_order_acquire) != get_fast_this_thread_id()) 
-			{
+			if (owner_thread_id.load(std::memory_order_acquire) != get_fast_this_thread_id()) {
 				size_t i = 0;
 				for (bool flag = false; !want_x_lock.compare_exchange_weak(flag, true, std::memory_order_seq_cst); flag = false)
-					if (++i % 100000 == 0) 
-						std::this_thread::yield();
-
+					if (++i % 100000 == 0) std::this_thread::yield();
 				owner_thread_id.store(get_fast_this_thread_id(), std::memory_order_release);
 			}
 			++recursive_xlock_count;
@@ -239,15 +254,19 @@ struct shared_lock_guard
 	~shared_lock_guard() { ref_mtx.unlock_shared(); }
 };
 
+using default_contention_free_shared_mutex = contention_free_shared_mutex<>;
+
 template<typename T> using contfree_safe_ptr = safe_ptr<T, contention_free_shared_mutex<>,
 	std::unique_lock<contention_free_shared_mutex<>>, shared_lock_guard<contention_free_shared_mutex<>> >;
 // ---------------------------------------------------------------
+
 
 
 contfree_safe_ptr< std::map<std::string, int> > safe_map_strings_global;   // cont-free shared-mutex
 
 
 //safe_ptr<std::map<std::string, std::pair<std::string, int> >> safe_map_strings_global;    // std::mutex
+
 
 
 template<typename T>
@@ -263,4 +282,24 @@ void func(contfree_safe_ptr<T> safe_map_strings)
 		safe_map_strings->at("apple") += 1;                                 // 2-nd recursive eXclusive lock
 		safe_map_strings->find("potato")->second += 1;                      // 3-rd recursive eXclusive lock
 	}
+}
+
+int main() {
+
+	(*safe_map_strings_global)["apple"] = 0;
+	(*safe_map_strings_global)["potato"] = 0;
+
+	// 20 threads
+	std::vector<std::thread> vec_thread(20);
+	for (auto &i : vec_thread) i = std::move(std::thread([&]() { func(safe_map_strings_global); }));
+	for (auto &i : vec_thread) i.join();
+
+	// 20 threads
+	for (auto &i : vec_thread) i = std::move(std::thread([&]() { func(safe_map_strings_global); }));
+	for (auto &i : vec_thread) i.join();
+
+	std::cout << "END: potato is " << safe_map_strings_global->at("potato") <<
+		", apple is " << safe_map_strings_global->at("apple") << std::endl;
+
+	return 0;
 }
