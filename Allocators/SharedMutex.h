@@ -145,27 +145,26 @@ private:
 		int idx = getOrSetIndex();
 
 		// Thread has never been registered
+		// TODO: This will loop forever if flags is full!!
 		while (idx == ThreadRegister::PrepareToRegister)
 		{
 			auto id = std::this_thread::get_id();
 			for (int i = 0; i < threads; ++i)
 			{
-				ContentionFreeFlag& f = flags[i];
+				auto& f = flags[i];
+				int val = ContentionFreeFlag::Unregistered;
+
 				if (f.id == id)
 				{
 					idx = i;
 					break;
 				}
-				else if (f.flag.load() == ContentionFreeFlag::Unregistered)
+				else if (f.flag.compare_exchange_strong(val, ContentionFreeFlag::Registered))
 				{
-					int val = ContentionFreeFlag::Unregistered;
-					if (f.flag.compare_exchange_strong(val, ContentionFreeFlag::Registered))
-					{
-						idx		= i;
-						f.id	= id;
-						getOrSetIndex(idx);
-						break;
-					}
+					idx		= i;
+					f.id	= id;
+					getOrSetIndex(idx);
+					break;
 				}
 			}
 		}
