@@ -33,8 +33,7 @@ public:
 	SharedMutex() :
 		xLock{ false },
 		flags {}
-	{
-	}
+	{}
 
 	void lockShared()
 	{
@@ -78,8 +77,6 @@ public:
 
 	void lock()
 	{
-		//int idx = getOrSetIndex();
-
 		// Spin until we acquire the master/overflow lock
 		bool locked = false;
 		while (!xLock.compare_exchange_weak(locked, true, std::memory_order_seq_cst))
@@ -188,10 +185,10 @@ private:
 		return idx;
 	}
 
-	std::atomic<bool> xLock;
 
 	inline static const auto defaultThreadId = std::thread::id{};
 
+	std::atomic<bool>						xLock;
 	// Thead (shared) private locks
 	std::array<ContentionFreeFlag, threads> flags;
 };
