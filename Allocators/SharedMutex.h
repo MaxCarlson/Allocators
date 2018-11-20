@@ -177,8 +177,8 @@ private:
 				}
 				else if (f.flag.compare_exchange_strong(val, ContentionFreeFlag::Registered))
 				{
-					idx = i;
-					f.id = id;
+					idx		= i;
+					f.id	= id;
 					getOrSetIndex(idx);
 					break;
 				}

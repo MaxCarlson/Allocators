@@ -11,22 +11,17 @@
 
 using Clock = std::chrono::high_resolution_clock;
 
-int A = 0;
-int r1 = 0;
-int r2 = 0;
-std::atomic<int> ready;
-
-void testFences(bool d)
+template<class Al>
+void doWork(Al& al, int seed)
 {
-	if (d)
+	std::vector<int, typename Al::template rebind<int>::other> vec;
+	std::default_random_engine re(seed);
+	std::uniform_int_distribution dis(1, 1000);
+
+	for (int i = 0; i < 100000; ++i)
 	{
-		A = 42;
-		ready.store(1, std::memory_order_release);
-	}
-	else
-	{
-		r1 = ready.load(std::memory_order_acquire);
-		r2 = A;
+		vec.reserve(vec.size() + dis(re));
+		vec.shrink_to_fit();
 	}
 }
 
@@ -35,33 +30,27 @@ void testFences(bool d)
 //
 // General TODO's:
 // Thread Safety with allocators
-// Slab Allocation
 // Buddy Allocation
 // Mix Slab Allocation with existing allocators
-// Allocator w/ thread private heaps like Intel's tbb::scalable_allocator<T>
 int main()
 {
 	//alloc::SlabMem<size_t>::addCache2(sizeof(size_t), 1 << 10, 512);
 	//alloc::FreeList<int, 50000, alloc::TreePolicy> al;
-
-	/*
-	while (true)
-	{
-		auto t1 = std::thread{ []() {testFences(true); } };
-		auto t2 = std::thread{ []() {testFences(false); } };
-
-		t1.join(); t2.join();
-
-		A = r1 = r2 = ready = 0;
-		
-	}
-	*/
 
 
 	constexpr int count = 1000;
 
 	alloc::SlabMulti<size_t>						multi;
 //	std::vector<size_t, alloc::SlabMulti<size_t>>	vec(multi);
+
+	for (int i = 0; i < 100000; ++i)
+	{
+		std::vector<std::thread> th;
+		for (int t = 0; t < 8; ++t)
+			th.emplace_back(std::thread{ [&]() { doWork(multi, i + t); } });
+		for (auto& t : th)
+			t.join();
+	}
 
 	SharedMutex<0> tex;
 
