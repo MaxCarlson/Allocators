@@ -568,7 +568,7 @@ struct SmpVec
 private:
 	std::vector<T> vec;
 	//std::shared_mutex mutex; 
-	SharedMutex<3> mutex;
+	SharedMutex<8> mutex;
 };
 
 struct BucketPair

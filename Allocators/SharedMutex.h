@@ -23,6 +23,7 @@ struct ContentionFreeFlag
 	static constexpr auto	SizeOffset = (sizeof(decltype(id)) + sizeof(decltype(flag)));
 	alloc::byte				noFalseSharing[64 - SizeOffset];
 };
+/*
 
 template<size_t threads = 4>
 class SharedMutex
@@ -37,7 +38,7 @@ public:
 
 	void lockShared()
 	{
-		int idx = registerThread();
+		const int idx = registerThread();
 
 		// Thread is registered
 		if (idx >= ThreadRegister::Registered)
@@ -192,8 +193,8 @@ private:
 	// Thead (shared) private locks
 	std::array<ContentionFreeFlag, threads> flags;
 };
+*/
 
-/*
 template<size_t threads = 4>
 class SharedMutex
 {
@@ -219,8 +220,8 @@ public:
 	{
 		// TODO: Debug safety check here
 		
-		ContentionFreeFlag* flag = registerThread();
-		flag->flag.exchange(ContentionFreeFlag::Registered);
+		ContentionFreeFlag& flag = flags[getOrSetIndex(ThreadRegister::CheckRegister)];
+		flag.flag.store(ContentionFreeFlag::Registered, std::memory_order_release);
 	}
 
 	void lock()
@@ -246,9 +247,9 @@ public:
 		for (ContentionFreeFlag& f : flags)
 		{
 			if (f.id != defaultThreadId)
-				f.flag.exchange(ContentionFreeFlag::Registered);
+				f.flag.store(ContentionFreeFlag::Registered, std::memory_order_release);
 			else
-				f.flag.exchange(ContentionFreeFlag::Unregistered);
+				f.flag.store(ContentionFreeFlag::Unregistered, std::memory_order_release);
 		}
 
 	}
@@ -259,7 +260,8 @@ private:
 	{
 		enum Status
 		{
-			Unregistered = -2,
+			CheckRegister = -3,
+			Unregistered,
 			PrepareToRegister,
 			Registered,
 		};
@@ -300,7 +302,7 @@ private:
 		if (tr.index == ThreadRegister::Unregistered)
 			tr.index = ThreadRegister::PrepareToRegister;
 
-		else if(idx != ThreadRegister::Unregistered)
+		else if (idx > ThreadRegister::Unregistered)
 			tr.index = idx;
 
 		return tr.index;
@@ -308,14 +310,12 @@ private:
 
 	// Check if this thread has been registered before,
 	// If not, set it up for registration
-	//
-	// TODO: Doesn't handle cases where we have more threads than is possible
+	// Note: Does not handle cases where we have more threads than is possible
 	ContentionFreeFlag* registerThread()
 	{
 		int idx = getOrSetIndex();
 
 		// Thread has never been registered
-		// TODO: This will loop forever if flags is full!!
 		while (idx == ThreadRegister::PrepareToRegister)
 		{
 			auto id = std::this_thread::get_id();
@@ -342,14 +342,11 @@ private:
 		return &flags[idx];
 	}
 
-	//std::atomic<bool> xLock;
+	// Thead (shared) private locks
+	std::array<ContentionFreeFlag, threads>	flags;
 
 	inline static const auto defaultThreadId = std::thread::id{};
-
-	// Thead (shared) private locks
-	std::array<ContentionFreeFlag, threads> flags;
 };
-*/
 
 
 template<class Mutex>
