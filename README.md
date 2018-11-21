@@ -5,14 +5,15 @@
 1. Slab allocators [Wiki](https://en.wikipedia.org/wiki/Slab_allocation) 
     - [SlabMem](#slabmem) holds m caches of Slabs divided into n byte blocks
     - [SlabObj](#slabobj) holds a cache of any type of objects. Type determined through template specialization
+    - [SlabMulti](#slabmulti) is similar to SlabMem but is designed for a multi-threaded enviorment. It uses thread-private Slabs as well as a custom, write-contention-free, shared mutex to acheive faster allocation times than "new" when dealing with multiple threads. 
 2. [Free List allocator](#freelist-allocator) [Wiki](https://en.wikipedia.org/wiki/Free_list)
 3. [Linear allocator](#linear-allocator) [Wiki](https://nfrechette.github.io/2015/05/21/linear_allocator/)
 
-### Slab Allocator
+### Slab Allocators
 #### SlabMem
 SlabMem is used by creating a variable number of caches of different sizes. Each cache holds Slabs (contiguous chunks of memory) of a particular size that are divided into blocks
 ```cpp
-#include "SlabMem.h"
+#include "Slabs.h"
 
 // int is the type this allocator will default to, but it can be overridden
 alloc::SlabMem<int> slabM;
@@ -67,7 +68,7 @@ slabM.info();         // Returns a std::vector<CacheInfo> which holds stats abou
 #### SlabObj
 SlabObj acts similarly to SlabMem, but instead of holding caches of un-initialized memory SlabObj creates caches of constructed objects. How those objects are constructed, as well as how they are handled when they are 'deallocated' and sent back to the object pool is completely customizable through template specializations (with either argument forwarding or lambda's). 
 ```cpp
-#include "SlabObj.h"
+#include "Slabs.h"
 
 // Example struct
 struct Large
@@ -132,6 +133,27 @@ Large* p = slabO.allocate<Large, XtorT>();
 // Returns the object back to the pool, and applies
 // the lambda above shrinking the vector to fit if size > 100
 slabO.deallocate<Large, XtorT>(p);
+```
+
+#### SlabMulti
+```cpp
+#include "SlabMulti.h"
+
+// SlabMulti contains thread-private Buckets of Caches,
+// Caches range from 64 bytes to 8KB, growing in powers of two
+alloc::SlabMulti<size_t> al;
+
+// It can be used with std::containers
+// (multi itself is used as the allocator here)
+std::vector<size_t, decltype(multi)> vecS{multi}; 
+
+// Multi is NOT used as the allocator here, instead a new SlabMulti is created
+// specifically for this vector (multi isn't passed in ctor here)
+std::vector<int, decltype(al)::template rebind<int>::other> vecI;
+
+// You don't have to rebind it to allocate 
+auto puI = multi.allocate<uint16_t>(100);
+
 ```
 
 ### FreeList Allocator
