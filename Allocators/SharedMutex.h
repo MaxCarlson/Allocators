@@ -10,7 +10,6 @@ struct ContentionFreeFlag
 		Unregistered,
 		Registered,
 		SharedLock,
-		Locked
 	};
 
 	ContentionFreeFlag() :
@@ -23,7 +22,7 @@ struct ContentionFreeFlag
 	static constexpr auto	SizeOffset = (sizeof(decltype(id)) + sizeof(decltype(flag)));
 	alloc::byte				noFalseSharing[64 - SizeOffset];
 };
-/*
+///*
 
 template<size_t threads = 4>
 class SharedMutex
@@ -99,6 +98,8 @@ public:
 
 private:
 
+	// Keeps track of the threads index if it has one
+	// and manages the threads removal from the array on destruction
 	struct ThreadRegister
 	{
 		enum Status
@@ -186,168 +187,12 @@ private:
 		return idx;
 	}
 
-
 	inline static const auto defaultThreadId = std::thread::id{};
 
 	std::atomic<bool>						xLock;
 	// Thead (shared) private locks
 	std::array<ContentionFreeFlag, threads> flags;
 };
-*/
-
-template<size_t threads = 4>
-class SharedMutex
-{
-
-public:
-
-	SharedMutex() :
-		flags{}
-	{
-	}
-
-	void lockShared()
-	{
-		ContentionFreeFlag* flag = registerThread();
-
-		// Perform the SharedLock
-		int free = ContentionFreeFlag::Registered;
-		while (!flag->flag.compare_exchange_weak(free, ContentionFreeFlag::SharedLock)) 
-			free = ContentionFreeFlag::Registered;
-	}
-
-	void unlockShared()
-	{
-		// TODO: Debug safety check here
-		
-		ContentionFreeFlag& flag = flags[getOrSetIndex(ThreadRegister::CheckRegister)];
-		flag.flag.store(ContentionFreeFlag::Registered, std::memory_order_release);
-	}
-
-	void lock()
-	{
-		// Acquire a lock on every thread object
-		for (ContentionFreeFlag& f : flags)
-		{
-			int notShared		= ContentionFreeFlag::Registered;
-			int unregistered	= ContentionFreeFlag::Unregistered;
-			while (!(f.flag.compare_exchange_weak(notShared, ContentionFreeFlag::Locked)
-				  || f.flag.compare_exchange_weak(unregistered, ContentionFreeFlag::Locked)))
-			{
-				notShared		= ContentionFreeFlag::Registered;
-				unregistered	= ContentionFreeFlag::Unregistered;
-			}
-		}
-	}
-
-	void unlock()
-	{
-		// TODO: Debug safety check here
-
-		for (ContentionFreeFlag& f : flags)
-		{
-			if (f.id != defaultThreadId)
-				f.flag.store(ContentionFreeFlag::Registered, std::memory_order_release);
-			else
-				f.flag.store(ContentionFreeFlag::Unregistered, std::memory_order_release);
-		}
-
-	}
-
-private:
-
-	struct ThreadRegister
-	{
-		enum Status
-		{
-			CheckRegister = -3,
-			Unregistered,
-			PrepareToRegister,
-			Registered,
-		};
-
-		ThreadRegister(SharedMutex& cont) :
-			index{	Status::Unregistered },
-			cont{	cont }
-		{}
-
-		// Unregister the thread and reset it's ID on thread's dtor call
-		// (acheived through static thread_local variable)
-		~ThreadRegister()
-		{
-			const auto id = std::this_thread::get_id();
-			for(ContentionFreeFlag& cf : cont.flags)
-				if (cf.id == id)
-				{
-					cf.id = defaultThreadId;
-					int free = ContentionFreeFlag::Registered;
-					while (!cf.flag.compare_exchange_weak(free, ContentionFreeFlag::Unregistered))
-						free = ContentionFreeFlag::Registered;
-
-					break;
-				}
-		}
-
-		int				index;
-		SharedMutex&	cont;
-	};
-
-	// Find the index of this thread in our array
-	// If it's never been registered, prepare it to 
-	// be or set it's registered index
-	int getOrSetIndex(int idx = ThreadRegister::Unregistered)
-	{
-		static thread_local ThreadRegister tr(*this);
-
-		if (tr.index == ThreadRegister::Unregistered)
-			tr.index = ThreadRegister::PrepareToRegister;
-
-		else if (idx > ThreadRegister::Unregistered)
-			tr.index = idx;
-
-		return tr.index;
-	}
-
-	// Check if this thread has been registered before,
-	// If not, set it up for registration
-	// Note: Does not handle cases where we have more threads than is possible
-	ContentionFreeFlag* registerThread()
-	{
-		int idx = getOrSetIndex();
-
-		// Thread has never been registered
-		while (idx == ThreadRegister::PrepareToRegister)
-		{
-			auto id = std::this_thread::get_id();
-			for (int i = 0; i < threads; ++i)
-			{
-				auto& f = flags[i];
-				int val = ContentionFreeFlag::Unregistered;
-
-				if (f.id == id)
-				{
-					idx = i;
-					break;
-				}
-				else if (f.flag.compare_exchange_strong(val, ContentionFreeFlag::Registered))
-				{
-					idx		= i;
-					f.id	= id;
-					getOrSetIndex(idx);
-					break;
-				}
-			}
-		}
-
-		return &flags[idx];
-	}
-
-	// Thead (shared) private locks
-	std::array<ContentionFreeFlag, threads>	flags;
-
-	inline static const auto defaultThreadId = std::thread::id{};
-};
-
 
 template<class Mutex>
 class LockGuard
