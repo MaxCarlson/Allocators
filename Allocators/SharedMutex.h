@@ -47,7 +47,7 @@ public:
 				;
 
 			// Perform the SharedLock
-			flags[idx].flag.store(ContentionFreeFlag::SharedLock, std::memory_order_seq_cst);
+			flags[idx].flag.store(ContentionFreeFlag::SharedLock, std::memory_order_release);
 		}
 		
 		// Thread is not registered, we must acquire overflow lock
@@ -65,11 +65,10 @@ public:
 		const int idx = getOrSetIndex(ThreadRegister::CheckRegister);
 
 		if (idx >= ThreadRegister::Registered)
-		{
-			flags[idx].flag.store(ContentionFreeFlag::Registered, std::memory_order_seq_cst);
-		}
+			flags[idx].flag.store(ContentionFreeFlag::Registered, std::memory_order_release);
+		
 		else
-			xLock.store(false, std::memory_order_seq_cst);
+			xLock.store(false, std::memory_order_release);
 	}
 
 	void lock()
@@ -81,16 +80,14 @@ public:
 
 		// Now spin until all other threads are non-shared locked
 		for (ContentionFreeFlag& f : flags)
-		{
-			while (f.flag.load() == ContentionFreeFlag::SharedLock)
+			while (f.flag.load(std::memory_order_acquire) == ContentionFreeFlag::SharedLock)
 				;
-		}
 	}
 
 	void unlock()
 	{
 		// TODO: Debug safety check here
-		xLock.store(false, std::memory_order_seq_cst);
+		xLock.store(false, std::memory_order_release);
 	}
 
 private:
