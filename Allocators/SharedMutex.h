@@ -42,10 +42,8 @@ public:
 		// Thread is registered
 		if (idx >= ThreadRegister::Registered)
 		{
-			ContentionFreeFlag* flag	= &flags[idx];
-
 			// Perform the SharedLock
-			flag->flag.store(ContentionFreeFlag::SharedLock, std::memory_order_seq_cst);
+			flags[idx].flag.store(ContentionFreeFlag::SharedLock, std::memory_order_seq_cst);
 
 			// Spin until the master/overflow lock is unlocked
 			while (xLock.load(std::memory_order_seq_cst))
@@ -68,11 +66,10 @@ public:
 
 		if (idx >= ThreadRegister::Registered)
 		{
-			ContentionFreeFlag* flag = &flags[idx];
-			flag->flag.exchange(ContentionFreeFlag::Registered);
+			flags[idx].flag.store(ContentionFreeFlag::Registered, std::memory_order_seq_cst);
 		}
 		else
-			xLock.store(false, std::memory_order_release);
+			xLock.store(false, std::memory_order_seq_cst);
 	}
 
 	void lock()
@@ -93,7 +90,7 @@ public:
 	void unlock()
 	{
 		// TODO: Debug safety check here
-		xLock.store(false, std::memory_order_release);
+		xLock.store(false, std::memory_order_seq_cst);
 	}
 
 private:

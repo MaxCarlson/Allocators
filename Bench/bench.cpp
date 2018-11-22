@@ -275,13 +275,13 @@ int main()
 	//constexpr size_t allocMask = ALL_ALLOCS;
 
 	constexpr size_t allocMask = SLAB_MULTI;
-	//constexpr size_t benchMask = BenchMasks::MULTI_STR;
+	constexpr size_t benchMask = BenchMasks::MULTI_STR;
 
 	//constexpr size_t allocMask		= DEFAULT | SLAB_OBJ | SLAB_MEM | SLAB_MULTI;	
 	//constexpr size_t allocMask		= AllocMasks::ALL_ALLOCS; // SLAB_MEM | SLAB_OBJ;	
-	constexpr size_t benchMask		= BenchMasks::ALL_BENCH;
+	//constexpr size_t benchMask		= BenchMasks::ALL_BENCH;
 
-	constexpr int numTests			= 7;
+	constexpr int numTests			= 100;
 
 	slabM.addCache2(1 << 5, 1 << 14, cacheSz);
 
