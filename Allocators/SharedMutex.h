@@ -42,12 +42,12 @@ public:
 		// Thread is registered
 		if (idx >= ThreadRegister::Registered)
 		{
-			// Perform the SharedLock
-			flags[idx].flag.store(ContentionFreeFlag::SharedLock, std::memory_order_seq_cst);
-
 			// Spin until the master/overflow lock is unlocked
 			while (xLock.load(std::memory_order_seq_cst))
 				;
+
+			// Perform the SharedLock
+			flags[idx].flag.store(ContentionFreeFlag::SharedLock, std::memory_order_seq_cst);
 		}
 		
 		// Thread is not registered, we must acquire overflow lock
