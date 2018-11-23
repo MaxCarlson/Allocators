@@ -5,7 +5,8 @@
 1. Slab allocators [Wiki](https://en.wikipedia.org/wiki/Slab_allocation) 
     - [SlabMem](#slabmem) holds m caches of Slabs divided into n byte blocks
     - [SlabObj](#slabobj) holds a cache of any type of objects. Type determined through template specialization
-    - [SlabMulti](#slabmulti) is similar to SlabMem but is designed for a multi-threaded enviorment. It uses thread-private Slabs as well as a custom, write-contention-free, shared mutex to acheive faster allocation times than "new" when dealing with multiple threads. 
+    - [SlabMulti](#slabmulti) is similar to SlabMem but is designed for a multi-threaded enviorment. It uses thread-private Slabs as well as a custom, write-contention-free shared mutex to acheive faster allocation times than "new" when dealing with multiple threads.
+        - [SharedMutex](#sharedmutex)
 2. [Free List allocator](#freelist-allocator) [Wiki](https://en.wikipedia.org/wiki/Free_list)
 3. [Linear allocator](#linear-allocator) [Wiki](https://nfrechette.github.io/2015/05/21/linear_allocator/)
 
@@ -147,12 +148,52 @@ alloc::SlabMulti<size_t> al;
 // (multi itself is used as the allocator here)
 std::vector<size_t, decltype(multi)> vecS{multi}; 
 
-// Multi is NOT used as the allocator here, instead a new SlabMulti is created
+// multi is NOT used as the allocator here, instead a new SlabMulti is created
 // specifically for this vector (multi isn't passed in ctor here)
 std::vector<int, decltype(al)::template rebind<int>::other> vecI;
 
-// You don't have to rebind it to allocate 
+// You don't have to rebind it to allocate different types 
 auto puI = multi.allocate<uint16_t>(100);
+multi.deallocate(puI, 100);
+```
+
+##### SlabMulti - Internals
+SlabMulti handles Cache sizes internally. Each thread-private Bucket contains 8 Caches, each holding 16KB Slabs divided into 64byte-8KB blocks. When a thread requests memory for the first time it is registered, added to the vector of Buckets, and assigned 8 (one of each size) 16KB Caches holding one Slab each. When a Cache of Slabs runs out of memory, the Cache requests memory from the Dispatcher. The Dispatcher requests memory from the OS in 1MB chunks, and divides those chunks into 16KB which it then parcels out to Caches that make requests. When a Slab has all its memory returned to it though deallocation, it destoryes itself and hands its memory back to the Dispatcher (baring it isn't the only Slab left/empty in the Cache).
+
+### SharedMutex
+SharedMutex is a high performance mutex best suited to low-write, situations. It has four main functions: sharedLock, sharedUnlock, lock, unlock as well as wrapper classes SharedLock and LockGuard.
+
+```cpp
+
+// The idea behind SharedMutex is simple. Instead of using a single internal atomic<int>
+// and counting how many have shared-access, we keep a flag for each thread registered, 
+// ensuring that most writes are to thread-private data.
+struct ContentionFreeFlag
+{
+	std::thread::id			id;
+	std::atomic<int>		flag;
+	alloc::byte				noFalseSharing[64]; 
+};
+
+// SharedMutex takes a template parameter that determines how many threads
+// can be registered at a time before we have to start locking the spill lock
+template<size_t threads = 4>
+class SharedMutex
+{
+public:
+    void sharedLock();
+    void sharedUnlock();
+    void lock();
+    void unlock();
+
+private:
+
+    void getOrSetId();
+    void registerThread();
+
+	std::atomic<bool>						spLock;
+	std::array<ContentionFreeFlag, threads> flags;
+};
 
 ```
 
