@@ -16,8 +16,9 @@
 ```cpp
 #include "SlabMulti.h"
 
-// SlabMulti contains thread-private Buckets of Caches,
-// Caches range from 64 bytes to 8KB, growing in powers of two
+// SlabMulti uses thread-private Buckets of Caches.
+// Each Cache holds 16KB Slabs divided into different chunk sizes,  
+// ranging from 64 bytes to 8KB per chunk, growing in powers of two
 alloc::SlabMulti<size_t> al;
 
 // It can be used with std::containers
