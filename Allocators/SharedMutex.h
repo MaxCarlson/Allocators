@@ -44,7 +44,7 @@ public:
 		flags{}
 	{}
 
-	void lockShared()
+	void lock_shared()
 	{
 		const int idx = registerThread();
 
@@ -68,7 +68,7 @@ public:
 		}
 	}
 
-	void unlockShared()
+	void unlock_shared()
 	{
 		// TODO: Debug safety check here
 		const int idx = getOrSetIndex(ThreadRegister::CheckRegister);
@@ -221,13 +221,24 @@ public:
 	SharedLock(Mutex& mutex) :
 		mutex{ mutex }
 	{
-		mutex.lockShared();
+		mutex.lock_shared();
 	}
 
 	~SharedLock()
 	{
-		mutex.unlockShared();
+		mutex.unlock_shared();
 	}
+
+	void lock()
+	{
+		mutex.lock();
+	}
+
+	void unlock()
+	{
+		mutex.unlock();
+	}
+
 private:
 	Mutex& mutex;
 };

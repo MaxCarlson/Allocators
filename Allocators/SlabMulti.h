@@ -704,10 +704,9 @@ public:
 		interfacePtr->val.fetch_add(1, std::memory_order_relaxed);
 	}
 
-	// TODO: Add atmoic reference counting (perhaps thread private as well most of the time?) to interface so we know when to destory it
-	// AND benchmark the cost. Could easily be an issue with the way std::containers use allocators 
 	~SlabMulti() 
 	{
+		// TODO: Make sure this memory ordering is correct, It's probably not!
 		if (interfacePtr->val.fetch_sub(1, std::memory_order_release) < 1)
 			delete interfacePtr;
 	}
