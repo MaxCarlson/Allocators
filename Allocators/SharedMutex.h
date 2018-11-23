@@ -192,8 +192,8 @@ private:
 
 	inline static const auto defaultThreadId = std::thread::id{};
 
-	std::atomic<bool>						spLock;
-	std::array<CFF, threads> flags;
+	std::atomic<bool>			spLock;
+	std::array<CFF, threads>	flags;
 };
 
 template<class Mutex>

@@ -14,10 +14,13 @@ template<class T>
 class SlabMulti;
 }
 
-namespace SlabMultiImpl
+namespace ImplSlabMulti
 {
 
 struct Bucket;
+
+template<class>
+class alloc::SlabMulti;
 
 using alloc::LockGuard;
 using alloc::SharedLock;
@@ -144,10 +147,10 @@ public:
 	Slab() = default;
 
 	Slab(size_t blockSize, size_t count) : 
-		mem{		dispatcher.getBlock() }, 
-		blockSize{	blockSize }, 
-		count{		count }, 
-		availible{	dispatcher.getIndicies(blockSize) }
+		mem{		dispatcher.getBlock()				}, 
+		blockSize{	blockSize							}, 
+		count{		count								}, 
+		availible{	dispatcher.getIndicies(blockSize)	}
 	{
 	}
 
@@ -570,7 +573,6 @@ struct SmpVec
 
 private:
 	std::vector<T> vec;
-	//std::shared_mutex mutex; 
 	alloc::SharedMutex<8> mutex;
 };
 
@@ -583,7 +585,7 @@ struct BucketPair
 	{
 	}
 
-	BucketPair(BucketPair&& other) noexcept = default;
+	BucketPair(BucketPair&& other)		noexcept = default;
 	BucketPair(const BucketPair& other) noexcept = default;
 
 	Bucket				bucket;
@@ -595,10 +597,17 @@ struct BucketPair
 struct Interface
 {
 	using size_type	= size_t;
+	
+	template<class T>
+	friend class alloc::SlabMulti;
 
-	Interface() 
+	Interface() :
+		val{0}
 	{
 	}
+
+	~Interface()
+	{}
 
 	template<class T>
 	T* allocate(size_t count)
@@ -645,6 +654,9 @@ struct Interface
 	}
 
 private:
+
+	std::atomic<int> val;
+	
 	SmpVec<BucketPair> buckets;
 };
 
@@ -670,7 +682,7 @@ public:
 	using value_type		= Type;
 
 private:
-	SlabMultiImpl::Interface* interfacePtr;
+	ImplSlabMulti::Interface* interfacePtr;
 
 public:
 
@@ -687,27 +699,43 @@ public:
 	bool operator!=(const SlabMulti<U>& other) const noexcept { return *this == other; }
 
 	SlabMulti() :
-		interfacePtr{ new SlabMultiImpl::Interface{} }
+		interfacePtr{ new ImplSlabMulti::Interface{} }
 	{
+		interfacePtr->val.fetch_add(1, std::memory_order_relaxed);
 	}
 
-	// TODO: Add reference counting to interface so we know when to destory it
+	// TODO: Add atmoic reference counting (perhaps thread private as well most of the time?) to interface so we know when to destory it
 	// AND benchmark the cost. Could easily be an issue with the way std::containers use allocators 
 	~SlabMulti() 
 	{
-	
+		if (interfacePtr->val.fetch_sub(1, std::memory_order_release) < 1)
+			delete interfacePtr;
 	}
 
 	template<class U>
 	SlabMulti(const SlabMulti<U>& other) noexcept :
 		interfacePtr{ other.interfacePtr }
 	{
+		interfacePtr->val.fetch_add(1, std::memory_order_relaxed);
 	}
 
 	template<class U>
 	SlabMulti(SlabMulti<U>&& other) noexcept :
 		interfacePtr{ other.interfacePtr }
 	{
+		interfacePtr->val.fetch_add(1, std::memory_order_relaxed);
+	}
+
+	SlabMulti(const SlabMulti& other) noexcept :
+		interfacePtr{ other.interfacePtr }
+	{
+		interfacePtr->val.fetch_add(1, std::memory_order_relaxed);
+	}
+
+	SlabMulti(SlabMulti&& other) noexcept :
+		interfacePtr{ other.interfacePtr }
+	{
+		interfacePtr->val.fetch_add(1, std::memory_order_relaxed);
 	}
 
 	template<class T = Type>

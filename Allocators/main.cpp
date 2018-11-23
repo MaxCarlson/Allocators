@@ -12,9 +12,11 @@
 
 using Clock = std::chrono::high_resolution_clock;
 
-template<class Al>
-void doWork(Al& al, int seed)
+template<class Al, class Tp>
+void doWork(Al& al, Tp tp, int seed)
 {
+	//std::cout << static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - tp).count());
+
 	std::vector<int, typename Al::template rebind<int>::other> vec{ al };
 	std::default_random_engine re(seed);
 	std::uniform_int_distribution dis(1, 1000);
@@ -49,9 +51,11 @@ int main()
 	for (int i = 0; i < 100000; ++i)
 	{
 		std::vector<std::thread> th;
+
+		auto tp = Clock::now();
 		for (int t = 0; t < 4; ++t)
 			//std::async(std::launch::async, [&]() { doWork(multi, i + t); });
-			th.emplace_back(std::thread{ [&]() { doWork(multi, i + t); } });
+			th.emplace_back(std::thread{ [&]() { doWork(multi, tp, i + t); } });
 		for (auto& t : th)
 			t.join();
 	}
