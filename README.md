@@ -84,10 +84,10 @@ SharedMutex<>::getOrSetIndex(int idx = ThreadRegister::Unregistered)
 	return tr.index;
 }
 
-// The locking mechinism is expensive, but because it is rarely
+// The locking mechinism is expensive, but because it is rarely used
 // we get large gains from keeping the shared lock mostly write contention free.
-// A similar mechinism is used when we run out of space to register more threads. 
-// The threads "spills" out of the array and has to use the spill lock
+// A similar mechinism is used when we run out of space to register a thread, 
+// the thread "spills" out of the array and has to use the spill lock
 void SharedMutex<>::lock()
 {
 	// Spin until we acquire the spill lock
