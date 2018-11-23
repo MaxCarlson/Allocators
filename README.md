@@ -38,7 +38,7 @@ multi.deallocate(puI, 100);
 SlabMulti handles Cache sizes internally. Each thread-private Bucket contains 8 Caches, each holding 16KB Slabs divided into 64byte-8KB blocks. When a thread requests memory for the first time it is registered, added to the vector of Buckets, and assigned 8 (one of each size) 16KB Caches holding one Slab each. When a Cache of Slabs runs out of memory, the Cache requests memory from the Dispatcher. The Dispatcher requests memory from the OS in 1MB chunks, and divides those chunks into 16KB Slabs which it then parcels out to Caches that make requests. When a Slab has all its memory returned to it though deallocation, it destroys itself and hands its memory back to the Dispatcher (barring it isn't the only Slab left/empty in the Cache).
 
 ### SharedMutex
-SharedMutex is a high performance mutex best suited to low-write, situations. It has four main functions: sharedLock, sharedUnlock, lock, and unlock. Also contained in the same file are wrapper classes SharedLock and LockGuard which provide RAII style locking similar to their namesakes.
+SharedMutex is a high performance mutex best suited to low-write, high-read situations. It has four public functions: sharedLock, sharedUnlock, lock, and unlock. Also contained in the same file are wrapper classes SharedLock and LockGuard which provide RAII style locking similar to their namesakes.
 
 ```cpp
 
