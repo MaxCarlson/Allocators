@@ -47,9 +47,9 @@ SharedMutex is a high performance mutex best suited to low-write, situations. It
 // ensuring that most writes are to thread-private data.
 struct ContentionFreeFlag
 {
-	std::thread::id			id;
-	std::atomic<int>		flag;
-	alloc::byte				noFalseSharing[64]; 
+	std::thread::id		id;
+	std::atomic<int>	flag;
+	alloc::byte		noFalseSharing[64]; 
 };
 
 // SharedMutex takes a template parameter that determines how many threads
