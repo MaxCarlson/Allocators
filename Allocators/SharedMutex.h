@@ -3,13 +3,15 @@
 #include <thread>
 #include "AllocHelpers.h"
 
-struct ContentionFreeFlag
+namespace ImplSharedMutex
+{
+struct ContentionFreeFlag // TODO: Rename
 {
 	enum Flags
 	{
 		Unregistered,
 		Registered,
-		SharedLock,
+		SharedLock
 	};
 
 	ContentionFreeFlag() :
@@ -20,19 +22,26 @@ struct ContentionFreeFlag
 	std::thread::id			id;
 	std::atomic<int>		flag;
 	static constexpr auto	SizeOffset = (sizeof(decltype(id)) + sizeof(decltype(flag)));
-	alloc::byte				noFalseSharing[64 - SizeOffset];
+	alloc::byte				noFalseSharing[64 - SizeOffset]; // TODO: Get rid of warning of non-init
 };
-///*
+} // End ImplSharedMutex::
 
+namespace alloc
+{
+
+// A write-contention free version of std::shared_mutex
+// threads = number of threads that can be registered
+// before falling back on using a non-write contention free lock
 template<size_t threads = 4>
 class SharedMutex
 {
-
 public:
 
+	using CFF = ImplSharedMutex::ContentionFreeFlag;
+
 	SharedMutex() :
-		xLock{ false },
-		flags {}
+		spLock{ false },
+		flags{}
 	{}
 
 	void lockShared()
@@ -42,19 +51,19 @@ public:
 		// Thread is registered
 		if (idx >= ThreadRegister::Registered)
 		{
-			// Spin until the master/overflow lock is unlocked
-			while (xLock.load(std::memory_order_seq_cst))
+			// Spin until the spill lock is unlocked
+			while (spLock.load(std::memory_order_acquire))
 				;
 
 			// Perform the SharedLock
-			flags[idx].flag.store(ContentionFreeFlag::SharedLock, std::memory_order_release);
+			flags[idx].flag.store(CFF::SharedLock, std::memory_order_release);
 		}
-		
-		// Thread is not registered, we must acquire overflow lock
+
+		// Thread is not registered, we must acquire spill lock
 		else
 		{
 			bool locked = false;
-			while (!xLock.compare_exchange_weak(locked, true, std::memory_order_seq_cst))
+			while (!spLock.compare_exchange_weak(locked, true, std::memory_order_seq_cst))
 				locked = false;
 		}
 	}
@@ -65,29 +74,29 @@ public:
 		const int idx = getOrSetIndex(ThreadRegister::CheckRegister);
 
 		if (idx >= ThreadRegister::Registered)
-			flags[idx].flag.store(ContentionFreeFlag::Registered, std::memory_order_release);
-		
+			flags[idx].flag.store(CFF::Registered, std::memory_order_release);
+
 		else
-			xLock.store(false, std::memory_order_release);
+			spLock.store(false, std::memory_order_release);
 	}
 
 	void lock()
 	{
-		// Spin until we acquire the master/overflow lock
+		// Spin until we acquire the spill lock
 		bool locked = false;
-		while (!xLock.compare_exchange_weak(locked, true, std::memory_order_seq_cst))
+		while (!spLock.compare_exchange_weak(locked, true, std::memory_order_seq_cst))
 			locked = false;
 
 		// Now spin until all other threads are non-shared locked
-		for (ContentionFreeFlag& f : flags)
-			while (f.flag.load(std::memory_order_acquire) == ContentionFreeFlag::SharedLock)
+		for (CFF& f : flags)
+			while (f.flag.load(std::memory_order_acquire) == CFF::SharedLock)
 				;
 	}
 
 	void unlock()
 	{
 		// TODO: Debug safety check here
-		xLock.store(false, std::memory_order_release);
+		spLock.store(false, std::memory_order_release);
 	}
 
 private:
@@ -114,13 +123,13 @@ private:
 		~ThreadRegister()
 		{
 			const auto id = std::this_thread::get_id();
-			for (ContentionFreeFlag& cf : cont.flags)
+			for (CFF& cf : cont.flags)
 				if (cf.id == id)
 				{
 					cf.id = defaultThreadId;
-					int free = ContentionFreeFlag::Registered;
-					while (!cf.flag.compare_exchange_weak(free, ContentionFreeFlag::Unregistered))
-						free = ContentionFreeFlag::Registered;
+					int free = CFF::Registered;
+					while (!cf.flag.compare_exchange_weak(free, CFF::Unregistered, std::memory_order_release))
+						free = CFF::Registered;
 
 					break;
 				}
@@ -154,24 +163,24 @@ private:
 	{
 		int idx = getOrSetIndex();
 
-		// Thread has never been registered
+		// Thread has never been registered (try to once)
 		if (idx == ThreadRegister::PrepareToRegister)
 		{
-			auto id = std::this_thread::get_id();
+			const auto id = std::this_thread::get_id();
 			for (int i = 0; i < threads; ++i)
 			{
 				auto& f = flags[i];
-				int val = ContentionFreeFlag::Unregistered;
+				int free = CFF::Unregistered;
 
 				if (f.id == id)
 				{
 					idx = i;
 					break;
 				}
-				else if (f.flag.compare_exchange_strong(val, ContentionFreeFlag::Registered))
+				else if (f.flag.compare_exchange_strong(free, CFF::Registered))
 				{
-					idx		= i;
-					f.id	= id;
+					idx = i;
+					f.id = id;
 					getOrSetIndex(idx);
 					break;
 				}
@@ -183,9 +192,8 @@ private:
 
 	inline static const auto defaultThreadId = std::thread::id{};
 
-	std::atomic<bool>						xLock;
-	// Thead (shared) private locks
-	std::array<ContentionFreeFlag, threads> flags;
+	std::atomic<bool>						spLock;
+	std::array<CFF, threads> flags;
 };
 
 template<class Mutex>
@@ -223,3 +231,5 @@ public:
 private:
 	Mutex& mutex;
 };
+
+} // End alloc::

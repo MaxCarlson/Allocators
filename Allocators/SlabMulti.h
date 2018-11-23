@@ -19,6 +19,9 @@ namespace SlabMultiImpl
 
 struct Bucket;
 
+using alloc::LockGuard;
+using alloc::SharedLock;
+
 constexpr auto SUPERBLOCK_SIZE	= 1 << 20;
 constexpr auto SLAB_SIZE		= 1 << 14;
 constexpr auto MAX_SLAB_BLOCKS	= 65535;						// Max number of memory blocks a Slab can be divided into 
@@ -568,7 +571,7 @@ struct SmpVec
 private:
 	std::vector<T> vec;
 	//std::shared_mutex mutex; 
-	SharedMutex<8> mutex;
+	alloc::SharedMutex<8> mutex;
 };
 
 struct BucketPair

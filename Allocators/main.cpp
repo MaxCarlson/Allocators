@@ -56,7 +56,7 @@ int main()
 			t.join();
 	}
 
-	SharedMutex<0> tex;
+	alloc::SharedMutex<0> tex;
 
 	tex.lockShared();
 
