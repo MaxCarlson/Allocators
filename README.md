@@ -10,9 +10,9 @@
 2. [Free List allocator](#freelist-allocator) [Wiki](https://en.wikipedia.org/wiki/Free_list)
 3. [Linear allocator](#linear-allocator) [Wiki](https://nfrechette.github.io/2015/05/21/linear_allocator/)
 
-### Slab Allocators
+## Slab Allocators
 
-#### SlabMulti
+### SlabMulti
 ```cpp
 #include "SlabMulti.h"
 
@@ -33,8 +33,8 @@ auto puI = multi.allocate<uint16_t>(100);
 multi.deallocate(puI, 100);
 ```
 
-##### SlabMulti - Internals
-SlabMulti handles Cache sizes internally. Each thread-private Bucket contains 8 Caches, each holding 16KB Slabs divided into 64byte-8KB blocks. When a thread requests memory for the first time it is registered, added to the vector of Buckets, and assigned 8 (one of each size) 16KB Caches holding one Slab each. When a Cache of Slabs runs out of memory, the Cache requests memory from the Dispatcher. The Dispatcher requests memory from the OS in 1MB chunks, and divides those chunks into 16KB which it then parcels out to Caches that make requests. When a Slab has all its memory returned to it though deallocation, it destoryes itself and hands its memory back to the Dispatcher (baring it isn't the only Slab left/empty in the Cache).
+#### SlabMulti - Internals
+SlabMulti handles Cache sizes internally. Each thread-private Bucket contains 8 Caches, each holding 16KB Slabs divided into 64byte-8KB blocks. When a thread requests memory for the first time it is registered, added to the vector of Buckets, and assigned 8 (one of each size) 16KB Caches holding one Slab each. When a Cache of Slabs runs out of memory, the Cache requests memory from the Dispatcher. The Dispatcher requests memory from the OS in 1MB chunks, and divides those chunks into 16KB Slabs which it then parcels out to Caches that make requests. When a Slab has all its memory returned to it though deallocation, it destroys itself and hands its memory back to the Dispatcher (barring it isn't the only Slab left/empty in the Cache).
 
 ### SharedMutex
 SharedMutex is a high performance mutex best suited to low-write, situations. It has four main functions: sharedLock, sharedUnlock, lock, and unlock. Also contained in the same file are wrapper classes SharedLock and LockGuard.
@@ -117,7 +117,7 @@ void testWrappers()
 }
 ```
 
-#### SlabObj
+### SlabObj
 SlabObj acts similarly to SlabMem, but instead of holding caches of un-initialized memory SlabObj creates caches of constructed objects. How those objects are constructed, as well as how they are handled when they are 'deallocated' and sent back to the object pool is completely customizable through template specializations (with either argument forwarding or lambda's). 
 ```cpp
 #include "Slabs.h"
@@ -187,7 +187,7 @@ Large* p = slabO.allocate<Large, XtorT>();
 slabO.deallocate<Large, XtorT>(p);
 ```
 
-#### SlabMem
+### SlabMem
 SlabMem is used by creating a variable number of caches of different sizes. Each cache holds Slabs (contiguous chunks of memory) of a particular size that are divided into blocks
 ```cpp
 #include "Slabs.h"
