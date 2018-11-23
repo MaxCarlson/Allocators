@@ -5,7 +5,7 @@
 1. Slab allocators [Wiki](https://en.wikipedia.org/wiki/Slab_allocation) 
     - [SlabMem](#slabmem) holds m caches of Slabs divided into n byte blocks
     - [SlabObj](#slabobj) holds a cache of any type of objects. Type determined through template specialization
-    - [SlabMulti](#slabmulti) is similar to SlabMem but is designed for a multi-threaded enviorment. It uses thread-private Slabs as well as a custom, write-contention-free shared mutex to acheive faster allocation times than "new" when dealing with multiple threads.
+    - [SlabMulti](#slabmulti) uses thread-private Slabs as well as a custom, write-contention-free shared mutex to acheive faster allocation times than "new" when dealing with multiple threads.
         - [SharedMutex](#sharedmutex)
 2. [Free List allocator](#freelist-allocator) [Wiki](https://en.wikipedia.org/wiki/Free_list)
 3. [Linear allocator](#linear-allocator) [Wiki](https://nfrechette.github.io/2015/05/21/linear_allocator/)
@@ -161,7 +161,7 @@ multi.deallocate(puI, 100);
 SlabMulti handles Cache sizes internally. Each thread-private Bucket contains 8 Caches, each holding 16KB Slabs divided into 64byte-8KB blocks. When a thread requests memory for the first time it is registered, added to the vector of Buckets, and assigned 8 (one of each size) 16KB Caches holding one Slab each. When a Cache of Slabs runs out of memory, the Cache requests memory from the Dispatcher. The Dispatcher requests memory from the OS in 1MB chunks, and divides those chunks into 16KB which it then parcels out to Caches that make requests. When a Slab has all its memory returned to it though deallocation, it destoryes itself and hands its memory back to the Dispatcher (baring it isn't the only Slab left/empty in the Cache).
 
 ### SharedMutex
-SharedMutex is a high performance mutex best suited to low-write, situations. It has four main functions: sharedLock, sharedUnlock, lock, unlock as well as wrapper classes SharedLock and LockGuard.
+SharedMutex is a high performance mutex best suited to low-write, situations. It has four main functions: sharedLock, sharedUnlock, lock, and unlock. Also contained in the same file are wrapper classes SharedLock and LockGuard.
 
 ```cpp
 
@@ -181,19 +181,65 @@ template<size_t threads = 4>
 class SharedMutex
 {
 public:
-    void sharedLock();
-    void sharedUnlock();
-    void lock();
-    void unlock();
+	void sharedLock();
+	void sharedUnlock();
+	void lock();
+	void unlock();
 
 private:
 
-    void getOrSetId();
-    void registerThread();
+	struct ThreadRegister
+	{...};
 
-	std::atomic<bool>						spLock;
+	int getOrSetIndex();
+    	int registerThread();
+
+	std::atomic<bool>			spLock;
 	std::array<ContentionFreeFlag, threads> flags;
 };
+
+// static thread_local ThreadRegister variabels are used to store registered threads
+// indices. This also allows for thread de-registration on thread destruction
+SharedMutex<>::getOrSetIndex(int idx = ThreadRegister::Unregistered)
+{
+	static thread_local ThreadRegister tr(*this);
+	...
+	return tr.index;
+}
+
+// The locking mechinism is expensive, but because it is rarely
+// we get large gains from keeping the shared lock mostly write contention free.
+// A similar mechinism is used when we run out of space to register more threads. 
+// The threads "spills" out of the array and has to use the spill lock
+void SharedMutex<>::lock()
+{
+	// Spin until we acquire the spill lock
+	bool locked = false;
+	while (!spLock.compare_exchange_weak(locked, true, std::memory_order_seq_cst))
+		locked = false;
+
+	// Now spin until all other threads are non-shared locked
+	for (ContentionFreeFlag& f : flags)
+		while (f.flag.load(std::memory_order_acquire) == ContentionFreeFlag::SharedLock)
+			;
+}
+
+// Instead of using SharedMutex's functions directly, use the provided wrapper classes.
+void testWrappers()
+{
+	alloc::SharedMutex mutex1;
+	alloc::SharedMutex mutex2;
+	
+	{
+		// SharedMutex's lock function is called
+		alloc::LockGuard  lock(mutex1);
+		
+		// mutex2's sharedLock function is called
+		alloc::SharedLock lock(mutex2);
+		
+	}// On LockGuard's and SharedLock's destruction unlock and unlockShared are called respectivly
+}
+
 
 ```
 
