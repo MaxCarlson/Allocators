@@ -68,6 +68,24 @@ public:
 		}
 	}
 
+	bool try_lock_shared()
+	{
+		bool locked = false;
+		const int idx = registerThread();
+		if (idx >= ThreadRegister::Registered)
+		{
+			if (spLock.load(std::memory_order_acquire)) // TODO: I don't think this is entirely safe!
+				return false;
+
+			flags[idx].flag.store(CFF::SharedLock, std::memory_order_release);
+			return true;
+		}
+		else
+			spLock.compare_exchange_strong(locked, true, std::memory_order_seq_cst);
+		
+		return locked;
+	}
+
 	void unlock_shared()
 	{
 		// TODO: Debug safety check here

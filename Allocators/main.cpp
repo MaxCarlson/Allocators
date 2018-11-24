@@ -41,6 +41,11 @@ int main()
 	//alloc::SlabMem<size_t>::addCache2(sizeof(size_t), 1 << 10, 512);
 	//alloc::FreeList<int, 50000, alloc::TreePolicy> al;
 
+	alloc::SharedMutex<8> mm;
+	{
+		std::shared_lock sl(mm, std::defer_lock);
+		sl.try_lock();
+	}
 
 	constexpr int count = 1000;
 
