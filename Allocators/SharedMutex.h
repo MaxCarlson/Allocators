@@ -201,17 +201,30 @@ class LockGuard
 {
 public:
 	LockGuard(Mutex& mutex) :
-		mutex{ mutex }
+		owns{ true },
+		mutex{ &mutex }
 	{
-		mutex.lock();
+		this->mutex->lock();
 	}
+
+	LockGuard(Mutex& mutex, std::defer_lock_t df) :
+		owns{ false },
+		mutex{ &mutex }
+	{}
+
+	LockGuard(Mutex& mutex, std::adopt_lock_t ad) :
+		owns{ true },
+		mutex{ &mutex }
+	{}
 
 	~LockGuard()
 	{
-		mutex.unlock();
+		if(owns)
+			mutex->unlock();
 	}
 private:
-	Mutex& mutex;
+	bool	owns;
+	Mutex*	mutex;
 };
 
 template<class Mutex>
@@ -219,28 +232,42 @@ class SharedLock
 {
 public:
 	SharedLock(Mutex& mutex) :
-		mutex{ mutex }
+		owns{ true },
+		mutex{ &mutex }
 	{
-		mutex.lock_shared();
+		this->mutex->lock_shared();
 	}
+
+	SharedLock(Mutex& mutex, std::defer_lock_t df) noexcept :
+		owns{ false },
+		mutex{ &mutex }
+	{}
+
+	SharedLock(Mutex& mutex, std::adopt_lock_t ad) :
+		owns{ true },
+		mutex{ &mutex }
+	{}
 
 	~SharedLock()
 	{
-		mutex.unlock_shared();
+		if (owns)
+			mutex->unlock_shared();
 	}
 
 	void lock()
 	{
-		mutex.lock();
+		mutex->lock_shared();
 	}
 
 	void unlock()
 	{
-		mutex.unlock();
+		mutex->unlock_shared();
 	}
 
 private:
-	Mutex& mutex;
+
+	bool	owns;
+	Mutex*	mutex;
 };
 
 } // End alloc::
