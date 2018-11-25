@@ -602,7 +602,7 @@ struct Interface
 	friend class alloc::SlabMulti;
 
 	Interface() :
-		val{0}
+		refCount{0}
 	{
 	}
 
@@ -615,6 +615,12 @@ struct Interface
 		const auto bytes	= sizeof(T) * count;
 		const auto id		= std::this_thread::get_id();
 
+		// Create the bucket for this thread.
+		// When the thread dies it will destroy this bucket with it
+
+		byte* mem = bucket.allocate(bytes);
+
+		/*
 		byte* mem = buckets.siterate([&bytes, &id](BucketPair& p) -> byte*
 		{
 			if (p.id == id)
@@ -629,6 +635,7 @@ struct Interface
 			auto& b = buckets.emplace_back(Bucket{}, id);
 			mem		= b.bucket.allocate(bytes);
 		}
+		*/
 
 		return reinterpret_cast<T*>(mem);
 	}
@@ -638,7 +645,8 @@ struct Interface
 	{
 		// Look in this threads memory Caches first
 		const auto id = std::this_thread::get_id();
-
+		bucket.deallocate(ptr, n);
+		/*
 		buckets.siterate([&](BucketPair& p) -> byte*
 		{
 			if (p.id == id)
@@ -648,16 +656,16 @@ struct Interface
 			}
 			return nullptr;
 		});
-		
+		*/
 		// If not found search other threads
 		// TODO: We'll have to either lock the Slab entirely or do sepperate availible lists like TBB
 	}
 
 private:
 
-	std::atomic<int> val;
-	
-	SmpVec<BucketPair> buckets;
+	inline static thread_local Bucket bucket;
+	std::atomic<int>	refCount;
+	SmpVec<BucketPair>	buckets;
 };
 
 }// End SlabMultiImpl::
@@ -701,13 +709,13 @@ public:
 	SlabMulti() :
 		interfacePtr{ new ImplSlabMulti::Interface{} }
 	{
-		interfacePtr->val.fetch_add(1, std::memory_order_relaxed);
+		interfacePtr->refCount.fetch_add(1, std::memory_order_relaxed);
 	}
 
 	~SlabMulti() 
 	{
 		// TODO: Make sure this memory ordering is correct, It's probably not!
-		if (interfacePtr->val.fetch_sub(1, std::memory_order_release) < 1)
+		if (interfacePtr->refCount.fetch_sub(1, std::memory_order_release) < 1)
 			delete interfacePtr;
 	}
 
@@ -715,26 +723,26 @@ public:
 	SlabMulti(const SlabMulti<U>& other) noexcept :
 		interfacePtr{ other.interfacePtr }
 	{
-		interfacePtr->val.fetch_add(1, std::memory_order_relaxed);
+		interfacePtr->refCount.fetch_add(1, std::memory_order_relaxed);
 	}
 
 	template<class U>
 	SlabMulti(SlabMulti<U>&& other) noexcept :
 		interfacePtr{ other.interfacePtr }
 	{
-		interfacePtr->val.fetch_add(1, std::memory_order_relaxed);
+		interfacePtr->refCount.fetch_add(1, std::memory_order_relaxed);
 	}
 
 	SlabMulti(const SlabMulti& other) noexcept :
 		interfacePtr{ other.interfacePtr }
 	{
-		interfacePtr->val.fetch_add(1, std::memory_order_relaxed);
+		interfacePtr->refCount.fetch_add(1, std::memory_order_relaxed);
 	}
 
 	SlabMulti(SlabMulti&& other) noexcept :
 		interfacePtr{ other.interfacePtr }
 	{
-		interfacePtr->val.fetch_add(1, std::memory_order_relaxed);
+		interfacePtr->refCount.fetch_add(1, std::memory_order_relaxed);
 	}
 
 	template<class T = Type>

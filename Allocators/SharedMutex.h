@@ -140,8 +140,8 @@ private:
 		};
 
 		ThreadRegister(SharedMutex& cont) :
-			index{ Status::Unregistered },
-			cont{ cont }
+			index{	Status::Unregistered },
+			cont{	cont }
 		{}
 
 		// Unregister the thread and reset it's ID on thread's dtor call
