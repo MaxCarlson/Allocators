@@ -1,11 +1,12 @@
 #pragma once
 #include <atomic>
 #include <thread>
+#include <chrono>
 #include "AllocHelpers.h"
 
 namespace ImplSharedMutex
 {
-struct ContentionFreeFlag // TODO: Rename
+struct ContentionFreeFlag 
 {
 	enum Flags
 	{
@@ -86,6 +87,13 @@ public:
 		return locked;
 	}
 
+	template<class Rep, class Period>
+	bool try_lock_shared_for(const std::chrono::duration<Rep, Period>& relTime)
+	{
+		// TODO:
+		return false;
+	}
+
 	void unlock_shared()
 	{
 		// TODO: Debug safety check here
@@ -140,17 +148,15 @@ private:
 		// (acheived through static thread_local variable)
 		~ThreadRegister()
 		{
-			const auto id = std::this_thread::get_id();
-			for (CFF& cf : cont.flags)
-				if (cf.id == id)
-				{
-					cf.id = defaultThreadId;
-					int free = CFF::Registered;
-					while (!cf.flag.compare_exchange_weak(free, CFF::Unregistered, std::memory_order_release))
-						free = CFF::Registered;
+			if (index >= Status::Registered)
+			{
+				auto& cf	= cont.flags[index];
+				cf.id		= defaultThreadId;
 
-					break;
-				}
+				int free = CFF::Registered;
+				while (!cf.flag.compare_exchange_weak(free, CFF::Unregistered, std::memory_order_release))
+					free = CFF::Registered;
+			}
 		}
 
 		int				index;

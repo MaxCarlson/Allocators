@@ -20,9 +20,9 @@ void doWork(Al& al, Tp tp, int seed)
 	//m.
 	std::vector<int, typename Al::template rebind<int>::other> vec{ al };
 	std::default_random_engine re(seed);
-	std::uniform_int_distribution dis(1, 1000);
+	std::uniform_int_distribution dis(1, 10000);
 
-	for (size_t i = 0; i < 10000000000; ++i)
+	for (size_t i = 0; i < 100; ++i)
 	{
 		vec.reserve(vec.size() + dis(re));
 		vec.shrink_to_fit();
@@ -38,15 +38,17 @@ void doWork(Al& al, Tp tp, int seed)
 // Mix Slab Allocation with existing allocators
 int main()
 {
-	//alloc::SlabMem<size_t>::addCache2(sizeof(size_t), 1 << 10, 512);
-	//alloc::FreeList<int, 50000, alloc::TreePolicy> al;
-
+	/*
 	alloc::SharedMutex<8> mm;
 	{
 		std::shared_lock sl(mm, std::defer_lock);
 		sl.try_lock();
-	}
+		sl.owns_lock();
 
+		std::chrono::seconds dur(1);
+		sl.try_lock_for(dur);
+	}
+	*/
 	constexpr int count = 1000;
 
 	alloc::SlabMulti<size_t>						multi;

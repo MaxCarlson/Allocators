@@ -64,8 +64,7 @@ public:
 
 	~Slab()
 	{
-		if(mem)
-			operator delete(mem);
+		operator delete(mem);
 	}
 		
 	bool full()			const noexcept { return availible.empty(); }
