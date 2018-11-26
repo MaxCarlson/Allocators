@@ -138,6 +138,7 @@ private:
 	using size_type = size_t;
 
 	byte*					mem;
+	//byte*					end; // TODO: Cache this
 	size_type				blockSize;	// Size of the blocks the super block is divided into
 	size_type				count;		// TODO: This can be converted to IndexSizeT 
 	std::vector<IndexSizeT>	availible;	// TODO: Issue: Over time allocation locality decreases as indicies are jumbled
@@ -211,7 +212,7 @@ public:
 	bool containsMem(P* ptr) const noexcept
 	{
 		return (reinterpret_cast<byte*>(ptr) >= mem
-			 && reinterpret_cast<byte*>(ptr) < (mem + blockSize * count)); // TODO: Cache this blocksize * count?
+			 && reinterpret_cast<byte*>(ptr) < (mem + blockSize * count)); 
 	}
 };
 
@@ -286,6 +287,45 @@ private:
 		myCapacity += count;
 	}
 
+	void memToDispatch(It it)
+	{
+		// If the Slab is empty enough place it before the active block
+		if (it->size() <= threshold
+			&& it > actBlock)
+		{
+			splice(actBlock, it);
+		}
+
+		// Return memory to Dispatcher
+		else if (it->empty()
+			&& slabs.size() > MIN_SLABS
+			&& mySize > myCapacity - count)
+		{
+			myCapacity -= count;
+
+			if (it != actBlock)
+			{
+				if (it > actBlock)
+				{
+					std::swap(*it, slabs.back());
+					slabs.pop_back();
+				}
+				else
+				{
+					auto idx = static_cast<size_t>(actBlock - std::begin(slabs));
+					slabs.erase(it);
+					actBlock = std::begin(slabs) + (idx - 1);
+				}
+			}
+			else
+			{
+				std::swap(*actBlock, slabs.back());
+				slabs.pop_back();
+				actBlock = std::end(slabs) - 1;
+			}
+		}
+	}
+
 public:
 	byte* allocate()
 	{
@@ -312,16 +352,15 @@ public:
 	}
 
 	template<class T>
-	void deallocate(T* ptr) 
+	bool deallocate(T* ptr) 
 	{
 		// Look at the active block first, then the fuller blocks after it
 		// after that start over from the beginning
 		//
 		// TODO: Try benchmarking: After looking at blocks after actBlock looking in reverse order
 		// from active block
-		--mySize;
-
-		auto it		= actBlock;
+		
+		auto it	= actBlock;
 		for (auto E = std::end(slabs);;)
 		{
 			if (it->containsMem(ptr))
@@ -330,45 +369,29 @@ public:
 				break;
 			}
 
-			if (++it == E)				
-				it = std::begin(slabs); // TODO: Look into better ways to do this block
-		}
+			if (++it == E)
+				it = std::begin(slabs); 
 
-		// If the Slab is empty enough place it before the active block
-		if (it->size() <= threshold
-			&& it > actBlock) 
-		{
-			splice(actBlock, it);
+			// If this Cache doesn't contain the memory location
+			// we need to tell the caller to look elsewhere			
+			if (it == actBlock)
+				return false;
 		}
+		
+		// Handles the iterator in cases where it changes
+		// and returns memory to dispatcher if a Slab is empty
+		memToDispatch(it);
 
-		// Return memory to Dispatcher
-		else if (it->empty() 
-			&& slabs.size() > MIN_SLABS
-			&& mySize > myCapacity - count) 
-		{
-			myCapacity -= count;
+		--mySize;
+		return true;
+	}
 
-			if (it != actBlock)
-			{
-				if (it > actBlock)
-				{
-					std::swap(*it, slabs.back());
-					slabs.pop_back();
-				}
-				else
-				{
-					auto idx = static_cast<size_t>(actBlock - std::begin(slabs));
-					slabs.erase(it);
-					actBlock = std::begin(slabs) + (idx - 1);
-				}
-			}
-			else
-			{
-				std::swap(*actBlock, slabs.back());
-				slabs.pop_back();
-				actBlock = std::end(slabs) - 1;
-			}
-		}
+	bool isEmpty() const noexcept
+	{
+		for (const auto& s : slabs)
+			if (s.size())
+				return false;
+		return true;
 	}
 };
 
@@ -480,6 +503,7 @@ struct Cache
 	}
 };
 */
+
 // Bucket of Caches
 struct Bucket
 {
@@ -492,27 +516,30 @@ struct Bucket
 			caches.emplace_back(blocksPerSlab[i], cacheSizes[i]);
 	}
 
+	~Bucket()
+	{
+
+	}
+
 	byte* allocate(size_type bytes)
 	{
 		for (auto& c : caches)
-			if (c.blockSize >= bytes)
+			if (c.blockSize >= bytes) // TODO: This can be done more effeciently than a loop since the c.blockSize is always the same
 				return c.allocate();
 
-		return reinterpret_cast<byte*>(operator new(bytes)); // TODO: Make sure the de/allocations past Slab sizes are working!
+		return reinterpret_cast<byte*>(operator new(bytes)); 
 	}
 
 	template<class T>
-	void deallocate(T* ptr, size_type n) 
+	bool deallocate(T* ptr, size_type n) 
 	{
 		const auto bytes = sizeof(T) * n;
 		for(auto& c : caches)
-			if (c.blockSize >= bytes)
-			{
-				c.deallocate(ptr);
-				return;
-			}
+			if (c.blockSize >= bytes) // TODO: This can be done more effeciently than a loop since the c.blockSize is always the same
+				return c.deallocate(ptr);
 
-		operator delete(ptr, bytes); // TODO: Make sure the de/allocations past Slab sizes are working!
+		operator delete(ptr, bytes); 
+		return true;
 	}
 
 private:
@@ -591,6 +618,7 @@ struct BucketPair
 	Bucket				bucket;
 	std::thread::id		id;
 };
+
 // Interface class for SlabMulti so that
 // we can have multiple SlabMulti copies pointing
 // to same allocator
@@ -620,23 +648,6 @@ struct Interface
 
 		byte* mem = bucket.allocate(bytes);
 
-		/*
-		byte* mem = buckets.siterate([&bytes, &id](BucketPair& p) -> byte*
-		{
-			if (p.id == id)
-				return p.bucket.allocate(bytes);
-			return nullptr;
-		});
-
-		// We probably haven't made a bucket for this
-		// thread yet!
-		if (!mem)
-		{
-			auto& b = buckets.emplace_back(Bucket{}, id);
-			mem		= b.bucket.allocate(bytes);
-		}
-		*/
-
 		return reinterpret_cast<T*>(mem);
 	}
 
@@ -644,19 +655,17 @@ struct Interface
 	void deallocate(T* ptr, size_type n)
 	{
 		// Look in this threads memory Caches first
-		const auto id = std::this_thread::get_id();
-		bucket.deallocate(ptr, n);
-		/*
-		buckets.siterate([&](BucketPair& p) -> byte*
+		//const auto id = std::this_thread::get_id();
+
+		bool found = bucket.deallocate(ptr, n);
+
+		// Start the search for the memory in the vector of 
+		// dead threads
+		if (!found)
 		{
-			if (p.id == id)
-			{
-				p.bucket.deallocate(ptr, n);
-				return reinterpret_cast<byte*>(ptr); 
-			}
-			return nullptr;
-		});
-		*/
+
+		}
+
 		// If not found search other threads
 		// TODO: We'll have to either lock the Slab entirely or do sepperate availible lists like TBB
 	}
@@ -665,6 +674,7 @@ private:
 
 	inline static thread_local Bucket bucket;
 	std::atomic<int>	refCount;
+	SmpVec<Bucket>		deadBuckets;
 	SmpVec<BucketPair>	buckets;
 };
 
