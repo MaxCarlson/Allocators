@@ -504,6 +504,8 @@ struct Cache
 };
 */
 
+struct ForeignDeallocs;
+
 // Bucket of Caches
 struct Bucket
 {
@@ -515,6 +517,10 @@ struct Bucket
 		for (int i = 0; i < NUM_CACHES; ++i)
 			caches.emplace_back(blocksPerSlab[i], cacheSizes[i]);
 	}
+
+	Bucket(Bucket&& other) noexcept :
+		caches(std::move(other.caches))
+	{}
 
 	~Bucket()
 	{
@@ -557,81 +563,67 @@ struct ForeignDeallocs
 
 	struct FPtr
 	{
-		IndexSizeT count;
-
+		byte*		ptr;
+		IndexSizeT	count;
 	};
 
 	struct FCache
 	{
 		
-		std::vector<byte*> ptrs;
+		std::vector<FPtr> ptrs; // TODO: look into seperating by size like ouur Caches are now
+		// TODO: Look into having a Shared/mutex here
 	};
 
 	template<class T>
 	void addPtr(T* ptr, size_t count)
 	{
-
+		std::lock_guard lock(mutex); // TODO: Look into shared_lock
+		FPtr fptr{ reinterpret_cast<byte*>(ptr), static_cast<IndexSizeT>(count) };
+		for (auto& fc : myMap)
+			fc.second.ptrs.emplace_back(fptr);
 	}
 
-	size_t age;
+	void registerThread(std::thread::id id)
+	{
+		std::lock_guard lock(mutex); 
+		myMap.emplace(id, FCache{});
+	}
+
+	size_t					age;
+	alloc::SharedMutex<8>	mutex;
 	std::unordered_map<std::thread::id, FCache> myMap;
 };
 
-template<class T>
-struct SmpVec
+template<class K, class V>
+struct SmpUMap
 {
-	SmpVec()
+	SmpUMap()
 	{}
 
 	template<class... Args>
-	decltype(auto) emplace_back(Args&& ...args) 
+	decltype(auto) emplace(Args&& ...args) 
 	{
-		//std::lock_guard lock(mutex);
-		LockGuard lock(mutex);
-
-		return vec.emplace_back(std::forward<Args>(args)...);
+		std::lock_guard lock(mutex);
+		return umap.emplace(std::forward<Args>(args)...);
 	}
 
 	template<class Func>
-	byte* lIterate(Func&& func)
+	decltype(auto) findDo(const K& k, Func&& func)
 	{
-		//std::lock_guard lock(mutex);
-		LockGuard lock(mutex);
-
-		for (auto& v : vec)
-			if (auto ptr = func(v))
-				return ptr;
-		return nullptr;
-	}
-
-	template<class Func>
-	byte* siterate(Func&& func)
-	{
-		// TODO: Benchmark different lock types here 
-		// TODO: Also look into how to not lock unless neccasary here
-
-		//std::shared_lock lock(mutex); 
-		SharedLock lock(mutex);
-		for (auto& v : vec)
-		{
-			auto ptr = func(v);
-			if (ptr)
-				return ptr;
-		}
-		return nullptr;
+		std::shared_lock lock(mutex);
+		auto find = umap.find(k);
+		return func(find, umap);
 	}
 
 	bool empty() 
 	{
-		//std::shared_lock lock(mutex);
-		SharedLock lock(mutex);
-
-		return vec.empty();
+		std::shared_lock lock(mutex);
+		return umap.empty();
 	}
 
 private:
-	std::vector<T> vec;
-	alloc::SharedMutex<8> mutex;
+	std::unordered_map<K, V>	umap;
+	alloc::SharedMutex<8>		mutex;
 };
 
 struct BucketPair
@@ -661,6 +653,7 @@ struct Interface
 	friend class alloc::SlabMulti;
 
 	Interface() :
+		buckets{},
 		refCount{ 1 }
 	{
 	}
@@ -672,11 +665,22 @@ struct Interface
 	T* allocate(size_t count)
 	{
 		const auto bytes	= sizeof(T) * count;
-		//const auto id		= std::this_thread::get_id();
+		const auto id		= std::this_thread::get_id();
 
-		// Create the bucket for this thread.
-		// When the thread dies it will destroy this bucket with it
-		byte* mem = bucket.allocate(bytes);
+		auto alloc = [&](auto it, auto& map) -> byte*
+		{
+			if(it != std::end(map))
+				return it->second.allocate(bytes);
+			return nullptr;
+		};
+
+		byte* mem = buckets.findDo(id, alloc);
+
+		if (!mem)
+		{
+			buckets.emplace(id, std::move(Bucket{}));
+			mem = buckets.findDo(id, alloc);
+		}
 
 		return reinterpret_cast<T*>(mem);
 	}
@@ -684,8 +688,15 @@ struct Interface
 	template<class T>
 	void deallocate(T* ptr, size_type n)
 	{
+		const auto id = std::this_thread::get_id();
+
 		// Look in this threads Cache first
-		bool found = bucket.deallocate(ptr, n);
+		bool found = buckets.findDo(id, [&](auto it, auto& map)
+		{
+			if(it != std::end(map))
+				return it->second.deallocate(ptr, n);
+			return false;
+		});
 
 		// We'll now add the deallocation to the list
 		// of other foregin thread deallocations, 
@@ -702,9 +713,10 @@ struct Interface
 	}
 
 private:
+	
+	using MyMap = SmpUMap<std::thread::id, Bucket>;
 
-	inline static thread_local Bucket bucket;
-
+	MyMap				buckets;
 	std::atomic<int>	refCount;
 	ForeignDeallocs		fDeallocs;
 
