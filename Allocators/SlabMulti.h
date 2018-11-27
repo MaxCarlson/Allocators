@@ -130,7 +130,7 @@ private:
 	const FreeIndicies	availible;
 };
 
-inline GlobalDispatch dispatcher; // TODO: Make this local to the allocator!
+inline GlobalDispatch dispatcher; // TODO: Make this local to the allocator?
 
 struct Slab
 {
@@ -138,7 +138,7 @@ private:
 	using size_type = size_t;
 
 	byte*					mem;
-	//byte*					end; // TODO: Cache this
+	//byte*					end;		// TODO: Cache this
 	size_type				blockSize;	// Size of the blocks the super block is divided into
 	size_type				count;		// TODO: This can be converted to IndexSizeT 
 	std::vector<IndexSizeT>	availible;	// TODO: Issue: Over time allocation locality decreases as indicies are jumbled
@@ -241,7 +241,7 @@ public:
 		myCapacity{ 0 },
 		count{		count },
 		blockSize{	blockSize },
-		threshold{	static_cast<int>(count * freeThreshold) }, // TODO: Cache these values at compile time
+		threshold{	static_cast<int>(count * freeThreshold) }, 
 		slabs{}
 	{
 		addCache();
@@ -359,7 +359,7 @@ public:
 		//
 		// TODO: Try benchmarking: After looking at blocks after actBlock looking in reverse order
 		// from active block
-		
+
 		auto it	= actBlock;
 		for (auto E = std::end(slabs);;)
 		{
@@ -377,7 +377,7 @@ public:
 			if (it == actBlock)
 				return false;
 		}
-		
+
 		// Handles the iterator in cases where it changes
 		// and returns memory to dispatcher if a Slab is empty
 		memToDispatch(it);
@@ -546,6 +546,37 @@ private:
 	std::vector<Cache> caches;
 };
 
+
+// TODO: For Caches, cache MAX and MIN addresses for each Slab size so we can quickly check if a ForeginDeallocation can even
+// possibly be found in the Cache
+struct ForeignDeallocs
+{
+	ForeignDeallocs() noexcept :
+		age{ 0 }
+	{}
+
+	struct FPtr
+	{
+		IndexSizeT count;
+
+	};
+
+	struct FCache
+	{
+		
+		std::vector<byte*> ptrs;
+	};
+
+	template<class T>
+	void addPtr(T* ptr, size_t count)
+	{
+
+	}
+
+	size_t age;
+	std::unordered_map<std::thread::id, FCache> myMap;
+};
+
 template<class T>
 struct SmpVec
 {
@@ -630,7 +661,7 @@ struct Interface
 	friend class alloc::SlabMulti;
 
 	Interface() :
-		refCount{0}
+		refCount{ 1 }
 	{
 	}
 
@@ -653,21 +684,19 @@ struct Interface
 	template<class T>
 	void deallocate(T* ptr, size_type n)
 	{
-		// Look in this threads memory Caches first
+		// Look in this threads Cache first
 		bool found = bucket.deallocate(ptr, n);
 
-		// Start the search for the memory in the vector of 
-		// dead threads
+		// We'll now add the deallocation to the list
+		// of other foregin thread deallocations, 
 		if (!found)
 		{
-
+			//fDeallocs
 		}
 
-		// If not found search other threads
-		// TODO: We'll have to either lock the Slab entirely or do sepperate availible lists like TBB
 	}
 
-	inline void incRefcount()
+	inline void incRef()
 	{
 		refCount.fetch_add(1, std::memory_order_relaxed);
 	}
@@ -675,9 +704,12 @@ struct Interface
 private:
 
 	inline static thread_local Bucket bucket;
+
 	std::atomic<int>	refCount;
-	SmpVec<Bucket>		deadBuckets;
-	SmpVec<BucketPair>	buckets;
+	ForeignDeallocs		fDeallocs;
+
+	//SmpVec<Bucket>		deadBuckets;
+	//SmpVec<BucketPair>	buckets;
 };
 
 }// End SlabMultiImpl::
@@ -685,7 +717,6 @@ private:
 namespace alloc 
 {
 
-// TODO IDEAS:
 template<class Type>
 class SlabMulti
 {
@@ -716,13 +747,11 @@ public:
 	bool operator==(const SlabMulti<U>& other) const noexcept { return other.interfacePtr == interfacePtr; }
 
 	template<class U>
-	bool operator!=(const SlabMulti<U>& other) const noexcept { return *this == other; }
+	bool operator!=(const SlabMulti<U>& other) const noexcept { return !(*this == other); }
 
 	SlabMulti() :
 		interfacePtr{ new ImplSlabMulti::Interface{} }
-	{
-		interfacePtr->refCount.fetch_add(1, std::memory_order_relaxed);
-	}
+	{}
 
 private:
 	inline void decRef() noexcept
@@ -741,27 +770,27 @@ public:
 	SlabMulti(const SlabMulti& other) noexcept :
 		interfacePtr{ other.interfacePtr }
 	{
-		interfacePtr->incRefcount();
+		interfacePtr->incRef();
 	}
 
 	template<class U>
 	SlabMulti(const SlabMulti<U>& other) noexcept :
 		interfacePtr{ other.interfacePtr }
 	{
-		interfacePtr->incRefcount();
+		interfacePtr->incRef();
 	}
 
 	SlabMulti(SlabMulti&& other) noexcept :
 		interfacePtr{ other.interfacePtr }
 	{
-		interfacePtr->incRefcount();
+		interfacePtr->incRef();
 	}
 
 	template<class U>
 	SlabMulti(SlabMulti<U>&& other) noexcept :
 		interfacePtr{ other.interfacePtr }
 	{
-		interfacePtr->incRefcount();
+		interfacePtr->incRef();
 	}
 
 	SlabMulti& operator=(const SlabMulti& other) noexcept 
