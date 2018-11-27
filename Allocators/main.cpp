@@ -29,6 +29,20 @@ void doWork(Al& al, Tp tp, int seed)
 	}
 }
 
+struct BB
+{
+	BB& operator=(const BB& other)
+	{
+		int a = 5;
+		return *this;
+	}
+
+	~BB()
+	{
+		int a = 5;
+	}
+};
+
 // Just a temporary main to test allocators from
 // Should be removed in any actual use case
 //
@@ -38,17 +52,13 @@ void doWork(Al& al, Tp tp, int seed)
 // Mix Slab Allocation with existing allocators
 int main()
 {
-	/*
-	alloc::SharedMutex<8> mm;
-	{
-		std::shared_lock sl(mm, std::defer_lock);
-		sl.try_lock();
-		sl.owns_lock();
+	BB bb;
+	BB bbb;
 
-		std::chrono::seconds dur(1);
-		sl.try_lock_for(dur);
-	}
-	*/
+	bbb = bb;
+	
+
+
 	constexpr int count = 1000;
 
 	alloc::SlabMulti<size_t>						multi;

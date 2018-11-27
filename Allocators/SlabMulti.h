@@ -524,7 +524,7 @@ struct Bucket
 	byte* allocate(size_type bytes)
 	{
 		for (auto& c : caches)
-			if (c.blockSize >= bytes) // TODO: This can be done more effeciently than a loop since the c.blockSize is always the same
+			if (c.blockSize >= bytes) // TODO: Can this be done more effeciently than a loop since the c.blockSize is always the same?
 				return c.allocate();
 
 		return reinterpret_cast<byte*>(operator new(bytes)); 
@@ -535,7 +535,7 @@ struct Bucket
 	{
 		const auto bytes = sizeof(T) * n;
 		for(auto& c : caches)
-			if (c.blockSize >= bytes) // TODO: This can be done more effeciently than a loop since the c.blockSize is always the same
+			if (c.blockSize >= bytes) // TODO: Can this be done more effeciently than a loop since the c.blockSize is always the same?
 				return c.deallocate(ptr);
 
 		operator delete(ptr, bytes); 
@@ -641,11 +641,10 @@ struct Interface
 	T* allocate(size_t count)
 	{
 		const auto bytes	= sizeof(T) * count;
-		const auto id		= std::this_thread::get_id();
+		//const auto id		= std::this_thread::get_id();
 
 		// Create the bucket for this thread.
 		// When the thread dies it will destroy this bucket with it
-
 		byte* mem = bucket.allocate(bytes);
 
 		return reinterpret_cast<T*>(mem);
@@ -655,8 +654,6 @@ struct Interface
 	void deallocate(T* ptr, size_type n)
 	{
 		// Look in this threads memory Caches first
-		//const auto id = std::this_thread::get_id();
-
 		bool found = bucket.deallocate(ptr, n);
 
 		// Start the search for the memory in the vector of 
@@ -668,6 +665,11 @@ struct Interface
 
 		// If not found search other threads
 		// TODO: We'll have to either lock the Slab entirely or do sepperate availible lists like TBB
+	}
+
+	inline void incRefcount()
+	{
+		refCount.fetch_add(1, std::memory_order_relaxed);
 	}
 
 private:
@@ -722,37 +724,74 @@ public:
 		interfacePtr->refCount.fetch_add(1, std::memory_order_relaxed);
 	}
 
-	~SlabMulti() 
+private:
+	inline void decRef() noexcept
 	{
 		// TODO: Make sure this memory ordering is correct, It's probably not!
 		if (interfacePtr->refCount.fetch_sub(1, std::memory_order_release) < 1)
 			delete interfacePtr;
+	}
+public:
+
+	~SlabMulti() 
+	{
+		decRef();
+	}
+
+	SlabMulti(const SlabMulti& other) noexcept :
+		interfacePtr{ other.interfacePtr }
+	{
+		interfacePtr->incRefcount();
 	}
 
 	template<class U>
 	SlabMulti(const SlabMulti<U>& other) noexcept :
 		interfacePtr{ other.interfacePtr }
 	{
-		interfacePtr->refCount.fetch_add(1, std::memory_order_relaxed);
+		interfacePtr->incRefcount();
+	}
+
+	SlabMulti(SlabMulti&& other) noexcept :
+		interfacePtr{ other.interfacePtr }
+	{
+		interfacePtr->incRefcount();
 	}
 
 	template<class U>
 	SlabMulti(SlabMulti<U>&& other) noexcept :
 		interfacePtr{ other.interfacePtr }
 	{
-		interfacePtr->refCount.fetch_add(1, std::memory_order_relaxed);
+		interfacePtr->incRefcount();
 	}
 
-	SlabMulti(const SlabMulti& other) noexcept :
-		interfacePtr{ other.interfacePtr }
+	SlabMulti& operator=(const SlabMulti& other) noexcept 
 	{
-		interfacePtr->refCount.fetch_add(1, std::memory_order_relaxed);
+		if (interfacePtr)
+			decRef();
+		interfacePtr = other.interfacePtr;
 	}
 
-	SlabMulti(SlabMulti&& other) noexcept :
-		interfacePtr{ other.interfacePtr }
+	template<class U>
+	SlabMulti& operator=(const SlabMulti<U>& other) noexcept
 	{
-		interfacePtr->refCount.fetch_add(1, std::memory_order_relaxed);
+		if (interfacePtr)
+			decRef();
+		interfacePtr = other.interfacePtr;
+	}
+
+	SlabMulti& operator=(SlabMulti&& other) noexcept
+	{
+		if (interfacePtr)
+			decRef();
+		interfacePtr = other.interfacePtr;
+	}
+
+	template<class U>
+	SlabMulti& operator=(SlabMulti<U>&& other) noexcept
+	{
+		if (interfacePtr)
+			decRef();
+		interfacePtr = other.interfacePtr;
 	}
 
 	template<class T = Type>
