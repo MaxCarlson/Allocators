@@ -563,31 +563,63 @@ struct ForeignDeallocs
 
 	struct FPtr
 	{
+		FPtr(byte* ptr, size_t bytes, IndexSizeT count) :
+			ptr{ ptr },
+			bytes{ bytes },
+			count{ count }
+		{}
+
 		byte*		ptr;
+		size_t		bytes;
 		IndexSizeT	count;
 	};
 
 	struct FCache
 	{
-		
-		std::vector<FPtr> ptrs; // TODO: look into seperating by size like our Caches are now
-		// TODO: Look into having a Shared/mutex here
+		using It		= std::list<FPtr>::iterator;
+		using Cache		= std::pair<size_t, std::vector<It>>;
+		using Caches	= std::vector<Cache>;
+
+		bool	isEmpty;
+		Caches	caches;
+
+		FCache() :
+			isEmpty{ true },
+			caches{}
+		{
+			for (const auto& cs : cacheSizes)
+				caches.emplace_back(std::move(Cache{ cs, std::vector<It>{} }));
+		}
+
+		void addPtr(It it)
+		{
+			isEmpty = false;
+			for (auto& ch : caches)
+				if (ch.first >= it->bytes)
+					ch.second.emplace_back(it);
+		}
+
+		template<class Func>
+		void processDe(Func&& func)
+		{
+
+		}
 
 		bool empty() const noexcept
 		{
-			return ptrs.empty();
+			return isEmpty;
 		}
 	};
 
 	template<class T>
-	void addPtr(T* ptr, size_t count, std::thread::id thisThread)
+	void addPtr(T* ptr, size_t count, size_t bytes, std::thread::id thisThread)
 	{
 		std::lock_guard lock(mutex); // TODO: Look into shared_lock
-		FPtr fptr{ reinterpret_cast<byte*>(ptr), static_cast<IndexSizeT>(count) };
+		fptrs.emplace_back(reinterpret_cast<byte*>(ptr), bytes, static_cast<IndexSizeT>(count));
+		FCache::It it = --std::end(fptrs);
 
-		for (auto& fc : myMap)
-			if(fc.first != thisThread)
-				fc.second.ptrs.emplace_back(fptr);
+		for (auto& th : myMap)
+			th.second.addPtr(it);
 	}
 
 	void registerThread(std::thread::id id)
@@ -604,6 +636,7 @@ struct ForeignDeallocs
 		// Thread should never be unregistered so we're just going to
 		// not check validity of find here
 		auto find = myMap.find(id);
+		
 	}
 
 	bool hasDeallocs(std::thread::id id) 
@@ -615,6 +648,7 @@ struct ForeignDeallocs
 
 	size_t					age;
 	alloc::SharedMutex<8>	mutex;
+	std::list<FPtr>			fptrs;
 	std::unordered_map<std::thread::id, FCache> myMap; // TODO: Replace with fast umap (or vector)
 };
 
@@ -715,7 +749,8 @@ struct Interface
 	template<class T>
 	void deallocate(T* ptr, size_type n)
 	{
-		const auto id = std::this_thread::get_id();
+		const auto id			= std::this_thread::get_id();
+		const size_type bytes	= sizeof(T) * n;
 
 		// Look in this threads Cache first
 		bool found = buckets.findDo(id, [&](auto it, auto& cont)
@@ -728,7 +763,7 @@ struct Interface
 		// We'll now add the deallocation to the list
 		// of other foregin thread deallocations 
 		if (!found)
-			fDeallocs.addPtr(ptr, n, id);
+			fDeallocs.addPtr(ptr, n, bytes, id);
 
 		// Handle foreign thread deallocations
 		// (if a thread that is not this one has said it needs to dealloc
