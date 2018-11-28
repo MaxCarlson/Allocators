@@ -496,7 +496,7 @@ struct ForeignDeallocs
 		void processDe(std::thread::id id, SmpContainer<std::thread::id, Bucket>& cont)
 		{
 			// Find the Bucket and start a shared lock on the SmpContainer
-			auto find = cont.findAndStartSL(id);
+			auto[lock, find] = cont.findAndStartSL(id);
 
 			// Process each level of Cache and try to de foreign ptrs
 			for (auto& ch : caches)
@@ -506,21 +506,20 @@ struct ForeignDeallocs
 				{
 					bool found = find->second.deallocate((*it)->ptr, (*it)->count);
 
-
-					// TODO: THIS IS A DEADLOCK if we don't release the shared lock here!!!!!!
 					if (found)
 					{
-						myCont.removePtr(it);
+						// This is a deadlock if we try to lock while holding a shared_lock
+						lock.unlock();
+						{
+							std::lock_guard lock{ myCont };
+							myCont.removePtr(it);
+						}
+						lock.lock();
 					}
 
 					++it;
 					ch.second.pop_back();
 				}
-
-
-			// End shared lock on smp container
-			// TODO: We need this RAII so that an exception doesn't leave a perma shared lock
-			cont.endSL();
 		}
 
 		bool empty() const noexcept
@@ -548,7 +547,7 @@ struct ForeignDeallocs
 	void registerThread(std::thread::id id)
 	{
 		std::lock_guard lock(mutex);
-		myMap.emplace(id, FCache{});
+		myMap.emplace(id, FCache{*this});
 	}
 
 	template<class SmpCont>

@@ -1,5 +1,6 @@
 #pragma once
 #include "SharedMutex.h"
+#include <shared_mutex>
 
 namespace alloc
 {
@@ -9,6 +10,10 @@ template<class K, class V>
 struct SmpContainer
 {
 	SmpContainer() = default;
+
+	using SharedMutex	= alloc::SharedMutex<8>;
+	using Container		= std::vector<std::pair<K, V>>;
+	using It			= typename Container::iterator;
 
 	template<class... Args>
 	decltype(auto) emplace(Args&& ...args)
@@ -28,20 +33,21 @@ struct SmpContainer
 		return func(find, vec);
 	}
 
-	decltype(auto) findAndStartSL(const K& k)
+	std::pair<std::shared_lock<SharedMutex>&&, It> findAndStartSL(const K& k)
 	{
-		mutex.lock_shared();
+		std::shared_lock lock(mutex);
 		auto find = std::find_if(std::begin(vec), std::end(vec), [&](const auto& v)
 		{
 			return v.first == k;
 		});
-		return find;
+		return { std::move(lock), find };
 	}
 
-	void endSL()
-	{
-		mutex.unlock_shared();
-	}
+	// Wrapper functions so that a lock can be placed directly on the container
+	void lock_shared()		{ mutex.lock_shared(); }
+	void unlock_shared()	{ mutex.unlock_shared(); }
+	void lock()				{ mutex.lock(); }
+	void unlock()			{ mutex.unlock(); }
 
 	bool empty()
 	{
@@ -50,7 +56,7 @@ struct SmpContainer
 	}
 
 private:
-	std::vector<std::pair<K, V>> vec;
-	alloc::SharedMutex<8>		mutex;
+	Container	vec;
+	SharedMutex	mutex;
 };
 }
