@@ -6,7 +6,7 @@
 #include <mutex>
 #include <atomic>
 #include <shared_mutex>
-#include "SharedMutex.h"
+#include "SmpContainer.h"
 
 namespace alloc
 {
@@ -24,6 +24,7 @@ class alloc::SlabMulti;
 
 using alloc::LockGuard;
 using alloc::SharedLock;
+using alloc::SmpContainer;
 
 constexpr auto SUPERBLOCK_SIZE	= 1 << 20;
 constexpr auto SLAB_SIZE		= 1 << 14;
@@ -395,115 +396,6 @@ public:
 	}
 };
 
-/*
-struct Cache
-{
-	using size_type = size_t;
-	using Container = std::list<Slab>; 
-	using It		= Container::iterator;
-
-	const size_type	count;
-	const size_type	blockSize;
-	int				threshold;
-	Container		slabs;
-	It				actBlock;
-	static constexpr double freeThreshold	= 0.25;
-	static constexpr double MIN_SLABS		= 1;
-
-	Cache(size_type count, size_type blockSize) :
-		count{		count },
-		blockSize{	blockSize },
-		threshold{	static_cast<int>(count * freeThreshold) }, // TODO: Cache these values at compile time
-		slabs{}
-	{
-		slabs.emplace_back(blockSize, count); // TODO: Figure out how to put this in the ctor list!!!
-		actBlock = std::begin(slabs);
-	}
-
-	Cache(Cache&& other) noexcept:
-		count{		other.count },
-		blockSize{	other.blockSize },
-		threshold{	other.threshold }, 
-		slabs{		std::move(other.slabs)},
-		actBlock{	other.actBlock }
-	{}
-
-	Cache(const Cache& other) : // TODO: Why is this needed?
-		count{		other.count },
-		blockSize{	other.blockSize },
-		threshold{	other.threshold }, 
-		slabs{		other.slabs },
-		actBlock{	other.actBlock }
-	{}
-
-	byte* allocate()
-	{
-		auto[mem, full] = actBlock->allocate();
-
-		// If active block is full, create a new one and add
-		// it to the list before the previous AB
-		if (full)
-		{
-			if (actBlock != std::begin(slabs))
-				actBlock = --actBlock;
-			else
-				actBlock = slabs.emplace(actBlock, blockSize, count);
-
-		}
-
-		return mem;
-	}
-
-	template<class T>
-	void deallocate(T* ptr) 
-	{
-		// Look at the active block first, then the fuller blocks after it
-		// after that start over from the beginning
-		//
-		// TODO: Try benchmarking after looking at blocks after actBlock looking in reverse order
-		// from active block
-		auto it = actBlock;
-		for (auto E = std::end(slabs);;)
-		{
-			if (it->containsMem(ptr))
-			{
-				it->deallocate(ptr);
-				break;
-			}
-
-			++it;
-			if (it == E)				
-				it = std::begin(slabs); // TODO: Look into better ways to do this block
-		}
-
-		// If the Slab is empty enough place it before the active block
-		// TODO: How to avoid this running multiple times without a random access iterator?
-		if (it->size() <= threshold
-			&& it != actBlock)
-		{
-			slabs.splice(actBlock, slabs, it);
-		}
-
-		// Return memory to Dispatcher
-		else if (it->empty() && slabs.size() > MIN_SLABS) // TODO: If we switch to vector more work will have to be done to keep iterator correct!
-		{
-			if (it != actBlock)
-				slabs.erase(it);
-			else
-			{
-				if (actBlock != std::begin(slabs))
-					actBlock = std::prev(it);
-				else
-					actBlock = std::next(it);
-				slabs.erase(it);
-			}
-		}
-
-		auto& bb = *actBlock;
-	}
-};
-*/
-
 struct ForeignDeallocs;
 
 // Bucket of Caches
@@ -552,7 +444,6 @@ private:
 	std::vector<Cache> caches;
 };
 
-
 // TODO: For Caches, cache MAX and MIN addresses for each Slab size so we can quickly check if a ForeginDeallocation can even
 // possibly be found in the Cache
 struct ForeignDeallocs
@@ -564,9 +455,9 @@ struct ForeignDeallocs
 	struct FPtr
 	{
 		FPtr(byte* ptr, size_t bytes, IndexSizeT count) :
-			ptr{ ptr },
-			bytes{ bytes },
-			count{ count }
+			ptr{	ptr		},
+			bytes{	bytes	},
+			count{	count	}
 		{}
 
 		byte*		ptr;
@@ -577,18 +468,21 @@ struct ForeignDeallocs
 	struct FCache
 	{
 		using It		= std::list<FPtr>::iterator;
+		using rIt		= std::list<FPtr>::reverse_iterator;
 		using Cache		= std::pair<size_t, std::vector<It>>;
 		using Caches	= std::vector<Cache>;
 
-		bool	isEmpty;
-		Caches	caches;
+		bool				isEmpty;
+		Caches				caches;
+		ForeignDeallocs&	myCont;
 
-		FCache() :
-			isEmpty{ true },
-			caches{}
+		FCache(ForeignDeallocs& myCont) :
+			isEmpty{	true	},
+			caches{				},
+			myCont{		myCont	}
 		{
 			for (const auto& cs : cacheSizes)
-				caches.emplace_back(std::move(Cache{ cs, std::vector<It>{} }));
+				caches.emplace_back(cs, std::vector<It>{});
 		}
 
 		void addPtr(It it)
@@ -599,10 +493,34 @@ struct ForeignDeallocs
 					ch.second.emplace_back(it);
 		}
 
-		template<class Func>
-		void processDe(Func&& func)
+		void processDe(std::thread::id id, SmpContainer<std::thread::id, Bucket>& cont)
 		{
+			// Find the Bucket and start a shared lock on the SmpContainer
+			auto find = cont.findAndStartSL(id);
 
+			// Process each level of Cache and try to de foreign ptrs
+			for (auto& ch : caches)
+				for (auto it = std::rbegin(ch.second),
+					E = std::rend(ch.second);
+					it != E;)
+				{
+					bool found = find->second.deallocate((*it)->ptr, (*it)->count);
+
+
+					// TODO: THIS IS A DEADLOCK if we don't release the shared lock here!!!!!!
+					if (found)
+					{
+						myCont.removePtr(it);
+					}
+
+					++it;
+					ch.second.pop_back();
+				}
+
+
+			// End shared lock on smp container
+			// TODO: We need this RAII so that an exception doesn't leave a perma shared lock
+			cont.endSL();
 		}
 
 		bool empty() const noexcept
@@ -622,24 +540,29 @@ struct ForeignDeallocs
 			th.second.addPtr(it);
 	}
 
+	void removePtr(FCache::rIt it)
+	{
+		std::lock_guard lock(mutex);
+	}
+
 	void registerThread(std::thread::id id)
 	{
-		std::lock_guard lock(mutex); 
+		std::lock_guard lock(mutex);
 		myMap.emplace(id, FCache{});
 	}
 
-	template<class Func>
-	void handleDeallocs(std::thread::id id, Func&& func)
+	template<class SmpCont>
+	void handleDeallocs(std::thread::id id, SmpCont& cont)
 	{
 		std::lock_guard lock(mutex); // TODO: Use shared lock here and lock guard inside FCache
 
 		// Thread should never be unregistered so we're just going to
 		// not check validity of find here
 		auto find = myMap.find(id);
-		
+		find->second.processDe(id, cont);
 	}
 
-	bool hasDeallocs(std::thread::id id) 
+	bool hasDeallocs(std::thread::id id)
 	{
 		std::shared_lock lock(mutex);
 		auto find = myMap.find(id);
@@ -650,42 +573,6 @@ struct ForeignDeallocs
 	alloc::SharedMutex<8>	mutex;
 	std::list<FPtr>			fptrs;
 	std::unordered_map<std::thread::id, FCache> myMap; // TODO: Replace with fast umap (or vector)
-};
-
-// TODO: Make this take a third template param, 
-// the container so we can test diff container types
-template<class K, class V>
-struct SmpContainer 
-{
-	SmpContainer() = default;
-
-	template<class... Args>
-	decltype(auto) emplace(Args&& ...args) 
-	{
-		std::lock_guard lock(mutex);
-		return vec.emplace_back(std::forward<Args>(args)...);
-	}
-
-	template<class Func>
-	decltype(auto) findDo(const K& k, Func&& func)
-	{
-		std::shared_lock lock(mutex);
-		auto find = std::find_if(std::begin(vec), std::end(vec), [&](const auto& v)
-		{
-			return v.first == k;
-		});
-		return func(find, vec);
-	}
-
-	bool empty() 
-	{
-		std::shared_lock lock(mutex);
-		return vec.empty();
-	}
-
-private:
-	std::vector<std::pair<K, V>> vec;
-	alloc::SharedMutex<8>		mutex;
 };
 
 struct BucketPair
@@ -770,13 +657,7 @@ struct Interface
 		// memory that doesn't belong to it)
 		if (fDeallocs.hasDeallocs(id))
 		{
-			fDeallocs.handleDeallocs(id, 
-				[](auto it, auto& cont, auto* ptr, IndexSizeT n)
-			{
-				if (it != std::end(cont))
-					return it->second.deallocate(ptr, n);
-				return false;
-			});
+			fDeallocs.handleDeallocs(id, buckets);
 		}
 		
 	}
@@ -788,9 +669,9 @@ struct Interface
 
 private:
 	
-	using MyMap = SmpContainer<std::thread::id, Bucket>;
+	using MyCont = SmpContainer<std::thread::id, Bucket>;
 
-	MyMap				buckets;
+	MyCont				buckets;
 	std::atomic<int>	refCount;
 	ForeignDeallocs		fDeallocs;
 
