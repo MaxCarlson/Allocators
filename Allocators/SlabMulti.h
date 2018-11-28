@@ -557,7 +557,7 @@ private:
 // possibly be found in the Cache
 struct ForeignDeallocs
 {
-	ForeignDeallocs() noexcept :
+	ForeignDeallocs() :
 		age{ 0 }
 	{}
 
@@ -570,17 +570,24 @@ struct ForeignDeallocs
 	struct FCache
 	{
 		
-		std::vector<FPtr> ptrs; // TODO: look into seperating by size like ouur Caches are now
+		std::vector<FPtr> ptrs; // TODO: look into seperating by size like our Caches are now
 		// TODO: Look into having a Shared/mutex here
+
+		bool empty() const noexcept
+		{
+			return ptrs.empty();
+		}
 	};
 
 	template<class T>
-	void addPtr(T* ptr, size_t count)
+	void addPtr(T* ptr, size_t count, std::thread::id thisThread)
 	{
 		std::lock_guard lock(mutex); // TODO: Look into shared_lock
 		FPtr fptr{ reinterpret_cast<byte*>(ptr), static_cast<IndexSizeT>(count) };
+
 		for (auto& fc : myMap)
-			fc.second.ptrs.emplace_back(fptr);
+			if(fc.first != thisThread)
+				fc.second.ptrs.emplace_back(fptr);
 	}
 
 	void registerThread(std::thread::id id)
@@ -589,40 +596,61 @@ struct ForeignDeallocs
 		myMap.emplace(id, FCache{});
 	}
 
+	template<class Func>
+	void handleDeallocs(std::thread::id id, Func&& func)
+	{
+		std::lock_guard lock(mutex); // TODO: Use shared lock here and lock guard inside FCache
+
+		// Thread should never be unregistered so we're just going to
+		// not check validity of find here
+		auto find = myMap.find(id);
+	}
+
+	bool hasDeallocs(std::thread::id id) 
+	{
+		std::shared_lock lock(mutex);
+		auto find = myMap.find(id);
+		return find->second.empty();
+	}
+
 	size_t					age;
 	alloc::SharedMutex<8>	mutex;
-	std::unordered_map<std::thread::id, FCache> myMap;
+	std::unordered_map<std::thread::id, FCache> myMap; // TODO: Replace with fast umap (or vector)
 };
 
+// TODO: Make this take a third template param, 
+// the container so we can test diff container types
 template<class K, class V>
-struct SmpUMap
+struct SmpContainer 
 {
-	SmpUMap()
-	{}
+	SmpContainer() = default;
 
 	template<class... Args>
 	decltype(auto) emplace(Args&& ...args) 
 	{
 		std::lock_guard lock(mutex);
-		return umap.emplace(std::forward<Args>(args)...);
+		return vec.emplace_back(std::forward<Args>(args)...);
 	}
 
 	template<class Func>
 	decltype(auto) findDo(const K& k, Func&& func)
 	{
 		std::shared_lock lock(mutex);
-		auto find = umap.find(k);
-		return func(find, umap);
+		auto find = std::find_if(std::begin(vec), std::end(vec), [&](const auto& v)
+		{
+			return v.first == k;
+		});
+		return func(find, vec);
 	}
 
 	bool empty() 
 	{
 		std::shared_lock lock(mutex);
-		return umap.empty();
+		return vec.empty();
 	}
 
 private:
-	std::unordered_map<K, V>	umap;
+	std::vector<std::pair<K, V>> vec;
 	alloc::SharedMutex<8>		mutex;
 };
 
@@ -655,8 +683,7 @@ struct Interface
 	Interface() :
 		buckets{},
 		refCount{ 1 }
-	{
-	}
+	{}
 
 	~Interface()
 	{}
@@ -667,9 +694,9 @@ struct Interface
 		const auto bytes	= sizeof(T) * count;
 		const auto id		= std::this_thread::get_id();
 
-		auto alloc = [&](auto it, auto& map) -> byte*
+		auto alloc = [&](auto it, auto& vec) -> byte*
 		{
-			if(it != std::end(map))
+			if(it != std::end(vec))
 				return it->second.allocate(bytes);
 			return nullptr;
 		};
@@ -691,20 +718,32 @@ struct Interface
 		const auto id = std::this_thread::get_id();
 
 		// Look in this threads Cache first
-		bool found = buckets.findDo(id, [&](auto it, auto& map)
+		bool found = buckets.findDo(id, [&](auto it, auto& cont)
 		{
-			if(it != std::end(map))
+			if(it != std::end(cont))
 				return it->second.deallocate(ptr, n);
 			return false;
 		});
 
 		// We'll now add the deallocation to the list
-		// of other foregin thread deallocations, 
+		// of other foregin thread deallocations 
 		if (!found)
-		{
-			//fDeallocs
-		}
+			fDeallocs.addPtr(ptr, n, id);
 
+		// Handle foreign thread deallocations
+		// (if a thread that is not this one has said it needs to dealloc
+		// memory that doesn't belong to it)
+		if (fDeallocs.hasDeallocs(id))
+		{
+			fDeallocs.handleDeallocs(id, 
+				[](auto it, auto& cont, auto* ptr, IndexSizeT n)
+			{
+				if (it != std::end(cont))
+					return it->second.deallocate(ptr, n);
+				return false;
+			});
+		}
+		
 	}
 
 	inline void incRef()
@@ -714,7 +753,7 @@ struct Interface
 
 private:
 	
-	using MyMap = SmpUMap<std::thread::id, Bucket>;
+	using MyMap = SmpContainer<std::thread::id, Bucket>;
 
 	MyMap				buckets;
 	std::atomic<int>	refCount;
