@@ -22,18 +22,22 @@ struct ForeignDeallocs
 		FPtr(byte* ptr, size_t bytes, IndexSizeT count) :
 			ptr{	ptr		},
 			bytes{	bytes	},
-			count{	count	}
+			count{	count	},
+			found{	false	}
 		{}
 
-		byte*		ptr;
-		size_t		bytes;
-		IndexSizeT	count;
+		byte*				ptr;
+		size_t				bytes;
+		IndexSizeT			count;
+		std::atomic<bool>	found;
 	};
+
+	using FptrList = std::list<FPtr>;
 
 	struct FCache
 	{
-		using It		= std::list<FPtr>::iterator;
-		using rIt		= std::list<FPtr>::reverse_iterator;
+		using It		= FptrList::iterator;
+		using rIt		= FptrList::reverse_iterator;
 		using Cache		= std::pair<size_t, std::vector<It>>;
 		using Caches	= std::vector<Cache>;
 
@@ -42,9 +46,9 @@ struct ForeignDeallocs
 		ForeignDeallocs&	myCont;
 
 		FCache(ForeignDeallocs& myCont) :
-			isEmpty{ true },
+			isEmpty{	true	},
 			caches{				},
-			myCont{ myCont }
+			myCont{		myCont	}
 		{
 			for (const auto& cs : cacheSizes)
 				caches.emplace_back(cs, std::vector<It>{});
@@ -63,37 +67,40 @@ struct ForeignDeallocs
 			// Find the Bucket and start a shared lock on the SmpContainer
 			auto[sLock, find] = buckets.findAndStartSL(id);
 
-			// Process each level of Cache and try to de foreign ptrs
+			int emptyLevels = 0;
+
+			// Process each level of Cache and try to dealloc foreign ptrs
 			for (auto& ch : caches)
+			{
 				for (auto it = std::rbegin(ch.second),
 					E = std::rend(ch.second);
 					it != E;)
 				{
-					bool found = find->second.deallocate((*it)->ptr, (*it)->count);
-
+					// Try and deallocate the ptr
+					bool found = false;
+					if((*it)->found.load(std::memory_order_relaxed))
+						found = find->second.deallocate((*it)->ptr, (*it)->count);
+					
+					// If we find the ptr mark it as found for other threads
 					if (found)
 					{
-						// Unlock the shared_lock so it's not deadlock
-						sLock.unlock();
-						{
-							// Lock the SMP container
-							std::lock_guard lock{ buckets };
-							myCont.removePtr(it);
-						}
-
-						// Reacquire shared lock
-						sLock.lock();
+						(*it)->found.store(true, std::memory_order_relaxed);
 					}
 
 					++it;
 					ch.second.pop_back();
 				}
+
+				if (ch.second.empty())
+					++emptyLevels;
+			}
+
+			// Mark this thread as having no more foreign deallocs to process
+			if (emptyLevels == caches.size())
+				isEmpty = true;
 		}
 
-		bool empty() const noexcept
-		{
-			return isEmpty;
-		}
+		bool empty() const noexcept { return isEmpty; }
 	};
 
 	template<class T>
@@ -107,9 +114,9 @@ struct ForeignDeallocs
 			th.second.addPtr(it);
 	}
 
-	void removePtr(FCache::rIt it)
+	void removePtr(FCache::It it)
 	{
-		std::lock_guard lock(mutex);
+	
 	}
 
 	void registerThread(std::thread::id id)
@@ -121,7 +128,7 @@ struct ForeignDeallocs
 	template<class SmpCont>
 	void handleDeallocs(std::thread::id id, SmpCont& cont)
 	{
-		std::lock_guard lock(mutex); // TODO: Use shared lock here and lock guard inside FCache
+		std::shared_lock lock(mutex); 
 
 		// Thread should never be unregistered so we're just going to
 		// not check validity of find here
@@ -137,8 +144,8 @@ struct ForeignDeallocs
 	}
 
 	size_t					age;
+	FptrList				fptrs;
 	alloc::SharedMutex<8>	mutex;
-	std::list<FPtr>			fptrs;
 	std::unordered_map<std::thread::id, FCache> myMap; // TODO: Replace with fast umap (or vector)
 };
 
