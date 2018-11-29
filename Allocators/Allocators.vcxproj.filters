@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="SlabMulti">
+      <UniqueIdentifier>{5d950e2f-0df4-436c-aa21-b6663907a1b7}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -47,9 +50,6 @@
     <ClInclude Include="SlabHelper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="SlabMulti.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="SharedMutex.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -58,6 +58,15 @@
     </ClInclude>
     <ClInclude Include="SmpContainer.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SlabMulti.h">
+      <Filter>SlabMulti</Filter>
+    </ClInclude>
+    <ClInclude Include="ImplSlabMulti.h">
+      <Filter>SlabMulti</Filter>
+    </ClInclude>
+    <ClInclude Include="ForeignDeallocs.h">
+      <Filter>SlabMulti</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
