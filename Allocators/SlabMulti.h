@@ -1,5 +1,5 @@
 #pragma once
-#include "ForeignDeallocs.h"
+#include "ImplSlabMulti.h"
 
 namespace ImplSlabMulti
 {
@@ -22,6 +22,14 @@ struct Interface
 	~Interface()
 	{}
 
+private:
+	void registerThread(std::thread::id id)
+	{
+		buckets.emplace(id, std::move(Bucket{ id, fDeallocs }));
+	}
+
+public:
+
 	template<class T>
 	T* allocate(size_t count)
 	{
@@ -39,7 +47,7 @@ struct Interface
 
 		if (!mem)
 		{
-			buckets.emplace(id, std::move(Bucket{}));
+			registerThread(id);
 			mem = buckets.findDo(id, alloc);
 		}
 
@@ -52,13 +60,27 @@ struct Interface
 		const auto id			= std::this_thread::get_id();
 		const size_type bytes	= sizeof(T) * n;
 
-		// Look in this threads Cache first
-		bool found = buckets.findDo(id, [&](auto it, auto& cont)
+		bool registered		= false;
+		auto findAndDealloc = [&](auto it, auto& cont)
 		{
-			if(it != std::end(cont))
+			if (it != std::end(cont))
+			{
+				registered = true;
 				return it->second.deallocate(ptr, n);
+			}
 			return false;
-		});
+		};
+
+		// Look in this threads Cache first
+		bool found = buckets.findDo(id, findAndDealloc);
+
+		// If the thread hasn't been registered
+		// register it and try again
+		if (!registered)
+		{
+			registerThread(id);
+			found = buckets.findDo(id, findAndDealloc);
+		}
 
 		// We'll now add the deallocation to the list
 		// of other foregin thread deallocations 
@@ -90,9 +112,6 @@ private:
 	MyCont				buckets;
 	std::atomic<int>	refCount;
 	ForeignDeallocs		fDeallocs;
-
-	//SmpVec<Bucket>		deadBuckets;
-	//SmpVec<BucketPair>	buckets;
 };
 
 }// End SlabMultiImpl::

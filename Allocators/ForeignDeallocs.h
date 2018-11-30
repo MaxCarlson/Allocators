@@ -1,6 +1,6 @@
 #pragma once
 #include <vector>
-#include "ImplSlabMulti.h"
+#include "SlabMultiDispatcher.h"
 #include "SmpContainer.h"
 
 
@@ -9,8 +9,9 @@ namespace ImplSlabMulti
 
 // TODO: For Caches, cache MAX and MIN addresses for each Slab size so we can quickly check if a ForeginDeallocation can even
 // possibly be found in the Cache
-struct ForeignDeallocs
+class ForeignDeallocs
 {
+public:
 	ForeignDeallocs() :
 		age{ 0 }
 	{}
@@ -57,7 +58,10 @@ struct ForeignDeallocs
 			isEmpty = false;
 			for (auto& ch : caches)
 				if (ch.first >= it->bytes)
+				{
 					ch.second.emplace_back(it);
+					return;
+				}
 		}
 
 		template<class SmpContainer>
@@ -79,7 +83,7 @@ struct ForeignDeallocs
 					// Try and deallocate the ptr
 					bool found = false;
 					if((*it)->found.load(std::memory_order_relaxed))
-						found = find->second.deallocate((*it)->ptr, (*it)->count);
+						found = find->second.deallocate((*it)->ptr, (*it)->count); // TODO: WE know the memory size of the Cache we need, so we should write a custom function that takes an idx param
 					
 					// If we find the ptr mark it as found for other threads
 					if (found)
@@ -88,6 +92,7 @@ struct ForeignDeallocs
 						ptrsFound.emplace_back((*it));
 					}
 
+					// Remove all ptrs we've checked (or were already marked processed)
 					++it;
 					ch.second.pop_back();
 				}
@@ -109,9 +114,12 @@ struct ForeignDeallocs
 	template<class T>
 	void addPtr(T* ptr, size_t count, size_t bytes, std::thread::id thisThread)
 	{
-		std::lock_guard lock(mutex); 
+		std::unique_lock lock(mutex); 
 		fptrs.emplace_back(reinterpret_cast<byte*>(ptr), bytes, static_cast<IndexSizeT>(count));
 		It it = --std::end(fptrs);
+
+		//lock.unlock();
+		//std::shared_lock slock(mutex);
 
 		for (auto& th : myMap)
 			th.second.addPtr(it);
@@ -120,8 +128,10 @@ struct ForeignDeallocs
 	// Don't ever call this function while holding a lock or shared_lock
 	void removePtrs(std::vector<It>& ptrs)
 	{
-		std::lock_guard lock(mutex);
+		std::lock_guard lock(mutex); // TODO: This should really just be a lock on the list fptrs, not on the whole *this
 
+		for (const auto& it : ptrs)
+			fptrs.erase(it);
 	}
 
 	void registerThread(std::thread::id id)
@@ -130,6 +140,7 @@ struct ForeignDeallocs
 		myMap.emplace(id, FCache{ *this });
 	}
 
+	// If we do have foreign deallocations, we need to try and handle them
 	template<class SmpCont>
 	void handleDeallocs(std::thread::id id, SmpCont& cont)
 	{
@@ -150,6 +161,7 @@ struct ForeignDeallocs
 		// lock.lock();
 	}
 
+	// Check if we even have deallocs to try in the first place
 	bool hasDeallocs(std::thread::id id)
 	{
 		std::shared_lock lock(mutex);
@@ -157,6 +169,7 @@ struct ForeignDeallocs
 		return find->second.empty();
 	}
 
+private:
 	size_t					age;
 	FptrList				fptrs;
 	alloc::SharedMutex<8>	mutex;

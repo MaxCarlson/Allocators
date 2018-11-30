@@ -68,5 +68,8 @@
     <ClInclude Include="ForeignDeallocs.h">
       <Filter>SlabMulti</Filter>
     </ClInclude>
+    <ClInclude Include="SlabMultiDispatcher.h">
+      <Filter>SlabMulti</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

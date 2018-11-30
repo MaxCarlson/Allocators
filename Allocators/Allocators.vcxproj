@@ -139,6 +139,7 @@
     <ClInclude Include="ForeignDeallocs.h" />
     <ClInclude Include="FreeList.h" />
     <ClInclude Include="ImplSlabMulti.h" />
+    <ClInclude Include="SlabMultiDispatcher.h" />
     <ClInclude Include="SmpContainer.h" />
     <ClInclude Include="SharedMutex.h" />
     <ClInclude Include="SlabHelper.h" />

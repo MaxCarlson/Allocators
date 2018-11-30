@@ -2,6 +2,7 @@
 #include <atomic>
 #include <thread>
 #include <chrono>
+#include <array>
 #include "AllocHelpers.h"
 
 namespace ImplSharedMutex

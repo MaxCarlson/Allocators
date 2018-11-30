@@ -98,10 +98,10 @@ public:
 struct Interface
 {
 	using size_type		= size_t;
-	using SmallStore	= std::vector<SlabImpl::Cache<Slab>>;
-	using It			= typename SmallStore::iterator;
+	using SlabStore		= std::vector<SlabImpl::Cache<Slab>>;
+	using It			= typename SlabStore::iterator;
 
-	inline static SmallStore buckets;
+	inline static SlabStore buckets;
 
 	// TODO: Add a debug check so this function won't add any 
 	// (or just any smaller than largest) caches after first allocation for safety?
