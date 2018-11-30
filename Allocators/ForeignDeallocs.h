@@ -32,11 +32,11 @@ struct ForeignDeallocs
 		std::atomic<bool>	found;
 	};
 
-	using FptrList = std::list<FPtr>;
+	using FptrList	= std::list<FPtr>;
+	using It		= FptrList::iterator;
 
 	struct FCache
 	{
-		using It		= FptrList::iterator;
 		using rIt		= FptrList::reverse_iterator;
 		using Cache		= std::pair<size_t, std::vector<It>>;
 		using Caches	= std::vector<Cache>;
@@ -62,12 +62,13 @@ struct ForeignDeallocs
 					ch.second.emplace_back(it);
 		}
 
-		void processDe(std::thread::id id, SmpContainer<std::thread::id, Bucket>& buckets)
+		std::vector<It> processDe(std::thread::id id, SmpContainer<std::thread::id, Bucket>& buckets)
 		{
 			// Find the Bucket and start a shared lock on the SmpContainer
 			auto[sLock, find] = buckets.findAndStartSL(id);
 
 			int emptyLevels = 0;
+			std::vector<It> ptrsFound;
 
 			// Process each level of Cache and try to dealloc foreign ptrs
 			for (auto& ch : caches)
@@ -85,6 +86,7 @@ struct ForeignDeallocs
 					if (found)
 					{
 						(*it)->found.store(true, std::memory_order_relaxed);
+						ptrsFound.emplace_back((*it));
 					}
 
 					++it;
@@ -98,6 +100,8 @@ struct ForeignDeallocs
 			// Mark this thread as having no more foreign deallocs to process
 			if (emptyLevels == caches.size())
 				isEmpty = true;
+
+			return ptrsFound;
 		}
 
 		bool empty() const noexcept { return isEmpty; }
@@ -108,13 +112,13 @@ struct ForeignDeallocs
 	{
 		std::lock_guard lock(mutex); 
 		fptrs.emplace_back(reinterpret_cast<byte*>(ptr), bytes, static_cast<IndexSizeT>(count));
-		FCache::It it = --std::end(fptrs);
+		It it = --std::end(fptrs);
 
 		for (auto& th : myMap)
 			th.second.addPtr(it);
 	}
 
-	void removePtr(FCache::It it)
+	void removePtr(It it)
 	{
 	
 	}
@@ -133,7 +137,15 @@ struct ForeignDeallocs
 		// Thread should never be unregistered so we're just going to
 		// not check validity of find here
 		auto find = myMap.find(id);
-		find->second.processDe(id, cont);
+		std::vector<It> ptrsFound = find->second.processDe(id, cont);
+
+		if (!ptrsFound.empty())
+		{
+			lock.unlock();
+			std::lock_guard lock(mutex);
+		}
+
+		// TODO: Need to decide how to check dead threads
 	}
 
 	bool hasDeallocs(std::thread::id id)
@@ -146,7 +158,7 @@ struct ForeignDeallocs
 	size_t					age;
 	FptrList				fptrs;
 	alloc::SharedMutex<8>	mutex;
-	std::unordered_map<std::thread::id, FCache> myMap; // TODO: Replace with fast umap (or vector)
+	std::unordered_map<std::thread::id, FCache> myMap; // TODO: Replace with fast umap (or vector OR template it?)
 };
 
 } // End ImplSlabMulti::
