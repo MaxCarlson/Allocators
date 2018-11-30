@@ -6,8 +6,6 @@
 
 namespace ImplSlabMulti
 {
-using alloc::SmpContainer;
-
 
 // TODO: For Caches, cache MAX and MIN addresses for each Slab size so we can quickly check if a ForeginDeallocation can even
 // possibly be found in the Cache
@@ -119,9 +117,11 @@ struct ForeignDeallocs
 			th.second.addPtr(it);
 	}
 
-	void removePtr(It it)
+	// Don't ever call this function while holding a lock or shared_lock
+	void removePtrs(std::vector<It>& ptrs)
 	{
-	
+		std::lock_guard lock(mutex);
+
 	}
 
 	void registerThread(std::thread::id id)
@@ -143,10 +143,11 @@ struct ForeignDeallocs
 		if (!ptrsFound.empty())
 		{
 			lock.unlock();
-			std::lock_guard lock(mutex);
+			removePtrs(ptrsFound);
 		}
 
 		// TODO: Need to decide how to check dead threads
+		// lock.lock();
 	}
 
 	bool hasDeallocs(std::thread::id id)
