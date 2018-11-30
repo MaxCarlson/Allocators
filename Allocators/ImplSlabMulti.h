@@ -21,11 +21,11 @@ class alloc::SlabMulti;
 
 constexpr auto SUPERBLOCK_SIZE = 1 << 20;
 constexpr auto SLAB_SIZE = 1 << 14;
-constexpr auto MAX_SLAB_BLOCKS = 65535;						// Max number of memory blocks a Slab can be divided into 
+constexpr auto MAX_SLAB_BLOCKS = 65535;								// Max number of memory blocks a Slab can be divided into 
 constexpr auto NUM_CACHES = 8;
 constexpr auto SMALLEST_CACHE = 64;
 constexpr auto LARGEST_CACHE = SMALLEST_CACHE << (NUM_CACHES - 1);
-constexpr auto INIT_SUPERBLOCKS = 4;							// Number of Superblocks allocated per request
+constexpr auto INIT_SUPERBLOCKS = 4;								// Number of Superblocks allocated per request
 
 static_assert(LARGEST_CACHE <= SLAB_SIZE);
 

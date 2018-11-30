@@ -82,7 +82,10 @@ struct Interface
 
 private:
 	
-	using MyCont = SmpContainer<std::thread::id, Bucket>;
+	using Key = std::thread::id;
+	using Val = Bucket;
+
+	using MyCont = alloc::SmpMap<Key, Val, std::vector<std::pair<Key, Val>>>;
 
 	MyCont				buckets;
 	std::atomic<int>	refCount;

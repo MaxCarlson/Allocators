@@ -62,7 +62,8 @@ struct ForeignDeallocs
 					ch.second.emplace_back(it);
 		}
 
-		std::vector<It> processDe(std::thread::id id, SmpContainer<std::thread::id, Bucket>& buckets)
+		template<class SmpContainer>
+		std::vector<It> processDe(std::thread::id id, SmpContainer& buckets)
 		{
 			// Find the Bucket and start a shared lock on the SmpContainer
 			auto[sLock, find] = buckets.findAndStartSL(id);
