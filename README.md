@@ -19,7 +19,7 @@
 // SlabMulti uses thread-private Buckets of Caches.
 // Each Cache holds 16KB Slabs divided into different chunk sizes,  
 // ranging from 64 bytes to 8KB per chunk, growing in powers of two
-alloc::SlabMulti<size_t> al;
+alloc::SlabMulti<size_t> multi;
 
 // It can be used with std::containers
 // (multi itself is used as the allocator here)
