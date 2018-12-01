@@ -37,13 +37,13 @@ namespace alloc
 {
 
 //
-// The idea for this SharedMutex comes from https://www.codeproject.com/Articles/1183423/We-make-a-std-shared-mutex-times-faster
+// The idea for this SharedMutex came from https://www.codeproject.com/Articles/1183423/We-make-a-std-shared-mutex-times-faster
 //
 
 // A write-contention free version of std::shared_mutex
 // threads = number of threads that can be registered
 // before falling back on using a non-write contention free lock
-template<size_t threads = 4>
+template<size_t threads = 4>		
 class SharedMutex
 {
 public:
@@ -52,7 +52,7 @@ public:
 
 	SharedMutex() :
 		spLock{ false },
-		flags{new std::array<CFF, threads>}
+		flags{	new std::array<CFF, threads>}
 	{}
 
 	SharedMutex(SharedMutex&& other) noexcept :

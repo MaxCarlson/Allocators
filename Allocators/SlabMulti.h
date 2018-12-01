@@ -66,7 +66,7 @@ public:
 			if (it != std::end(cont))
 			{
 				registered = true;
-				return it->second.deallocate(ptr, n);
+				return it->second.deallocate(ptr, n, true);
 			}
 			return false;
 		};

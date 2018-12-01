@@ -9,6 +9,29 @@ template<class T>
 class SlabMulti;
 }
 
+struct SpinLock
+{
+	SpinLock() noexcept :
+		flag{ ATOMIC_FLAG_INIT }
+	{}
+
+	SpinLock(SpinLock&& other) noexcept :
+		flag{ ATOMIC_FLAG_INIT }
+	{}
+
+	SpinLock& operator=(SpinLock&& other) noexcept
+	{}
+
+	void lock()
+	{
+		while (flag.test_and_set(std::memory_order_acquire));
+	}
+
+	void unlock() { flag.clear(std::memory_order_release); }
+
+	std::atomic_flag flag;
+};
+
 namespace ImplSlabMulti
 {
 
@@ -22,6 +45,8 @@ private:
 	size_type				blockSize;	// Size of the blocks the super block is divided into
 	size_type				count;		// TODO: This can be converted to IndexSizeT 
 	std::vector<IndexSizeT>	availible;	// TODO: Issue: Over time allocation locality decreases as indicies are jumbled
+	std::list<IndexSizeT>	foreigns;
+	SpinLock				spinLock;
 
 public:
 
@@ -31,7 +56,9 @@ public:
 		mem{		dispatcher.getBlock()	},
 		blockSize{	blockSize				},
 		count{		count					},
-		availible{	dispatcher.getIndicies(blockSize) }
+		availible{	dispatcher.getIndicies(blockSize) },
+		foreigns{},
+		spinLock{}
 	{
 	}
 
@@ -39,7 +66,9 @@ public:
 		mem{		other.mem		},
 		blockSize{	other.blockSize },
 		count{		other.count		},
-		availible{	other.availible }
+		availible{	other.availible },
+		foreigns{	other.foreigns	},
+		spinLock{}
 	{
 	}
 
@@ -47,7 +76,9 @@ public:
 		mem{		other.mem					},
 		blockSize{	other.blockSize				},
 		count{		other.count					},
-		availible{	std::move(other.availible)	}
+		availible{	std::move(other.availible)	},
+		foreigns{	std::move(other.foreigns)	},
+		spinLock{	std::move(other.spinLock)	}
 	{
 		other.mem = nullptr;
 	}
@@ -60,6 +91,8 @@ public:
 		blockSize	= other.blockSize;
 		count		= other.count;
 		availible	= std::move(other.availible);
+		foreigns	= std::move(other.foreigns);
+		spinLock	= std::move(other.spinLock);
 		other.mem	= nullptr;
 		return *this;
 	}
@@ -70,9 +103,15 @@ public:
 			dispatcher.returnBlock(mem);
 	}
 
-	bool full()			const noexcept { return availible.empty(); }
-	size_type size()	const noexcept { return count - availible.size(); }
-	bool empty()		const noexcept { return availible.size() == count; }
+	// These functions are NOT thread safe for our access pattern
+	bool empty()				const noexcept { std::lock_guard l(spinLock); return availible.size() + foreigns.size() == count;	}
+	size_type size()			const noexcept { std::lock_guard l(spinLock); return count - (availible.size() + foreigns.size()); }
+	size_type full()			const noexcept { std::lock_guard l(spinLock); return availible.empty() && foreigns.empty();			}
+
+	// These functions are
+	bool probablyEmpty()		const noexcept { return availible.size() == count;	}
+	size_type probablySize()	const noexcept { return count - availible.size();	}
+
 
 	std::pair<byte*, bool> allocate()
 	{
@@ -82,12 +121,28 @@ public:
 	}
 
 	template<class P>
-	void deallocate(P* ptr)
+	void deallocate(P* ptr, bool thisThread)
 	{
 		auto idx = static_cast<size_type>((reinterpret_cast<byte*>(ptr) - mem)) / blockSize;
-		availible.emplace_back(idx);
+
+		if (thisThread)
+			availible.emplace_back(idx);
+		else
+		{
+			//std::lock_guard lock(spinLock);
+			foreigns.emplace_back(idx);
+		}
 	}
 
+	void mergeForeigns()
+	{
+		//std::lock_guard lock(spinLock);
+		for (const auto& idx : foreigns)
+			availible.emplace_back(idx);
+		foreigns.clear();
+	}
+
+	// TODO: Look into holding mem outside this class in a vector for faster access!
 	template<class P>
 	bool containsMem(P* ptr) const noexcept
 	{
@@ -98,9 +153,10 @@ public:
 
 class Cache
 {
-	using size_type = size_t;
-	using Container = std::vector<Slab>;
-	using It		= Container::iterator;
+	using size_type		= size_t;
+	using Container		= std::vector<Slab>;
+	using It			= Container::iterator;
+	using SharedMutex	= alloc::SharedMutex<8>;
 
 	size_type		mySize;
 	size_type		myCapacity;
@@ -109,7 +165,7 @@ class Cache
 	int				threshold;
 	Container		slabs;			// TODO: Reorder for padding size
 	It				actBlock;
-	alloc::SharedMutex<8> mutex;
+	SharedMutex		mutex;
 	static constexpr double freeThreshold	= 0.25;
 	static constexpr int MIN_SLABS			= 1;
 
@@ -131,14 +187,14 @@ public:
 	}
 
 	Cache(Cache&& other) noexcept :
-		mySize{		other.mySize			},
-		myCapacity{ other.myCapacity		},
-		count{		other.count				},
-		blockSize{	other.blockSize			},
-		threshold{	other.threshold			},
-		slabs{		std::move(other.slabs)	},
-		actBlock{	other.actBlock			},
-		mutex{		std::move(other.mutex)	}
+		mySize{		other.mySize				},
+		myCapacity{ other.myCapacity			},
+		count{		other.count					},
+		blockSize{	other.blockSize				},
+		threshold{	other.threshold				},
+		slabs{		std::move(other.slabs)		},
+		actBlock{	std::move(other.actBlock)	},
+		mutex{		std::move(other.mutex)		}
 	{}
 
 	Cache(const Cache& other) : // TODO: Why is this needed?
@@ -172,7 +228,7 @@ private:
 		myCapacity += count;
 	}
 
-	void memToDispatch(It it)
+	void memToDispatch(It it, std::shared_lock<SharedMutex>& slock)
 	{
 		// If the Slab is empty enough place it before the active block
 		if (it->size() <= threshold
@@ -186,6 +242,9 @@ private:
 			&& slabs.size() > MIN_SLABS
 			&& mySize > myCapacity - count)
 		{
+			slock.unlock();
+			std::lock_guard lock(mutex);
+
 			myCapacity -= count;
 
 			if (it != actBlock)
@@ -212,16 +271,26 @@ private:
 	}
 
 public:
+
+	// No other threads will ever be in this function	
 	byte* allocate()
 	{
-		std::lock_guard lock(mutex);
-
-		auto[mem, full] = actBlock->allocate();
+		auto[mem, possiblyFull] = actBlock->allocate();
 
 		// If active block is full, create a new one and add
 		// it to the list before the previous AB
-		if (full)
+		if (possiblyFull)
 		{
+			std::lock_guard lock(mutex);
+
+			// The Slab wasn't actually full and held ptrs deallocated by
+			// foreign threads. We'll merge the foreign ptrs with our availible list now
+			if (!actBlock->full())
+			{
+				actBlock->mergeForeigns();
+				goto theEnd;
+			}
+
 			if (actBlock != std::begin(slabs))
 				actBlock = --actBlock;
 
@@ -234,26 +303,28 @@ public:
 			}
 
 		}
-		++mySize;
+
+		theEnd:
+		++mySize; // TODO: Make atomic!
 		return mem;
 	}
 
 	template<class T>
-	bool deallocate(T* ptr)
+	bool deallocate(T* ptr, bool thisThread)
 	{
 		// Look at the active block first, then the fuller blocks after it
 		// after that start over from the beginning
 		//
 		// TODO: Try benchmarking: After looking at blocks from actBlock to end, 
 		// look in reverse order from actBlock to begin
-		std::lock_guard lock(mutex);
+		std::shared_lock slock(mutex);
 
 		auto it = actBlock;
 		for (auto E = std::end(slabs);;)
 		{
 			if (it->containsMem(ptr))
 			{
-				it->deallocate(ptr);
+				it->deallocate(ptr, thisThread);
 				break;
 			}
 
@@ -306,12 +377,12 @@ struct Bucket
 	}
 
 	template<class T>
-	bool deallocate(T* ptr, size_type n)
+	bool deallocate(T* ptr, size_type n, bool thisThread)
 	{
 		const auto bytes = sizeof(T) * n;
 		for (auto& c : caches)
 			if (c.blockSize >= bytes) // TODO: Can this be done more effeciently than a loop since the c.blockSize is always the same?
-				return c.deallocate(ptr);
+				return c.deallocate(ptr, thisThread);
 
 		operator delete(ptr, bytes);
 		return true;
