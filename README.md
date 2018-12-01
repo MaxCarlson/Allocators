@@ -27,7 +27,7 @@ std::vector<size_t, decltype(multi)> vecS{multi};
 
 // multi is NOT used as the allocator here, instead a new SlabMulti is created
 // specifically for this vector (multi isn't passed in ctor here)
-std::vector<int, decltype(al)::template rebind<int>::other> vecI;
+std::vector<int, decltype(multi)::template rebind<int>::other> vecI;
 
 // You don't have to rebind it to allocate different types 
 auto puI = multi.allocate<uint16_t>(100);
