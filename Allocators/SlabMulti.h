@@ -71,33 +71,32 @@ public:
 			return false;
 		};
 
-		// Look in this threads Cache first
+		// Attempt to deallocate ptr in this threads Bucket first
 		bool found = buckets.findDo(id, findAndDealloc);
 
 		// If the thread hasn't been registered
-		// register it and try again
+		// register it (It can't possibly have allocated the memory if it hasn't been registered)
 		if (!registered)
 		{
 			registerThread(id);
-			found = buckets.findDo(id, findAndDealloc);
+			//found = buckets.findDo(id, findAndDealloc);
 		}
 
-		// We'll now add the deallocation to the list
-		// of other foregin thread deallocations 
+		// If we didn't manage to deallocate the ptr
+		// we'll now add the deallocation request to the list
+		// of foregin thread deallocations 
 		if (!found)
-			fDeallocs.addPtr(ptr, n, bytes, id);
+		{
+			fDeallocs.addPtrAndDealloc(ptr, buckets, n, bytes);
+			return;
+		}
 
 		// Handle foreign thread deallocations
-		// (if a thread that is not this one has said it needs to dealloc
-		// memory that doesn't belong to it)
 		if (fDeallocs.hasDeallocs(id))
-		{
 			fDeallocs.handleDeallocs(id, buckets);
-		}
-		
 	}
 
-	inline void incRef()
+	void incRef() 
 	{
 		refCount.fetch_add(1, std::memory_order_relaxed);
 	}

@@ -128,4 +128,33 @@ private:
 		return this->cont.find(key);
 	}
 };
+
+template<class Type, template<class> class Container = std::vector>
+class SmpVector : ImplSmpContainer::SmpContainersBase<Type, Type, Container<Type>>
+{
+public:
+	using MyContainer	= Container<Type>;
+	using MyBase		= ImplSmpContainer::SmpContainersBase<Type, Type, MyContainer>;
+
+	using It			= typename MyContainer::iterator;
+	using SharedMutex	= typename MyBase::SharedMutex;
+
+	SmpVector() = default;
+
+	template<class... Args>
+	decltype(auto) emplace_back(Args&& ...args)
+	{
+		std::lock_guard lock(this->mutex);
+		return this->cont.emplace_back(std::forward<Args>(args)...);
+	}
+
+	template<class It, class... Args>
+	decltype(auto) emplace(It it, Args&& ...args)
+	{
+		std::lock_guard lock(this->mutex);
+		return this->cont.emplace(it, std::forward<Args>(args)...);
+	}
+};
+
+
 }

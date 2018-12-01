@@ -3,9 +3,10 @@
 #include "SlabMultiDispatcher.h"
 #include "SmpContainer.h"
 
-
 namespace ImplSlabMulti
 {
+using alloc::SmpVector;
+using alloc::SharedMutex;
 
 // TODO: For Caches, cache MAX and MIN addresses for each Slab size so we can quickly check if a ForeginDeallocation can even
 // possibly be found in the Cache
@@ -13,7 +14,10 @@ class ForeignDeallocs
 {
 public:
 	ForeignDeallocs() :
-		age{ 0 }
+		fptrs{},
+		mutex{},
+		//deadThreads{},
+		myMap{}
 	{}
 
 	struct FPtr
@@ -31,12 +35,12 @@ public:
 		std::atomic<bool>	found;
 	};
 
+
 	using FptrList	= std::list<FPtr>;
 	using It		= FptrList::iterator;
 
 	struct FCache
 	{
-		using rIt		= FptrList::reverse_iterator;
 		using Cache		= std::pair<size_t, std::vector<It>>;
 		using Caches	= std::vector<Cache>;
 
@@ -82,8 +86,8 @@ public:
 				{
 					// Try and deallocate the ptr
 					bool found = false;
-					if((*it)->found.load(std::memory_order_relaxed))
-						found = find->second.deallocate((*it)->ptr, (*it)->count); // TODO: WE know the memory size of the Cache we need, so we should write a custom function that takes an idx param
+					if((*it)->found.load(std::memory_order_relaxed))				// TODO: Might be faster not to check branch depending?
+						found = find->second.deallocate((*it)->ptr, (*it)->count);	// TODO: WE know the memory size of the Cache we need, so we should write a custom function that takes an idx param
 					
 					// If we find the ptr mark it as found for other threads
 					if (found)
@@ -111,10 +115,15 @@ public:
 		bool empty() const noexcept { return isEmpty; }
 	};
 
-	template<class T>
-	void addPtr(T* ptr, size_t count, size_t bytes, std::thread::id thisThread)
+	void registerThread(std::thread::id id)
 	{
-		std::unique_lock lock(mutex); 
+		std::lock_guard lock(mutex);
+		myMap.emplace(id, FCache{ *this });
+	}
+
+	template<class T>
+	void addPtr(T* ptr, size_t count, size_t bytes)
+	{
 		fptrs.emplace_back(reinterpret_cast<byte*>(ptr), bytes, static_cast<IndexSizeT>(count));
 		It it = --std::end(fptrs);
 
@@ -123,6 +132,14 @@ public:
 
 		for (auto& th : myMap)
 			th.second.addPtr(it);
+	}
+
+	template<class T, class SmpCont>
+	void addPtrAndDealloc(T* ptr, SmpCont& cont, size_t count, size_t bytes, std::thread::id id)
+	{
+		std::unique_lock lock(mutex);
+		addPtr(ptr, count, bytes);
+		handleDeallocsImpl(id, cont, lock);
 	}
 
 	// Don't ever call this function while holding a lock or shared_lock
@@ -134,18 +151,10 @@ public:
 			fptrs.erase(it);
 	}
 
-	void registerThread(std::thread::id id)
-	{
-		std::lock_guard lock(mutex);
-		myMap.emplace(id, FCache{ *this });
-	}
-
 	// If we do have foreign deallocations, we need to try and handle them
 	template<class SmpCont>
-	void handleDeallocs(std::thread::id id, SmpCont& cont)
+	void handleDeallocs(std::thread::id id, SmpCont& cont, std::unique_lock<SharedMutex<8>>& lock)
 	{
-		std::shared_lock lock(mutex); 
-
 		// Thread should never be unregistered so we're just going to
 		// not check validity of find here
 		auto find = myMap.find(id);
@@ -161,6 +170,13 @@ public:
 		// lock.lock();
 	}
 
+	template<class SmpCont>
+	void handleDeallocs(std::thread::id id, SmpCont& cont)
+	{
+		std::unique_lock lock(mutex);
+		handleDeallocs(id, cont, lock);
+	}
+
 	// Check if we even have deallocs to try in the first place
 	bool hasDeallocs(std::thread::id id)
 	{
@@ -169,11 +185,17 @@ public:
 		return find->second.empty();
 	}
 
+//	void unregisterDeadThread(Bucket&& bucket)
+	//{
+		//deadThreads.emplace_back(std::move(bucket));
+//	}
+
 private:
-	size_t					age;
+
 	FptrList				fptrs;
 	alloc::SharedMutex<8>	mutex;
-	std::unordered_map<std::thread::id, FCache> myMap; // TODO: Replace with fast umap (or vector OR template it?)
+	//SmpVector<Bucket>		deadThreads;
+	std::unordered_map<std::thread::id, FCache> myMap; // TODO: Replace with fast umap (or vector OR class template it?) ALSO: Should probably be an SmpMap
 };
 
 } // End ImplSlabMulti::

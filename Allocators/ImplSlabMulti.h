@@ -1,7 +1,6 @@
 #pragma once
 #include "ForeignDeallocs.h"
 #include <thread>
-#include <atomic>
 
 namespace alloc
 {
@@ -11,12 +10,6 @@ class SlabMulti;
 
 namespace ImplSlabMulti
 {
-
-struct Bucket;
-
-template<class>
-class alloc::SlabMulti;
-
 
 struct Slab
 {
@@ -281,7 +274,7 @@ struct Bucket
 	Bucket(std::thread::id id, ForeignDeallocs& fDeallocs) :
 		id{			id			}, 
 		caches{					},
-		fDeallocs{ fDeallocs	}
+		fDeallocs{	fDeallocs	}
 	{
 		caches.reserve(NUM_CACHES);
 		for (int i = 0; i < NUM_CACHES; ++i)
@@ -298,7 +291,7 @@ struct Bucket
 
 	~Bucket()
 	{
-		//fDeallocs.unregisterThread(); // TODO: !!
+		//fDeallocs.unregisterDeadThread(std::move(*this));
 	}
 
 	byte* allocate(size_type bytes)
