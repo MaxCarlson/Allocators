@@ -65,9 +65,6 @@
     <ClInclude Include="ImplSlabMulti.h">
       <Filter>SlabMulti</Filter>
     </ClInclude>
-    <ClInclude Include="ForeignDeallocs.h">
-      <Filter>SlabMulti</Filter>
-    </ClInclude>
     <ClInclude Include="SlabMultiDispatcher.h">
       <Filter>SlabMulti</Filter>
     </ClInclude>

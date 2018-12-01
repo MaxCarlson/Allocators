@@ -136,7 +136,6 @@
   <ItemGroup>
     <ClInclude Include="AllocHelpers.h" />
     <ClInclude Include="Buddy.h" />
-    <ClInclude Include="ForeignDeallocs.h" />
     <ClInclude Include="FreeList.h" />
     <ClInclude Include="ImplSlabMulti.h" />
     <ClInclude Include="SlabMultiDispatcher.h" />

@@ -7,11 +7,17 @@ namespace ImplSmpContainer
 {
 constexpr int SharedMutexSize	= 8;
 
-template<class K, class V, class Container>
+template<class Container>
 struct SmpContainersBase
 {
 	using SharedMutex = alloc::SharedMutex<SharedMutexSize>;
 
+	SmpContainersBase() = default;
+
+	SmpContainersBase(SmpContainersBase&& other) noexcept :
+		cont{	std::move(other.cont)	},
+		mutex{	std::move(other.mutex)	}
+	{}
 
 	// Wrapper functions so that a lock can be placed directly on the container
 	void lock_shared()		{ mutex.lock_shared(); }
@@ -21,7 +27,6 @@ struct SmpContainersBase
 
 	bool empty()
 	{
-		std::shared_lock lock(mutex);
 		return cont.empty();
 	}
 
@@ -78,10 +83,10 @@ public:
 // A wrapper for Map like classes that containers shared/lock protected functions
 template<class K, class V, class Container>
 struct SmpMap 
-	: public ImplSmpContainer::SmpContainersBase<K, V, Container>
+	: public ImplSmpContainer::SmpContainersBase<Container>
 {
 	using MyContainer	= Container;
-	using MyBase		= ImplSmpContainer::SmpContainersBase<K, V, MyContainer>;
+	using MyBase		= ImplSmpContainer::SmpContainersBase<MyContainer>;
 
 	using It			= typename MyContainer::iterator;
 	using SharedMutex	= typename MyBase::SharedMutex;
@@ -130,16 +135,23 @@ private:
 };
 
 template<class Type, template<class> class Container = std::vector>
-class SmpVector : ImplSmpContainer::SmpContainersBase<Type, Type, Container<Type>>
+class SmpVector : ImplSmpContainer::SmpContainersBase<Container<Type>>
 {
 public:
 	using MyContainer	= Container<Type>;
-	using MyBase		= ImplSmpContainer::SmpContainersBase<Type, Type, MyContainer>;
+	using MyBase		= ImplSmpContainer::SmpContainersBase<MyContainer>;
 
-	using It			= typename MyContainer::iterator;
+	using iterator		= typename MyContainer::iterator;
 	using SharedMutex	= typename MyBase::SharedMutex;
 
-	SmpVector() = default;
+	SmpVector() : 
+		MyBase{}
+	{}
+
+	SmpVector(SmpVector&& other) noexcept :
+		MyBase{ std::move(other) }
+	{}
+
 
 	template<class... Args>
 	decltype(auto) emplace_back(Args&& ...args)

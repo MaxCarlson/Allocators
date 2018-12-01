@@ -16,15 +16,20 @@ struct ContentionFreeFlag
 		SharedLock
 	};
 
-	ContentionFreeFlag() :
+	ContentionFreeFlag() noexcept :
 		id{},
 		flag{ Unregistered }
+	{}
+
+	ContentionFreeFlag(ContentionFreeFlag&& other) noexcept :
+		id{ std::move(other.id) },
+		flag{ other.flag.load() }
 	{}
 
 	std::thread::id			id;
 	std::atomic<int>		flag;
 	static constexpr auto	SizeOffset = (sizeof(decltype(id)) + sizeof(decltype(flag)));
-	alloc::byte				noFalseSharing[64 - SizeOffset]; // TODO: Get rid of warning of non-init
+	alloc::byte				noFalseSharing[std::hardware_constructive_interference_size - SizeOffset]; // TODO: Get rid of warning of non-init
 };
 } // End ImplSharedMutex::
 
@@ -47,8 +52,15 @@ public:
 
 	SharedMutex() :
 		spLock{ false },
-		flags{}
+		flags{new std::array<CFF, threads>}
 	{}
+
+	SharedMutex(SharedMutex&& other) noexcept :
+		spLock{ other.spLock.load()		},
+		flags{	std::move(other.flags)	}
+	{}
+
+	~SharedMutex() { delete flags; }
 
 	void lock_shared()
 	{
@@ -62,7 +74,7 @@ public:
 				;
 
 			// Perform the SharedLock
-			flags[idx].flag.store(CFF::SharedLock, std::memory_order_release);
+			(*flags)[idx].flag.store(CFF::SharedLock, std::memory_order_release);
 		}
 
 		// Thread is not registered, we must acquire spill lock
@@ -83,7 +95,7 @@ public:
 			if (spLock.load(std::memory_order_acquire)) // TODO: I don't think this is entirely safe!
 				return false;
 
-			flags[idx].flag.store(CFF::SharedLock, std::memory_order_release);
+			(*flags)[idx].flag.store(CFF::SharedLock, std::memory_order_release);
 			return true;
 		}
 		else
@@ -105,7 +117,7 @@ public:
 		const int idx = getOrSetIndex(ThreadRegister::CheckRegister);
 
 		if (idx >= ThreadRegister::Registered)
-			flags[idx].flag.store(CFF::Registered, std::memory_order_release);
+			(*flags)[idx].flag.store(CFF::Registered, std::memory_order_release);
 
 		else
 			spLock.store(false, std::memory_order_release);
@@ -119,7 +131,7 @@ public:
 			locked = false;
 
 		// Now spin until all other threads are non-shared locked
-		for (CFF& f : flags)
+		for (CFF& f : *flags)
 			while (f.flag.load(std::memory_order_acquire) == CFF::SharedLock)
 				;
 	}
@@ -155,7 +167,7 @@ private:
 		{
 			if (index >= Status::Registered)
 			{
-				auto& cf	= cont.flags[index];
+				auto& cf	= (*cont.flags)[index];
 				cf.id		= defaultThreadId;
 
 				int free = CFF::Registered;
@@ -198,7 +210,7 @@ private:
 			const auto id = std::this_thread::get_id();
 			for (int i = 0; i < threads; ++i)
 			{
-				auto& f = flags[i];
+				auto& f = (*flags)[i];
 				int free = CFF::Unregistered;
 
 				if (f.id == id)
@@ -222,81 +234,7 @@ private:
 	inline static const auto defaultThreadId = std::thread::id{};
 
 	std::atomic<bool>			spLock;
-	std::array<CFF, threads>	flags;
-};
-
-template<class Mutex>
-class LockGuard
-{
-public:
-	LockGuard(Mutex& mutex) :
-		owns{ true },
-		mutex{ &mutex }
-	{
-		this->mutex->lock();
-	}
-
-	LockGuard(Mutex& mutex, std::defer_lock_t df) :
-		owns{ false },
-		mutex{ &mutex }
-	{}
-
-	LockGuard(Mutex& mutex, std::adopt_lock_t ad) :
-		owns{ true },
-		mutex{ &mutex }
-	{}
-
-	~LockGuard()
-	{
-		if(owns)
-			mutex->unlock();
-	}
-private:
-	bool	owns;
-	Mutex*	mutex;
-};
-
-template<class Mutex>
-class SharedLock
-{
-public:
-	SharedLock(Mutex& mutex) :
-		owns{ true },
-		mutex{ &mutex }
-	{
-		this->mutex->lock_shared();
-	}
-
-	SharedLock(Mutex& mutex, std::defer_lock_t df) noexcept :
-		owns{ false },
-		mutex{ &mutex }
-	{}
-
-	SharedLock(Mutex& mutex, std::adopt_lock_t ad) :
-		owns{ true },
-		mutex{ &mutex }
-	{}
-
-	~SharedLock()
-	{
-		if (owns)
-			mutex->unlock_shared();
-	}
-
-	void lock()
-	{
-		mutex->lock_shared();
-	}
-
-	void unlock()
-	{
-		mutex->unlock_shared();
-	}
-
-private:
-
-	bool	owns;
-	Mutex*	mutex;
+	std::array<CFF, threads>*	flags;
 };
 
 } // End alloc::

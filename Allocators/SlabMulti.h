@@ -25,7 +25,7 @@ struct Interface
 private:
 	void registerThread(std::thread::id id)
 	{
-		buckets.emplace(id, std::move(Bucket{ id, fDeallocs }));
+		buckets.emplace(id, std::move(Bucket{}));
 	}
 
 public:
@@ -74,6 +74,13 @@ public:
 		// Attempt to deallocate ptr in this threads Bucket first
 		bool found = buckets.findDo(id, findAndDealloc);
 
+		// If we don't find the ptr, we now need to try and deallocate
+		// the ptr in other threads
+		if (!found)
+		{
+
+		}
+
 		// If the thread hasn't been registered
 		// register it (It can't possibly have allocated the memory if it hasn't been registered)
 		if (!registered)
@@ -81,19 +88,6 @@ public:
 			registerThread(id);
 			//found = buckets.findDo(id, findAndDealloc);
 		}
-
-		// If we didn't manage to deallocate the ptr
-		// we'll now add the deallocation request to the list
-		// of foregin thread deallocations 
-		if (!found)
-		{
-			fDeallocs.addPtrAndDealloc(ptr, buckets, n, bytes);
-			return;
-		}
-
-		// Handle foreign thread deallocations
-		if (fDeallocs.hasDeallocs(id))
-			fDeallocs.handleDeallocs(id, buckets);
 	}
 
 	void incRef() 
@@ -110,7 +104,6 @@ private:
 
 	MyCont				buckets;
 	std::atomic<int>	refCount;
-	ForeignDeallocs		fDeallocs;
 };
 
 }// End SlabMultiImpl::

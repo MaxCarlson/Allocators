@@ -1,5 +1,6 @@
 #pragma once
-#include "ForeignDeallocs.h"
+#include "SmpContainer.h"
+#include "SlabMultiDispatcher.h"
 #include <thread>
 
 namespace alloc
@@ -108,6 +109,7 @@ class Cache
 	int				threshold;
 	Container		slabs;			// TODO: Reorder for padding size
 	It				actBlock;
+	alloc::SharedMutex<8> mutex;
 	static constexpr double freeThreshold	= 0.25;
 	static constexpr int MIN_SLABS			= 1;
 
@@ -121,7 +123,8 @@ public:
 		count{		count		},
 		blockSize{	blockSize	},
 		threshold{	static_cast<int>(count * freeThreshold) },
-		slabs{}
+		slabs{},
+		mutex{}
 	{
 		addCache();
 		actBlock = std::begin(slabs);
@@ -134,7 +137,8 @@ public:
 		blockSize{	other.blockSize			},
 		threshold{	other.threshold			},
 		slabs{		std::move(other.slabs)	},
-		actBlock{	other.actBlock			}
+		actBlock{	other.actBlock			},
+		mutex{		std::move(other.mutex)	}
 	{}
 
 	Cache(const Cache& other) : // TODO: Why is this needed?
@@ -144,8 +148,10 @@ public:
 		blockSize{	other.blockSize		},
 		threshold{	other.threshold		},
 		slabs{		other.slabs			},
-		actBlock{	other.actBlock		}
+		actBlock{	other.actBlock		},
+		mutex{}
 	{}
+
 private:
 
 	void splice(It& pos, It it)
@@ -208,6 +214,8 @@ private:
 public:
 	byte* allocate()
 	{
+		std::lock_guard lock(mutex);
+
 		auto[mem, full] = actBlock->allocate();
 
 		// If active block is full, create a new one and add
@@ -238,6 +246,7 @@ public:
 		//
 		// TODO: Try benchmarking: After looking at blocks from actBlock to end, 
 		// look in reverse order from actBlock to begin
+		std::lock_guard lock(mutex);
 
 		auto it = actBlock;
 		for (auto E = std::end(slabs);;)
@@ -271,27 +280,20 @@ struct Bucket
 {
 	using size_type = size_t;
 
-	Bucket(std::thread::id id, ForeignDeallocs& fDeallocs) :
-		id{			id			}, 
-		caches{					},
-		fDeallocs{	fDeallocs	}
+	Bucket() :
+		caches{}
 	{
 		caches.reserve(NUM_CACHES);
 		for (int i = 0; i < NUM_CACHES; ++i)
 			caches.emplace_back(blocksPerSlab[i], cacheSizes[i]);
-
-		fDeallocs.registerThread(id);
 	}
 
 	Bucket(Bucket&& other) noexcept :
-		id{			std::move(other.id)		},
-		caches{		std::move(other.caches) },
-		fDeallocs{	fDeallocs				}
+		caches{	std::move(other.caches) }
 	{}
 
 	~Bucket()
 	{
-		//fDeallocs.unregisterDeadThread(std::move(*this));
 	}
 
 	byte* allocate(size_type bytes)
@@ -318,7 +320,6 @@ struct Bucket
 private:
 	std::thread::id		id;
 	std::vector<Cache>	caches;
-	ForeignDeallocs&	fDeallocs;
 };
 
 } // End ImplSlabMulti::
