@@ -19,15 +19,14 @@ struct SpinLock
 		flag{ ATOMIC_FLAG_INIT }
 	{}
 
-	SpinLock& operator=(SpinLock&& other) noexcept
-	{}
+	SpinLock& operator=(SpinLock&& other) noexcept{ return *this;}
 
-	void lock()
+	void lock() noexcept
 	{
 		while (flag.test_and_set(std::memory_order_acquire));
 	}
 
-	void unlock() { flag.clear(std::memory_order_release); }
+	void unlock() noexcept { flag.clear(std::memory_order_release); }
 
 	std::atomic_flag flag;
 };
@@ -104,14 +103,17 @@ public:
 	}
 
 	// These functions are NOT thread safe for our access pattern
-	bool empty()				const noexcept { std::lock_guard l(spinLock); return availible.size() + foreigns.size() == count;	}
-	size_type size()			const noexcept { std::lock_guard l(spinLock); return count - (availible.size() + foreigns.size()); }
-	size_type full()			const noexcept { std::lock_guard l(spinLock); return availible.empty() && foreigns.empty();			}
+	bool empty()				noexcept { std::lock_guard lock(spinLock); return availible.size() + foreigns.size() == count;	}
+	size_type size()			noexcept { std::lock_guard lock(spinLock); return count - (availible.size() + foreigns.size()); }
+
+	// Can only be used safely while holding a non-shared lock on Cache
+	size_type full()			noexcept { return availible.empty() && foreigns.empty(); }
 
 	// These functions are
 	bool probablyEmpty()		const noexcept { return availible.size() == count;	}
 	size_type probablySize()	const noexcept { return count - availible.size();	}
-
+	
+	
 
 	std::pair<byte*, bool> allocate()
 	{
@@ -129,14 +131,14 @@ public:
 			availible.emplace_back(idx);
 		else
 		{
-			//std::lock_guard lock(spinLock);
+			std::lock_guard lock(spinLock);
 			foreigns.emplace_back(idx);
 		}
 	}
 
 	void mergeForeigns()
 	{
-		//std::lock_guard lock(spinLock);
+		std::lock_guard lock(spinLock);
 		for (const auto& idx : foreigns)
 			availible.emplace_back(idx);
 		foreigns.clear();
@@ -339,7 +341,7 @@ public:
 
 		// Handles the iterator in cases where it changes
 		// and returns memory to dispatcher if a Slab is empty
-		memToDispatch(it);
+		memToDispatch(it, slock);
 
 		--mySize;
 		return true;

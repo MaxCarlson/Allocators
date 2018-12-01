@@ -57,8 +57,6 @@ int main()
 
 	bbb = bb;
 	
-
-
 	constexpr int count = 1000;
 
 	alloc::SlabMulti<size_t>						multi;
