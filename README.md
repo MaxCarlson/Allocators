@@ -101,20 +101,26 @@ void SharedMutex<>::lock()
 			;
 }
 
-// Instead of using SharedMutex's functions directly, use the provided wrapper classes.
-void testWrappers()
+// Instead of using SharedMutex's functions directly, use the std::(locks) RAII wrappers.
+void testSharedMutex()
 {
 	alloc::SharedMutex mutex1;
 	alloc::SharedMutex mutex2;
 	
 	{
-		// SharedMutex's lock function is called
-		alloc::LockGuard  lock(mutex1);
+		// mutex1's lock function is called
+		std::lock_guard  lock(mutex1);
 		
-		// mutex2's sharedLock function is called
-		alloc::SharedLock lock(mutex2);
+		// mutex2's shared_lock function is called
+		std::shared_lock lock(mutex2);
 		
-	}// On LockGuard's and SharedLock's destruction unlock and unlockShared are called respectivly
+		//! Cannot upgrade lock! Will result in a deadlock
+		// std::lock_guard newLock(mutex2);
+		
+		//! Cannot recursivly call shared_lock or lock, will cause deadlock 
+		// std::shared_lock slock(mutex2);
+		
+	}// On std::lock_guard and std::shared_locks's destruction unlock and unlock_shared are called respectivly
 }
 ```
 
