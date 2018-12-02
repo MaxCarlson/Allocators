@@ -117,6 +117,20 @@ struct SmpMap
 		return { std::move(lock), found };
 	}
 
+	// Takes a lambda which if it returns true stops the loop
+	// lambda takes a single argument equal to the basic unit of the Container
+	template<class Func>
+	void iterate(Func&& func)
+	{
+		std::shared_lock lock(this->mutex);
+		for (auto& it : this->cont)
+		{
+			auto ret = func(it);
+			if (ret)
+				return;
+		}
+	}
+
 private:
 
 	//template<typename std::enable_if<std::is_same<MyContainer, std::vector<std::pair<K, V>>>::value, int>::type = 0>

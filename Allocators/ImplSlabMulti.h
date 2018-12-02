@@ -15,11 +15,8 @@ struct SpinLock
 		flag{ ATOMIC_FLAG_INIT }
 	{}
 
-	SpinLock(SpinLock&& other) noexcept :
-		flag{ ATOMIC_FLAG_INIT }
-	{}
-
-	SpinLock& operator=(SpinLock&& other) noexcept{ return *this;}
+	SpinLock(SpinLock&& other)				= delete;
+	SpinLock& operator=(SpinLock&& other)	= delete;
 
 	void lock() noexcept
 	{
@@ -34,18 +31,20 @@ struct SpinLock
 namespace ImplSlabMulti
 {
 
-struct Slab
+struct Slab // TODO: Try implementing the availble vector as either a cache-oblvious or array based heap (so we maintain locality in allocations)
 {
 private:
 	using size_type = size_t;
 
+	// TODO: Reorganize for size
+
 	byte*					mem;		// TODO: Test moving this outside Slab so we don't have to thrash cache when we dealloc and search mem's
-	//byte*					end;		// TODO: Cache this
+	//byte*					end;		// TODO: Cache this?
 	size_type				blockSize;	// Size of the blocks the super block is divided into
 	size_type				count;		// TODO: This can be converted to IndexSizeT 
-	std::vector<IndexSizeT>	availible;	// TODO: Issue: Over time allocation locality decreases as indicies are jumbled
-	std::list<IndexSizeT>	foreigns;
-	SpinLock				spinLock;
+	std::vector<IndexSizeT>	availible;	// list of avalible indicies (foreign threads never touch this)
+	std::list<IndexSizeT>	foreigns;	// list of deallocations made by foreign threads
+	SpinLock				spinLock;	// Spinlock for foreigns
 
 public:
 
@@ -77,7 +76,7 @@ public:
 		count{		other.count					},
 		availible{	std::move(other.availible)	},
 		foreigns{	std::move(other.foreigns)	},
-		spinLock{	std::move(other.spinLock)	}
+		spinLock{}
 	{
 		other.mem = nullptr;
 	}
@@ -91,7 +90,6 @@ public:
 		count		= other.count;
 		availible	= std::move(other.availible);
 		foreigns	= std::move(other.foreigns);
-		spinLock	= std::move(other.spinLock);
 		other.mem	= nullptr;
 		return *this;
 	}
@@ -102,18 +100,11 @@ public:
 			dispatcher.returnBlock(mem);
 	}
 
-	// These functions are NOT thread safe for our access pattern
 	bool empty()				noexcept { std::lock_guard lock(spinLock); return availible.size() + foreigns.size() == count;	}
 	size_type size()			noexcept { std::lock_guard lock(spinLock); return count - (availible.size() + foreigns.size()); }
 
 	// Can only be used safely while holding a non-shared lock on Cache
 	size_type full()			noexcept { return availible.empty() && foreigns.empty(); }
-
-	// These functions are
-	bool probablyEmpty()		const noexcept { return availible.size() == count;	}
-	size_type probablySize()	const noexcept { return count - availible.size();	}
-	
-	
 
 	std::pair<byte*, bool> allocate()
 	{
@@ -151,6 +142,7 @@ public:
 		return (reinterpret_cast<byte*>(ptr) >= mem
 			 && reinterpret_cast<byte*>(ptr) < (mem + blockSize * count));
 	}
+
 };
 
 class Cache
@@ -160,12 +152,13 @@ class Cache
 	using It			= Container::iterator;
 	using SharedMutex	= alloc::SharedMutex<8>;
 
+	// TODO: Reorder for padding size
 	size_type		mySize;
 	size_type		myCapacity;
 	const size_type	count;
 	const size_type	blockSize;
 	int				threshold;
-	Container		slabs;			// TODO: Reorder for padding size
+	Container		slabs;
 	It				actBlock;
 	SharedMutex		mutex;
 	static constexpr double freeThreshold	= 0.25;
@@ -214,6 +207,8 @@ private:
 
 	void splice(It& pos, It it)
 	{
+		std::lock_guard lock(mutex);
+
 		auto val = std::move(*it);
 		std::memmove(&*(pos + 1), &*pos, sizeof(Slab) * static_cast<size_t>(it - pos));
 
@@ -230,45 +225,30 @@ private:
 		myCapacity += count;
 	}
 
-	void memToDispatch(It it, std::shared_lock<SharedMutex>& slock)
+	void memToDispatch(It it)
 	{
-		// If the Slab is empty enough place it before the active block
-		if (it->size() <= threshold
-			&& it > actBlock)
+		std::lock_guard lock(mutex);
+		myCapacity -= count;
+
+		if (it != actBlock)
 		{
-			splice(actBlock, it);
-		}
-
-		// Return memory to Dispatcher
-		else if (it->empty()
-			&& slabs.size() > MIN_SLABS
-			&& mySize > myCapacity - count)
-		{
-			slock.unlock();
-			std::lock_guard lock(mutex);
-
-			myCapacity -= count;
-
-			if (it != actBlock)
+			if (it > actBlock)
 			{
-				if (it > actBlock)
-				{
-					std::swap(*it, slabs.back());
-					slabs.pop_back();
-				}
-				else
-				{
-					auto idx = static_cast<size_t>(actBlock - std::begin(slabs));
-					slabs.erase(it);
-					actBlock = std::begin(slabs) + (idx - 1);
-				}
+				std::swap(*it, slabs.back());
+				slabs.pop_back();
 			}
 			else
 			{
-				std::swap(*actBlock, slabs.back());
-				slabs.pop_back();
-				actBlock = std::end(slabs) - 1;
+				auto idx = static_cast<size_t>(actBlock - std::begin(slabs));
+				slabs.erase(it);
+				actBlock = std::begin(slabs) + (idx - 1);
 			}
+		}
+		else
+		{
+			std::swap(*actBlock, slabs.back());
+			slabs.pop_back();
+			actBlock = std::end(slabs) - 1;
 		}
 	}
 
@@ -303,7 +283,6 @@ public:
 				std::swap(slabs[idx], slabs.back());
 				actBlock = std::begin(slabs) + idx;
 			}
-
 		}
 
 		theEnd:
@@ -319,6 +298,7 @@ public:
 		//
 		// TODO: Try benchmarking: After looking at blocks from actBlock to end, 
 		// look in reverse order from actBlock to begin
+
 		std::shared_lock slock(mutex);
 
 		auto it = actBlock;
@@ -339,9 +319,25 @@ public:
 				return false;
 		}
 
-		// Handles the iterator in cases where it changes
-		// and returns memory to dispatcher if a Slab is empty
-		memToDispatch(it, slock);
+		// TODO: it->size() and it->empty() both lock same variable (twice in most calls) 
+		// condense into one call with a return val std::pair<size, empty> 
+
+		// If the Slab is empty enough place it before the active block
+		if (it->size() <= threshold
+			&& it > actBlock)
+		{
+			slock.unlock();
+			splice(actBlock, it);
+		}
+
+		// Return memory to Dispatcher
+		else if (it->empty()
+			&& slabs.size() > MIN_SLABS
+			&& mySize > myCapacity - count)
+		{
+			slock.unlock();
+			memToDispatch(it);
+		}
 
 		--mySize;
 		return true;
@@ -379,9 +375,8 @@ struct Bucket
 	}
 
 	template<class T>
-	bool deallocate(T* ptr, size_type n, bool thisThread)
+	bool deallocate(T* ptr, size_type bytes, bool thisThread)
 	{
-		const auto bytes = sizeof(T) * n;
 		for (auto& c : caches)
 			if (c.blockSize >= bytes) // TODO: Can this be done more effeciently than a loop since the c.blockSize is always the same?
 				return c.deallocate(ptr, thisThread);

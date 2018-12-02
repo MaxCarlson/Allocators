@@ -14,6 +14,19 @@ struct Interface
 	template<class T>
 	friend class alloc::SlabMulti;
 
+private:
+
+	using Key			= std::thread::id;
+	using Val			= Bucket;
+	using BucketPair	= std::pair<Key, Val>;
+	using MyCont		= alloc::SmpMap<Key, Val, std::vector<BucketPair>>;
+
+
+	MyCont				buckets;
+	std::atomic<int>	refCount;
+
+public:
+
 	Interface() :
 		buckets{},
 		refCount{ 1 }
@@ -60,50 +73,38 @@ public:
 		const auto id			= std::this_thread::get_id();
 		const size_type bytes	= sizeof(T) * n;
 
-		bool registered		= false;
-		auto findAndDealloc = [&](auto it, auto& cont)
+		// Attempt to deallocate ptr in this threads Bucket first
+		bool registered	= false;
+		bool found		= buckets.findDo(id, [&](auto it, auto& cont)
 		{
 			if (it != std::end(cont))
 			{
 				registered = true;
-				return it->second.deallocate(ptr, n, true);
+				return it->second.deallocate(ptr, bytes, true);
 			}
 			return false;
-		};
-
-		// Attempt to deallocate ptr in this threads Bucket first
-		bool found = buckets.findDo(id, findAndDealloc);
+		});
 
 		// If we don't find the ptr, we now need to try and deallocate
-		// the ptr in other threads
+		// the ptr in other threads (Buckets)
 		if (!found)
-		{
-
-		}
+			buckets.iterate([&](BucketPair& pair) -> bool
+			{
+				if(pair.first != id)
+					found = pair.second.deallocate(ptr, bytes, false);
+				return found;
+			});
 
 		// If the thread hasn't been registered
 		// register it (It can't possibly have allocated the memory if it hasn't been registered)
 		if (!registered)
-		{
 			registerThread(id);
-			//found = buckets.findDo(id, findAndDealloc);
-		}
 	}
 
 	void incRef() 
 	{
 		refCount.fetch_add(1, std::memory_order_relaxed);
 	}
-
-private:
-	
-	using Key = std::thread::id;
-	using Val = Bucket;
-
-	using MyCont = alloc::SmpMap<Key, Val, std::vector<std::pair<Key, Val>>>;
-
-	MyCont				buckets;
-	std::atomic<int>	refCount;
 };
 
 }// End SlabMultiImpl::
