@@ -14,6 +14,7 @@ struct ContentionFreeFlag
 	{
 		Unregistered,
 		Registered,
+		PrepareLock,
 		SharedLock
 	};
 
@@ -78,11 +79,23 @@ public:
 		if (idx >= ThreadRegister::Registered)
 		{
 			// Spin until the spill lock is unlocked
+			/*
+			(*flags)[idx].flag.store(CFF::SharedLock, std::memory_order_seq_cst);
+			while (spLock.load(std::memory_order_seq_cst))
+			{
+				(*flags)[idx].flag.store(CFF::PrepareLock, std::memory_order_seq_cst);
+				for (volatile int f = 0; spLock.load(std::memory_order_seq_cst); ++f)
+					;
+				(*flags)[idx].flag.store(CFF::SharedLock, std::memory_order_seq_cst);
+			}
+			*/
+			
 			while (spLock.load(std::memory_order_acquire))
 				;
+			
+			(*flags)[idx].flag.store(CFF::SharedLock, std::memory_order_release);
 
 			// Perform the SharedLock
-			(*flags)[idx].flag.store(CFF::SharedLock, std::memory_order_release);
 		}
 
 		// Thread is not registered, we must acquire spill lock
@@ -110,19 +123,19 @@ public:
 	{
 		// Spin until we acquire the spill lock
 		bool locked = false;
-		while (!spLock.compare_exchange_weak(locked, true, std::memory_order_seq_cst))
+		while (!spLock.compare_exchange_weak(locked, true, std::memory_order_acquire))
 			locked = false;
 
 		// Now spin until all other threads are non-shared locked
 		for (CFF& f : *flags)
-			while (f.flag.load(std::memory_order_acquire) == CFF::SharedLock)
+			while (f.flag.load(std::memory_order_seq_cst) == CFF::SharedLock)
 				;
 	}
 
 	void unlock()
 	{
 		// TODO: Debug safety check here
-		spLock.store(false, std::memory_order_release);
+		spLock.store(false, std::memory_order_seq_cst);
 	}
 
 	bool try_lock_shared()

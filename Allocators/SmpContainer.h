@@ -10,7 +10,7 @@ constexpr int SharedMutexSize	= 8;
 template<class Container>
 struct SmpContainersBase
 {
-	using SharedMutex =  alloc::SharedMutex<SharedMutexSize>;
+	using SharedMutex = alloc::SharedMutex<SharedMutexSize>;
 
 	SmpContainersBase() = default;
 
