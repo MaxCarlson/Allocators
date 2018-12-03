@@ -3,6 +3,7 @@
 #include <thread>
 #include <chrono>
 #include <array>
+#include <unordered_map>
 #include "AllocHelpers.h"
 
 namespace ImplSharedMutex
@@ -96,7 +97,7 @@ public:
 	void unlock_shared()
 	{
 		// TODO: Debug safety check here
-		const int idx = getOrSetIndex(ThreadRegister::CheckRegister);
+		const int idx = getOrSetIndex();
 
 		if (idx >= ThreadRegister::Registered)
 			(*flags)[idx].flag.store(CFF::Registered, std::memory_order_release);
@@ -149,6 +150,7 @@ public:
 		return false;
 	}
 
+
 private:
 
 	// Keeps track of the threads index if it has one
@@ -157,8 +159,7 @@ private:
 	{
 		enum Status
 		{
-			CheckRegister = -3,
-			Unregistered,
+			Unregistered = -2,
 			PrepareToRegister,
 			Registered,
 		};
@@ -167,6 +168,17 @@ private:
 			index{	Status::Unregistered },
 			cont{	cont }
 		{}
+
+		ThreadRegister(ThreadRegister&& other) noexcept :
+			index{	std::move(other.index) },
+			cont{	other.cont }
+		{
+			other.index = Status::Unregistered;
+		}
+
+		ThreadRegister(const ThreadRegister& other)				= delete;
+		ThreadRegister& operator=(const ThreadRegister& other)	= delete;
+		ThreadRegister& operator=(ThreadRegister&& other)		= delete;
 
 		// Unregister the thread and reset it's ID on thread's dtor call
 		// (acheived through static thread_local variable)
@@ -187,20 +199,25 @@ private:
 		SharedMutex&	cont;
 	};
 
+	using ObjectMap = std::unordered_map<void*, ThreadRegister>;
+
 	// Find the index of this thread in our array
 	// If it's never been registered, prepare it to 
 	// be or set it's registered index
 	int getOrSetIndex(int idx = ThreadRegister::Unregistered)
 	{
-		static thread_local ThreadRegister tr(*this);
+		thread_local static ObjectMap tmap;
 
-		if (tr.index == ThreadRegister::Unregistered)
-			tr.index = ThreadRegister::PrepareToRegister;
+		auto find = tmap.find(this);
+		if (find == std::end(tmap))
+		{
+			tmap.emplace(this, std::move(ThreadRegister{ *this }));
+			return ThreadRegister::PrepareToRegister;
+		}
+		else if(idx >= ThreadRegister::Registered)
+			find->second.index = idx;
 
-		else if (idx > ThreadRegister::Unregistered)
-			tr.index = idx;
-
-		return tr.index;
+		return find->second.index;
 	}
 
 	// Check if this thread has been registered before,
