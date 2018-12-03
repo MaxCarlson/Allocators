@@ -10,7 +10,7 @@ constexpr int SharedMutexSize	= 8;
 template<class Container>
 struct SmpContainersBase
 {
-	using SharedMutex = alloc::SharedMutex<SharedMutexSize>;
+	using SharedMutex =  alloc::SharedMutex<SharedMutexSize>;
 
 	SmpContainersBase() = default;
 
@@ -96,7 +96,7 @@ struct SmpMap
 
 
 	template<class... Args>
-	decltype(auto) emplace(Args&& ...args)
+	decltype(auto) emplace(Args&& ...args) // TODO: This should take an iterator, and not be emplace back!
 	{
 		std::lock_guard lock(this->mutex);
 		return this->cont.emplace_back(std::forward<Args>(args)...);
@@ -108,13 +108,6 @@ struct SmpMap
 		std::shared_lock lock(this->mutex);
 		auto found = find(k, hasFind);
 		return func(found, this->cont);
-	}
-
-	std::pair<std::shared_lock<SharedMutex>&&, It> findAndStartSL(const K& k)
-	{
-		std::shared_lock lock(this->mutex);
-		auto found = find(k, hasFind);
-		return { std::move(lock), found };
 	}
 
 	// Takes a lambda which if it returns true stops the loop

@@ -153,7 +153,7 @@ class Cache
 	using SharedMutex	= alloc::SharedMutex<8>;
 
 	// TODO: Reorder for padding size
-	size_type		mySize;
+	std::atomic<size_type>		mySize;
 	size_type		myCapacity;
 	const size_type	count;
 	const size_type	blockSize;
@@ -182,7 +182,7 @@ public:
 	}
 
 	Cache(Cache&& other) noexcept :
-		mySize{		other.mySize				},
+		mySize{		other.mySize.load(std::memory_order_relaxed) },
 		myCapacity{ other.myCapacity			},
 		count{		other.count					},
 		blockSize{	other.blockSize				},
@@ -193,7 +193,7 @@ public:
 	{}
 
 	Cache(const Cache& other) : // TODO: Why is this needed?
-		mySize{		other.mySize		},
+		mySize{		other.mySize.load(std::memory_order_relaxed) },
 		myCapacity{ other.myCapacity	},
 		count{		other.count			},
 		blockSize{	other.blockSize		},
@@ -286,7 +286,7 @@ public:
 		}
 
 		theEnd:
-		++mySize; // TODO: Make atomic!
+		mySize.fetch_add(1, std::memory_order_relaxed); // TODO: This atomic decreases speed by ~ 4%
 		return mem;
 	}
 
@@ -339,7 +339,7 @@ public:
 			memToDispatch(it);
 		}
 
-		--mySize;
+		mySize.fetch_sub(1, std::memory_order_relaxed);
 		return true;
 	}
 };
@@ -386,7 +386,6 @@ struct Bucket
 	}
 
 private:
-	std::thread::id		id;
 	std::vector<Cache>	caches;
 };
 

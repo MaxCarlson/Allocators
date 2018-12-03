@@ -16,32 +16,16 @@ template<class Al, class Tp>
 void doWork(Al& al, Tp tp, int seed)
 {
 	//std::cout << static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - tp).count());
-	//std::shared_mutex m;
-	//m.
 	std::vector<int, typename Al::template rebind<int>::other> vec{ al };
 	std::default_random_engine re(seed);
 	std::uniform_int_distribution dis(1, 10000);
 
-	for (size_t i = 0; i < 100; ++i)
+	for (size_t i = 0; i < 100000000000; ++i)
 	{
 		vec.reserve(vec.size() + dis(re));
 		vec.shrink_to_fit();
 	}
 }
-
-struct BB
-{
-	BB& operator=(const BB& other)
-	{
-		int a = 5;
-		return *this;
-	}
-
-	~BB()
-	{
-		int a = 5;
-	}
-};
 
 // Just a temporary main to test allocators from
 // Should be removed in any actual use case
@@ -52,11 +36,6 @@ struct BB
 // Mix Slab Allocation with existing allocators
 int main()
 {
-	BB bb;
-	BB bbb;
-
-	bbb = bb;
-	
 	constexpr int count = 1000;
 
 	alloc::SlabMulti<size_t>						multi;
@@ -70,7 +49,7 @@ int main()
 
 		auto tp = Clock::now();
 		for (int t = 0; t < 4; ++t)
-			//std::async(std::launch::async, [&]() { doWork(multi, i + t); });
+			//std::async(std::launch::async, [&]() { doWork(multi, tp, i + t); });
 			th.emplace_back(std::thread{ [&]() { doWork(multi, tp, i + t); } });
 		for (auto& t : th)
 			t.join();

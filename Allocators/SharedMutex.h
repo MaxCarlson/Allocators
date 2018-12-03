@@ -46,19 +46,26 @@ namespace alloc
 template<size_t threads = 4>		
 class SharedMutex
 {
-public:
-
 	using CFF = ImplSharedMutex::ContentionFreeFlag;
+
+	inline static const auto defaultThreadId = std::thread::id{};
+
+	std::atomic<bool>			spLock;
+	std::array<CFF, threads>*	flags;
+
+public:
 
 	SharedMutex() :
 		spLock{ false },
-		flags{	new std::array<CFF, threads>}
+		flags{	new std::array<CFF, threads> }
 	{}
 
 	SharedMutex(SharedMutex&& other) noexcept :
-		spLock{ other.spLock.load()		},
+		spLock{ other.spLock.load()		}, // TODO: std::memory_order_acquire ?
 		flags{	std::move(other.flags)	}
-	{}
+	{
+		other.flags = nullptr;
+	}
 
 	~SharedMutex() { delete flags; }
 
@@ -84,31 +91,6 @@ public:
 			while (!spLock.compare_exchange_weak(locked, true, std::memory_order_seq_cst))
 				locked = false;
 		}
-	}
-
-	bool try_lock_shared()
-	{
-		bool locked = false;
-		const int idx = registerThread();
-		if (idx >= ThreadRegister::Registered)
-		{
-			if (spLock.load(std::memory_order_acquire)) // TODO: I don't think this is entirely safe!
-				return false;
-
-			(*flags)[idx].flag.store(CFF::SharedLock, std::memory_order_release);
-			return true;
-		}
-		else
-			spLock.compare_exchange_strong(locked, true, std::memory_order_seq_cst);
-		
-		return locked;
-	}
-
-	template<class Rep, class Period>
-	bool try_lock_shared_for(const std::chrono::duration<Rep, Period>& relTime)
-	{
-		// TODO:
-		return false;
 	}
 
 	void unlock_shared()
@@ -140,6 +122,31 @@ public:
 	{
 		// TODO: Debug safety check here
 		spLock.store(false, std::memory_order_release);
+	}
+
+	bool try_lock_shared()
+	{
+		bool locked = false;
+		const int idx = registerThread();
+		if (idx >= ThreadRegister::Registered)
+		{
+			if (spLock.load(std::memory_order_acquire)) // TODO: I don't think this is entirely safe!
+				return false;
+
+			(*flags)[idx].flag.store(CFF::SharedLock, std::memory_order_release);
+			return true;
+		}
+		else
+			spLock.compare_exchange_strong(locked, true, std::memory_order_seq_cst);
+
+		return locked;
+	}
+
+	template<class Rep, class Period>
+	bool try_lock_shared_for(const std::chrono::duration<Rep, Period>& relTime)
+	{
+		// TODO:
+		return false;
 	}
 
 private:
@@ -206,35 +213,21 @@ private:
 
 		// Thread has never been registered (try to once)
 		if (idx == ThreadRegister::PrepareToRegister)
-		{
-			const auto id = std::this_thread::get_id();
 			for (int i = 0; i < threads; ++i)
 			{
-				auto& f = (*flags)[i];
-				int free = CFF::Unregistered;
-
-				if (f.id == id)
+				auto& f		= (*flags)[i];
+				int free	= CFF::Unregistered;
+				if (f.flag.compare_exchange_strong(free, CFF::Registered, std::memory_order_release))
 				{
-					idx = i;
-					break;
-				}
-				else if (f.flag.compare_exchange_strong(free, CFF::Registered))
-				{
-					idx = i;
-					f.id = id;
+					idx		= i;
+					f.id	= std::this_thread::get_id();
 					getOrSetIndex(idx);
 					break;
 				}
 			}
-		}
 
 		return idx;
 	}
-
-	inline static const auto defaultThreadId = std::thread::id{};
-
-	std::atomic<bool>			spLock;
-	std::array<CFF, threads>*	flags;
 };
 
 } // End alloc::
