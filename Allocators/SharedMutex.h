@@ -212,19 +212,26 @@ private:
 		SharedMutex&	cont;
 	};
 
-	using ObjectMap = std::unordered_map<void*, ThreadRegister>;
 
 	// Find the index of this thread in our array
 	// If it's never been registered, prepare it to 
 	// be or set it's registered index
+	//
+	// TODO: Use a sorted vector or a fast hash map
 	int getOrSetIndex(int idx = ThreadRegister::Unregistered)
 	{
-		thread_local static ObjectMap tmap;
+		using ObjectMap = std::vector<std::pair<void*, ThreadRegister>>;
+		static thread_local ObjectMap tmap;
 
-		auto find = tmap.find(this);
+		// TODO: Possibly? Use binary search on sorted vec if size is greater than (?)
+		auto find = std::find_if(std::begin(tmap), std::end(tmap), [&](const auto& it)
+		{
+			return it.first == this;
+		});
+
 		if (find == std::end(tmap))
 		{
-			tmap.emplace(this, std::move(ThreadRegister{ *this }));
+			tmap.emplace_back(this, *this);
 			return ThreadRegister::PrepareToRegister;
 		}
 		else if(idx >= ThreadRegister::Registered)

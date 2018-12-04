@@ -136,11 +136,9 @@ public:
 	}
 
 	// TODO: Look into holding mem outside this class in a vector for faster access!
-	template<class P>
-	bool containsMem(P* ptr) const noexcept
+	bool containsMem(byte* ptr) const noexcept
 	{
-		return (reinterpret_cast<byte*>(ptr) >= mem
-			 && reinterpret_cast<byte*>(ptr) < (mem + blockSize * count));
+		return (ptr >= mem && ptr < mem + blockSize * count);
 	}
 
 };
@@ -148,21 +146,26 @@ public:
 class Cache
 {
 	using size_type		= size_t;
-	using Container		= std::vector<Slab>;
-	using It			= Container::iterator;
-	using SharedMutex	= alloc::SharedMutex<8>;
+
+	template<class T>
+	using Container		= std::vector<T>;
+
+	using It			= Container<Slab>::iterator;
+	using SharedMutex	= alloc::SharedMutex<32>;
 
 	// TODO: Reorder for padding size
 	std::atomic<size_type>		mySize;
-	size_type		myCapacity;
-	const size_type	count;
-	const size_type	blockSize;
-	int				threshold;
-	Container		slabs;
-	It				actBlock;
-	SharedMutex		mutex;
-	static constexpr double freeThreshold	= 0.25;
-	static constexpr int MIN_SLABS			= 1;
+	size_type					myCapacity;
+	const size_type				count;
+	const size_type				blockSize;
+	int							threshold;
+	Container<Slab>				slabs;
+	Container<byte*>			ptrs;
+	It							actBlock;
+	SharedMutex					mutex;
+
+	static constexpr double		freeThreshold	= 0.25;
+	static constexpr int		MIN_SLABS		= 1;
 
 public:
 
@@ -174,8 +177,9 @@ public:
 		count{		count		},
 		blockSize{	blockSize	},
 		threshold{	static_cast<int>(count * freeThreshold) },
-		slabs{},
-		mutex{}
+		slabs{					},
+		ptrs{					},
+		mutex{					}
 	{
 		addCache();
 		actBlock = std::begin(slabs);
@@ -188,6 +192,7 @@ public:
 		blockSize{	other.blockSize				},
 		threshold{	other.threshold				},
 		slabs{		std::move(other.slabs)		},
+		ptrs{		std::move(other.ptrs)		},	
 		actBlock{	std::move(other.actBlock)	},
 		mutex{		std::move(other.mutex)		}
 	{}
@@ -199,6 +204,7 @@ public:
 		blockSize{	other.blockSize		},
 		threshold{	other.threshold		},
 		slabs{		other.slabs			},
+		ptrs{		other.ptrs			},
 		actBlock{	other.actBlock		},
 		mutex{}
 	{}
@@ -290,6 +296,12 @@ public:
 		return mem;
 	}
 
+	template<class Cont>
+	int getIndex(const It& it, const Cont& cont) const
+	{
+		return it - std::begin(cont);
+	}
+
 	template<class T>
 	bool deallocate(T* ptr, bool thisThread)
 	{
@@ -304,7 +316,7 @@ public:
 		auto it = actBlock;
 		for (auto E = std::end(slabs);;)
 		{
-			if (it->containsMem(ptr))
+			if (it->containsMem(reinterpret_cast<byte*>(ptr)))
 			{
 				it->deallocate(ptr, thisThread);
 				break;
