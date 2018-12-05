@@ -162,9 +162,7 @@ class Cache
 	const size_type				blockSize;
 	int							threshold;
 	Container<Slab>				slabs;
-	Container<byte*>			ptrs;
 	SIt							actBlock;
-	MIt							actMem;
 	SharedMutex					mutex;
 
 	static constexpr double		freeThreshold	= 0.25;
@@ -181,7 +179,6 @@ public:
 		blockSize{	blockSize	},
 		threshold{	static_cast<int>(count * freeThreshold) },
 		slabs{					},
-		ptrs{					},
 		mutex{					}
 	{
 		addCache();
@@ -195,7 +192,6 @@ public:
 		blockSize{	other.blockSize				},
 		threshold{	other.threshold				},
 		slabs{		std::move(other.slabs)		},
-		ptrs{		std::move(other.ptrs)		},	
 		actBlock{	std::move(other.actBlock)	},
 		mutex{		std::move(other.mutex)		}
 	{}
@@ -207,7 +203,6 @@ public:
 		blockSize{	other.blockSize		},
 		threshold{	other.threshold		},
 		slabs{		other.slabs			},
-		ptrs{		other.ptrs			},
 		actBlock{	other.actBlock		},
 		mutex{}
 	{}
