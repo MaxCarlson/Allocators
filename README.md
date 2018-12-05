@@ -19,7 +19,7 @@
 // SlabMulti uses thread-private Buckets of Caches.
 // Each Cache holds 16KB Slabs divided into different chunk sizes,  
 // ranging from 64 bytes to 8KB per chunk, growing in powers of two
-alloc::SlabMulti<size_t> al;
+alloc::SlabMulti<size_t> multi;
 
 // It can be used with std::containers
 // (multi itself is used as the allocator here)
@@ -27,7 +27,7 @@ std::vector<size_t, decltype(multi)> vecS{multi};
 
 // multi is NOT used as the allocator here, instead a new SlabMulti is created
 // specifically for this vector (multi isn't passed in ctor here)
-std::vector<int, decltype(al)::template rebind<int>::other> vecI;
+std::vector<int, decltype(multi)::template rebind<int>::other> vecI;
 
 // You don't have to rebind it to allocate different types 
 auto puI = multi.allocate<uint16_t>(100);
@@ -38,7 +38,7 @@ multi.deallocate(puI, 100);
 SlabMulti handles Cache sizes internally. Each thread-private Bucket contains 8 Caches, each holding 16KB Slabs divided into 64byte-8KB blocks. When a thread requests memory for the first time it is registered, added to the vector of Buckets, and assigned 8 (one of each size) 16KB Caches holding one Slab each. When a Cache of Slabs runs out of memory, the Cache requests memory from the Dispatcher. The Dispatcher requests memory from the OS in 1MB chunks, and divides those chunks into 16KB Slabs which it then parcels out to Caches that make requests. When a Slab has all its memory returned to it though deallocation, it destroys itself and hands its memory back to the Dispatcher (barring it isn't the only Slab left/empty in the Cache).
 
 ### SharedMutex
-SharedMutex is a high performance mutex best suited to low-write, high-read situations. It has four public functions: shared_lock, shared_unlock, lock, and unlock. Also contained in the same file are wrapper classes SharedLock and LockGuard which provide RAII style locking similar to their namesakes.
+SharedMutex is a high performance shared mutex best suited to low-write, high-read situations. It has four public functions: shared_lock, shared_unlock, lock, and unlock. SharedMutex is compatible with the std::locks (std::shared/unique_lock, etc) with the functions mentioned previously.
 
 ```cpp
 
@@ -101,20 +101,26 @@ void SharedMutex<>::lock()
 			;
 }
 
-// Instead of using SharedMutex's functions directly, use the provided wrapper classes.
-void testWrappers()
+// Instead of using SharedMutex's functions directly, use the std::(locks) RAII wrappers.
+void testSharedMutex()
 {
 	alloc::SharedMutex mutex1;
 	alloc::SharedMutex mutex2;
 	
 	{
-		// SharedMutex's lock function is called
-		alloc::LockGuard  lock(mutex1);
+		// mutex1's lock function is called
+		std::lock_guard  lock(mutex1);
 		
-		// mutex2's sharedLock function is called
-		alloc::SharedLock lock(mutex2);
+		// mutex2's shared_lock function is called
+		std::shared_lock lock(mutex2);
 		
-	}// On LockGuard's and SharedLock's destruction unlock and unlockShared are called respectivly
+		//! Cannot upgrade lock! Will result in a deadlock
+		// std::lock_guard newLock(mutex2);
+		
+		//! Cannot recursivly call shared_lock or lock, will cause deadlock 
+		// std::shared_lock slock(mutex2);
+		
+	}// On std::lock_guard and std::shared_locks's destruction unlock and unlock_shared are called respectivly
 }
 ```
 
