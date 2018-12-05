@@ -150,7 +150,9 @@ class Cache
 	template<class T>
 	using Container		= std::vector<T>;
 
-	using It			= Container<Slab>::iterator;
+	using SIt			= Container<Slab>::iterator;
+	using MIt			= Container<byte*>::iterator;
+
 	using SharedMutex	= alloc::SharedMutex<32>;
 
 	// TODO: Reorder for padding size
@@ -161,7 +163,8 @@ class Cache
 	int							threshold;
 	Container<Slab>				slabs;
 	Container<byte*>			ptrs;
-	It							actBlock;
+	SIt							actBlock;
+	MIt							actMem;
 	SharedMutex					mutex;
 
 	static constexpr double		freeThreshold	= 0.25;
@@ -211,7 +214,7 @@ public:
 
 private:
 
-	void splice(It& pos, It it)
+	void splice(SIt& pos, SIt it)
 	{
 		std::lock_guard lock(mutex);
 
@@ -231,7 +234,7 @@ private:
 		myCapacity += count;
 	}
 
-	void memToDispatch(It it)
+	void memToDispatch(SIt it)
 	{
 		std::lock_guard lock(mutex);
 		myCapacity -= count;
@@ -296,10 +299,16 @@ public:
 		return mem;
 	}
 
-	template<class Cont>
-	int getIndex(const It& it, const Cont& cont) const
+	template<class It, class Cont>
+	int getItIndex(const It& it, const Cont& cont) const
 	{
 		return it - std::begin(cont);
+	}
+
+	template<class Cont>
+	decltype(auto) itFromIdx(int index, const Cont& cont) const
+	{
+		return std::begin(cont) + index;
 	}
 
 	template<class T>
@@ -313,6 +322,8 @@ public:
 
 		std::shared_lock slock(mutex);
 
+		// TODO: Hot Loop:
+		// Try searching blocks of mem's at once through min-max ptr ranges
 		auto it = actBlock;
 		for (auto E = std::end(slabs);;)
 		{

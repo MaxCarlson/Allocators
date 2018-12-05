@@ -37,7 +37,6 @@ void doWork(Al& al, Tp tp, int seed)
 int main()
 {
 	constexpr int count = 1000;
-
 	alloc::SlabMulti<size_t>						multi;
 //	std::vector<size_t, alloc::SlabMulti<size_t>>	vec(multi);
 
