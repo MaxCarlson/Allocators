@@ -360,13 +360,29 @@ public:
 			}
 
 			if (++mit == E)
+			{
 				mit = std::begin(ptrs);
+				break;
+			}
 
 			// If this Cache doesn't contain the memory location
 			// we need to tell the caller to look elsewhere			
 			if (mit == actMem)
 				return false;
 		}
+		/*
+		for (;;)
+		{
+			if (Slab::containsMem(reinterpret_cast<byte*>(ptr), *mit, blockSize, count))
+			{
+				it = std::begin(slabs) + getItIndex(mit, ptrs);
+				it->deallocate(ptr, *mit, thisThread);
+				break;
+			}
+			if (++mit == actMem)
+				return false;
+		}
+		*/
 
 		// TODO: it->size() and it->empty() both lock same variable (twice in most calls) 
 		// condense into one call with a return val std::pair<size, empty> 
