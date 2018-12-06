@@ -321,7 +321,7 @@ public:
 				std::swap(slabs[idx], slabs.back());
 				std::swap(ptrs[idx],  ptrs.back());
 				actBlock	= std::begin(slabs) + idx;
-				actMem		= std::begin(ptrs)  + idx;
+				actMem		= std::begin(ptrs) + idx;
 			}
 		}
 
@@ -356,13 +356,16 @@ public:
 
 			if (++mit == E)
 			{
-				mit = std::begin(ptrs);
-
 				// If we've searched the whole vector we didn't find the Slab
-				if (E == actMem || mit == actMem)
+				if (E == actMem)
 					return false;
 
+				mit = std::begin(ptrs);
 				E	= actMem;
+
+				// Rare case where mit is std::begin(ptrs)
+				if (mit == E)
+					return false;
 			}
 		}
 
@@ -387,9 +390,6 @@ public:
 		}
 
 		mySize.fetch_sub(1, std::memory_order_relaxed);
-
-		// TODO: Add Bucket awareness so if the thread is killed and we have no more elements left
-		// we destroy the bucket
 		return true;
 	}
 };
