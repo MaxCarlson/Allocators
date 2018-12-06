@@ -312,7 +312,7 @@ double shrinkToFit(Init& init, Alloc& al, size_t iterations, size_t maxAllocs, s
 	using TimeType = std::chrono::milliseconds;
 	std::vector<int, typename Alloc::template rebind<int>::other> vec{ al };
 	std::default_random_engine re(seed);
-	std::uniform_int_distribution dis(10, 100);
+	std::uniform_int_distribution dis(5, static_cast<int>(maxAllocs));
 
 	auto start = Clock::now();
 	for (size_t i = 0; i < iterations; ++i)
@@ -336,5 +336,5 @@ double shrinkToFit(Init& init, Alloc& al)
 		return shrinkToFit(init, lockedAl, iterations, maxAllocs, seed, trueType);
 	};
 
-	return callFuncAsync(init, lockedAl, func, 1000, 3000);
+	return callFuncAsync(init, lockedAl, func, 1000000, 2500);
 }
