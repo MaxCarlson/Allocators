@@ -255,11 +255,6 @@ double multiStrAl(Init& init, Alloc& al, std::false_type f) { return 0.0; }
 template<class Init, class Alloc>
 double multiStrAl(Init& init, Alloc& al, std::true_type tt)
 {
-	using T			= typename Init::MyType;
-	using CharAl	= typename Alloc::template rebind<char>::other;
-	using String	= std::basic_string<char, std::char_traits<char>, CharAl>;
-	using StrAl		= typename Alloc::template rebind<String>::other;
-
 	LockedAl<Alloc, int>				lockAl{ al };
 	std::vector<std::future<double>>	futures;
 
@@ -282,4 +277,64 @@ double multiStrAl(Init& init, Alloc& al) // TODO: Call strAl with paramers / num
 {
 	using STDCompat = typename Alloc::STD_Compatible;
 	return multiStrAl(init, al, STDCompat{});
+}
+
+template<class Init, class Alloc, class Func>
+double callFuncAsync(Init& init, Alloc& lockAl, Func&& func, size_t iterations, size_t maxAllocs)
+{
+	using STDCompat = typename Alloc::STD_Compatible;
+	constexpr auto tt = STDCompat{};
+
+	//LockedAl<Alloc, int>				lockAl{ al };
+	std::vector<std::future<double>>	futures;
+
+	auto myIts		= iterations / TestThreads;
+	auto myAllocs	= maxAllocs / TestThreads;
+
+	size_t seed = 0;
+	for (int i = 0; i < TestThreads; ++i)
+		futures.emplace_back(
+			std::async(std::launch::async, [&]() {
+				return func(myIts, myAllocs, seed++, tt);
+			})
+		);
+
+	double total = 0.0;
+	for (auto& f : futures)
+		total += f.get();
+
+	return total / TestThreads;
+}
+
+template<class Init, class Alloc>
+double shrinkToFit(Init& init, Alloc& al, size_t iterations, size_t maxAllocs, size_t seed, std::true_type tt)
+{
+	using TimeType = std::chrono::milliseconds;
+	std::vector<int, typename Alloc::template rebind<int>::other> vec{ al };
+	std::default_random_engine re(seed);
+	std::uniform_int_distribution dis(10, 100);
+
+	auto start = Clock::now();
+	for (size_t i = 0; i < iterations; ++i)
+	{
+		vec.reserve(vec.size() + dis(re));
+		vec.shrink_to_fit();
+	}
+	auto end = Clock::now();
+	return static_cast<double>(std::chrono::duration_cast<TimeType>(end - start).count());
+}
+template<class Init, class Alloc>
+double shrinkToFit(Init& init, Alloc& al, size_t iterations, size_t maxAllocs, size_t seed, std::false_type ft) { return 0.0; }
+
+template<class Init, class Alloc>
+double shrinkToFit(Init& init, Alloc& al)
+{
+	LockedAl<Alloc, int> lockedAl{ al };
+
+	auto func = [&](size_t iterations, size_t maxAllocs, size_t seed, auto trueType)
+	{
+		return shrinkToFit(init, lockedAl, iterations, maxAllocs, seed, trueType);
+	};
+
+	return callFuncAsync(init, lockedAl, func, 1000, 3000);
 }

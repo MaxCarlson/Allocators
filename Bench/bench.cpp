@@ -39,7 +39,8 @@ enum BenchMasks
 
 	STR_AL_DE	= 1 << 5,
 	MULTI_STR	= 1 << 6,
-	ALL_BENCH	= (1 << 7) - 1,
+	MULTI_STF	= 1 << 7,
+	ALL_BENCH	= (1 << 8) - 1,
 	NON_T_MSK	= ALL_BENCH ^ TYPE_MSK,	// Mask for all non-type dependent benchmarks
 };
 
@@ -100,7 +101,7 @@ inline bool isValid(size_t alMask, size_t bMask, size_t testMask)
 template<class Init, class Alloc, class Ctor>
 decltype(auto) benchAlT(Init& init, Alloc& al, Ctor& ctor, bool nonType, int count, size_t alMask, size_t bMask)
 {
-	std::vector<double> scores(7, 0.0);
+	std::vector<double> scores(8, 0.0);
 
 	int i;
 	for (i = 0; i < count; ++i)
@@ -124,6 +125,8 @@ decltype(auto) benchAlT(Init& init, Alloc& al, Ctor& ctor, bool nonType, int cou
 				scores[5] += stringAl(init, al);
 			if (isValid(alMask, bMask, BenchMasks::MULTI_STR))
 				scores[6] += multiStrAl(init, al);
+			if (isValid(alMask, bMask, BenchMasks::MULTI_STF))
+				scores[7] += shrinkToFit(init, al);
 		}
 	}
 	
@@ -275,15 +278,17 @@ int main()
 	//constexpr size_t allocMask = ALL_ALLOCS;
 
 	constexpr size_t allocMask = SLAB_MULTI;
-	//constexpr size_t benchMask = BenchMasks::MULTI_STR;
+	//constexpr size_t allocMask = SLAB_MULTI | DEFAULT;
 
 	//constexpr size_t allocMask		= DEFAULT | SLAB_OBJ | SLAB_MEM | SLAB_MULTI;	
 	//constexpr size_t allocMask		= AllocMasks::ALL_ALLOCS; // SLAB_MEM | SLAB_OBJ;	
+	
+	constexpr size_t benchMask = BenchMasks::MULTI_STR; 
 	//constexpr size_t benchMask = BenchMasks::STR_AL_DE; 
-	constexpr size_t benchMask = BenchMasks::ALL_BENCH;
+	//constexpr size_t benchMask = BenchMasks::ALL_BENCH;
 
 
-	constexpr int numTests			= 10;
+	constexpr int numTests			= 100;
 
 	slabM.addCache2(1 << 5, 1 << 14, cacheSz);
 

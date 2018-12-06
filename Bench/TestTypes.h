@@ -142,7 +142,7 @@ public:
 	template<class Al, class T>
 	friend class LockedAl;
 
-	using STD_Compatible	= std::true_type;
+	using STD_Compatible	= typename Al::STD_Compatible;
 	using Thread_Safe		= typename Al::Thread_Safe;
 
 	using size_type			= size_t;
