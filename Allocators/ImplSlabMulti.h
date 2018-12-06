@@ -38,7 +38,7 @@ private:
 
 	// TODO: Reorganize for size
 
-	byte*					mem;		// TODO: Test moving this outside Slab so we don't have to thrash cache when we dealloc and search mem's
+	//byte*					mem;		// TODO: Test moving this outside Slab so we don't have to thrash cache when we dealloc and search mem's
 	//byte*					end;		// TODO: Cache this?
 	size_type				blockSize;	// Size of the blocks the super block is divided into
 	size_type				count;		// TODO: This can be converted to IndexSizeT 
@@ -51,7 +51,7 @@ public:
 	Slab() = default;
 
 	Slab(size_t blockSize, size_t count) noexcept :
-		mem{		dispatcher.getBlock()	},
+		//mem{		dispatcher.getBlock()	},
 		blockSize{	blockSize				},
 		count{		count					},
 		availible{	dispatcher.getIndicies(blockSize) },
@@ -61,7 +61,7 @@ public:
 	}
 
 	Slab(const Slab& other) noexcept :
-		mem{		other.mem		},
+		//mem{		other.mem		},
 		blockSize{	other.blockSize },
 		count{		other.count		},
 		availible{	other.availible },
@@ -71,33 +71,33 @@ public:
 	}
 
 	Slab(Slab&& other) noexcept :
-		mem{		other.mem					},
+		//mem{		other.mem					},
 		blockSize{	other.blockSize				},
 		count{		other.count					},
 		availible{	std::move(other.availible)	},
 		foreigns{	std::move(other.foreigns)	},
 		spinLock{}
 	{
-		other.mem = nullptr;
+		//other.mem = nullptr;
 	}
 
 	Slab& operator=(Slab&& other) noexcept
 	{
-		if (mem)
-			dispatcher.returnBlock(mem);
-		mem			= other.mem;
+		//if (mem)
+		//	dispatcher.returnBlock(mem);
+		//mem			= other.mem;
 		blockSize	= other.blockSize;
 		count		= other.count;
 		availible	= std::move(other.availible);
 		foreigns	= std::move(other.foreigns);
-		other.mem	= nullptr;
+		//other.mem	= nullptr;
 		return *this;
 	}
 
 	~Slab()
 	{
-		if (mem)
-			dispatcher.returnBlock(mem);
+		//if (mem)
+		//	dispatcher.returnBlock(mem);
 	}
 
 	bool empty()				noexcept { std::lock_guard lock(spinLock); return availible.size() + foreigns.size() == count;	}
@@ -106,7 +106,7 @@ public:
 	// Can only be used safely while holding a non-shared lock on Cache
 	size_type full()			noexcept { return availible.empty() && foreigns.empty(); }
 
-	std::pair<byte*, bool> allocate()
+	std::pair<byte*, bool> allocate(byte* mem)
 	{
 		auto idx = availible.back();
 		availible.pop_back();
@@ -114,7 +114,7 @@ public:
 	}
 
 	template<class P>
-	void deallocate(P* ptr, bool thisThread)
+	void deallocate(P* ptr, byte* mem, bool thisThread)
 	{
 		auto idx = static_cast<size_type>((reinterpret_cast<byte*>(ptr) - mem)) / blockSize;
 
@@ -136,7 +136,7 @@ public:
 	}
 
 	// TODO: Look into holding mem outside this class in a vector for faster access!
-	bool containsMem(byte* ptr) const noexcept
+	static bool containsMem(byte* ptr, byte* mem, size_t blockSize, size_t count) noexcept
 	{
 		return (ptr >= mem && ptr < mem + blockSize * count);
 	}
@@ -182,7 +182,8 @@ public:
 		mutex{					}
 	{
 		addCache();
-		actBlock = std::begin(slabs);
+		actBlock	= std::begin(slabs);
+		actMem		= std::begin(ptrs);
 	}
 
 	Cache(Cache&& other) noexcept :
@@ -209,51 +210,81 @@ public:
 
 private:
 
-	void splice(SIt& pos, SIt it)
+	// Place it right before pos
+	template<class It, class Item>
+	void splice(It& pos, It it, Container<Item>& cont)
 	{
-		std::lock_guard lock(mutex);
-
 		auto val = std::move(*it);
-		std::memmove(&*(pos + 1), &*pos, sizeof(Slab) * static_cast<size_t>(it - pos));
+		std::memmove(&*(pos + 1), &*pos, sizeof(Item) * static_cast<size_t>(it - pos));
 
 		// Two of the same Slab exist after the memmove above.
 		// To avoid the destructor call destroying the Slab we want to keep
 		// we placement new the value of 'it' into the redundent Slab (pos is then set to correct position)
-		new(&*pos) Slab{ std::move(val) };
-		pos = std::begin(slabs) + (static_cast<size_t>(pos - std::begin(slabs)) + 1);
+		new(&*pos) Item{ std::move(val) };
+		pos = std::begin(cont) + (static_cast<size_t>(pos - std::begin(cont)) + 1);
+	}
+
+	void spliceBoth(SIt& spos, MIt &mpos, SIt sit, MIt mit)
+	{
+		std::lock_guard lock(mutex);
+		splice<SIt, Slab >(spos, sit, slabs);
+		splice<MIt, byte*>(mpos, mit, ptrs);
 	}
 
 	void addCache()
 	{
 		slabs.emplace_back(blockSize, count);
+		ptrs.emplace_back(dispatcher.getBlock());
+
 		myCapacity += count;
 	}
 
-	void memToDispatch(SIt it)
+	void memToDispatch(SIt sit, MIt mit)
 	{
 		std::lock_guard lock(mutex);
 		myCapacity -= count;
 
-		if (it != actBlock)
+		if (sit != actBlock)
 		{
-			if (it > actBlock)
+			if (sit > actBlock)
 			{
-				std::swap(*it, slabs.back());
+				std::swap(*sit, slabs.back());
+				std::swap(*mit, ptrs.back());
 				slabs.pop_back();
+				ptrs.pop_back();
 			}
 			else
 			{
-				auto idx = static_cast<size_t>(actBlock - std::begin(slabs));
-				slabs.erase(it);
-				actBlock = std::begin(slabs) + (idx - 1);
+				auto idx = static_cast<size_t>(actBlock - std::begin(slabs)) - 1;
+				slabs.erase(sit);
+				ptrs.erase(mit);
+
+				actBlock	= std::begin(slabs) + idx;
+				actMem		= std::begin(ptrs)  + idx;
 			}
 		}
 		else
 		{
 			std::swap(*actBlock, slabs.back());
+			std::swap(*actMem, ptrs.back());
 			slabs.pop_back();
-			actBlock = std::end(slabs) - 1;
+			ptrs.pop_back();
+
+			actBlock	= std::end(slabs) - 1;
+			actMem		= std::end(ptrs) - 1;
 		}
+	}
+
+	template<class It, class Cont>
+	int getItIndex(const It& it, const Cont& cont) const
+	{
+		return it - std::begin(cont);
+	}
+
+	template<class Cont>
+	decltype(auto) itFromIdx(int index, const Cont& cont) const
+	{
+		return std::begin(cont) + index;
 	}
 
 public:
@@ -261,7 +292,7 @@ public:
 	// No other threads will ever be in this function	
 	byte* allocate()
 	{
-		auto[mem, possiblyFull] = actBlock->allocate();
+		auto[mem, possiblyFull] = actBlock->allocate(*actMem);
 
 		// If active block is full, create a new one and add
 		// it to the list before the previous AB
@@ -278,32 +309,25 @@ public:
 			}
 
 			if (actBlock != std::begin(slabs))
-				actBlock = --actBlock;
+			{
+				--actBlock;
+				--actMem;
+			}
 
 			else
 			{
-				auto idx = static_cast<size_t>(actBlock - std::begin(slabs));
+				auto idx = getItIndex(actBlock, slabs);
 				addCache();
 				std::swap(slabs[idx], slabs.back());
-				actBlock = std::begin(slabs) + idx;
+				std::swap(ptrs[idx],  ptrs.back());
+				actBlock	= std::begin(slabs) + idx;
+				actMem		= std::begin(ptrs)  + idx;
 			}
 		}
 
 		theEnd:
 		mySize.fetch_add(1, std::memory_order_relaxed); // TODO: This atomic decreases speed by ~ 4%
 		return mem;
-	}
-
-	template<class It, class Cont>
-	int getItIndex(const It& it, const Cont& cont) const
-	{
-		return it - std::begin(cont);
-	}
-
-	template<class Cont>
-	decltype(auto) itFromIdx(int index, const Cont& cont) const
-	{
-		return std::begin(cont) + index;
 	}
 
 	template<class T>
@@ -319,22 +343,27 @@ public:
 
 		// TODO: Hot Loop:
 		// Try searching blocks of mem's at once through min-max ptr ranges
-		auto it = actBlock;
-		for (auto E = std::end(slabs);;)
+		SIt it;
+		auto mit = actMem;
+		for (auto E = std::end(ptrs);;)
 		{
-			if (it->containsMem(reinterpret_cast<byte*>(ptr)))
+			if (Slab::containsMem(reinterpret_cast<byte*>(ptr), *mit, blockSize, count))
 			{
-				it->deallocate(ptr, thisThread);
+				it = std::begin(slabs) + getItIndex(mit, ptrs);
+				it->deallocate(ptr, *mit, thisThread);
 				break;
 			}
 
-			if (++it == E)
-				it = std::begin(slabs);
+			if (++mit == E)
+			{
+				mit = std::begin(ptrs);
 
-			// If this Cache doesn't contain the memory location
-			// we need to tell the caller to look elsewhere			
-			if (it == actBlock)
-				return false;
+				// If we've searched the whole vector we didn't find the Slab
+				if (E == actMem || mit == actMem)
+					return false;
+
+				E	= actMem;
+			}
 		}
 
 		// TODO: it->size() and it->empty() both lock same variable (twice in most calls) 
@@ -345,7 +374,7 @@ public:
 			&& it > actBlock)
 		{
 			slock.unlock();
-			splice(actBlock, it);
+			spliceBoth(actBlock, actMem, it, mit);
 		}
 
 		// Return memory to Dispatcher
@@ -354,10 +383,13 @@ public:
 			&& mySize > myCapacity - count)
 		{
 			slock.unlock();
-			memToDispatch(it);
+			memToDispatch(it, mit);
 		}
 
 		mySize.fetch_sub(1, std::memory_order_relaxed);
+
+		// TODO: Add Bucket awareness so if the thread is killed and we have no more elements left
+		// we destroy the bucket
 		return true;
 	}
 };
