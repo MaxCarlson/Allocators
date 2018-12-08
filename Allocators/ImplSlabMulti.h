@@ -37,9 +37,6 @@ private:
 	using size_type = size_t;
 
 	// TODO: Reorganize for size
-
-	//byte*					mem;		// TODO: Test moving this outside Slab so we don't have to thrash cache when we dealloc and search mem's
-	//byte*					end;		// TODO: Cache this?
 	size_type				blockSize;	// Size of the blocks the super block is divided into
 	size_type				count;		// TODO: This can be converted to IndexSizeT 
 	std::vector<IndexSizeT>	availible;	// list of avalible indicies (foreign threads never touch this)
@@ -51,57 +48,50 @@ public:
 	Slab() = default;
 
 	Slab(size_t blockSize, size_t count) noexcept :
-		//mem{		dispatcher.getBlock()	},
 		blockSize{	blockSize				},
 		count{		count					},
 		availible{	dispatcher.getIndicies(blockSize) },
 		foreigns{},
 		spinLock{}
-	{
-	}
+	{}
 
 	Slab(const Slab& other) noexcept :
-		//mem{		other.mem		},
 		blockSize{	other.blockSize },
 		count{		other.count		},
 		availible{	other.availible },
 		foreigns{	other.foreigns	},
 		spinLock{}
-	{
-	}
+	{}
 
 	Slab(Slab&& other) noexcept :
-		//mem{		other.mem					},
 		blockSize{	other.blockSize				},
 		count{		other.count					},
 		availible{	std::move(other.availible)	},
 		foreigns{	std::move(other.foreigns)	},
 		spinLock{}
-	{
-		//other.mem = nullptr;
-	}
+	{}
 
 	Slab& operator=(Slab&& other) noexcept
 	{
-		//if (mem)
-		//	dispatcher.returnBlock(mem);
-		//mem			= other.mem;
 		blockSize	= other.blockSize;
 		count		= other.count;
 		availible	= std::move(other.availible);
 		foreigns	= std::move(other.foreigns);
-		//other.mem	= nullptr;
 		return *this;
 	}
 
 	~Slab()
-	{
-		//if (mem)
-		//	dispatcher.returnBlock(mem);
-	}
+	{}
 
 	bool empty()				noexcept { std::lock_guard lock(spinLock); return availible.size() + foreigns.size() == count;	}
 	size_type size()			noexcept { std::lock_guard lock(spinLock); return count - (availible.size() + foreigns.size()); }
+
+	std::pair<bool, size_type> emptyAndSize() noexcept
+	{
+		std::lock_guard lock(spinLock);
+		return { availible.size() + foreigns.size() == count,
+			count - (availible.size() + foreigns.size()) };
+	}
 
 	// Can only be used safely while holding a non-shared lock on Cache
 	size_type full()			noexcept { return availible.empty() && foreigns.empty(); }
@@ -162,9 +152,9 @@ class Cache
 	const size_type				blockSize;
 	int							threshold;
 	Container<Slab>				slabs;
-	Container<byte*>			ptrs;
-	SIt							actBlock;
-	MIt							actMem;
+	Container<byte*>			ptrs;		// Vector of the memory the Slabs manage (in same order as Slab vec)
+	SIt							actBlock;	// Slab iterator to active block
+	MIt							actMem;		// Mem  iterator to active block
 	SharedMutex					mutex;
 
 	static constexpr double		freeThreshold	= 0.25;
@@ -374,8 +364,10 @@ public:
 		// TODO: it->size() and it->empty() both lock same variable (twice in most calls) 
 		// condense into one call with a return val std::pair<size, empty> 
 
+		auto[empty, size] = it->emptyAndSize();
+
 		// If the Slab is empty enough place it before the active block
-		if (it->size() <= threshold
+		if (size <= threshold
 			&& it > actBlock)
 		{
 			slock.unlock();
@@ -383,7 +375,7 @@ public:
 		}
 
 		// Return memory to Dispatcher
-		else if (it->empty()
+		else if (empty
 			&& slabs.size() > MIN_SLABS
 			&& mySize > myCapacity - count)
 		{

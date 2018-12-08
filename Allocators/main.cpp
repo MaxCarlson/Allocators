@@ -18,7 +18,7 @@ void doWork(Al& al, Tp tp, int seed)
 	//std::cout << static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - tp).count());
 	std::vector<int, typename Al::template rebind<int>::other> vec{ al };
 	std::default_random_engine re(seed);
-	std::uniform_int_distribution dis(1, 10000);
+	std::uniform_int_distribution dis(1, 1000);
 
 	for (size_t i = 0; i < 100000000000; ++i)
 	{
