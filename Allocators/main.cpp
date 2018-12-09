@@ -45,13 +45,16 @@ int main()
 	for (int i = 0; i < 100000; ++i)
 	{
 		std::vector<std::thread> th;
+		std::vector<std::future<void>> ft;
 
 		auto tp = Clock::now();
 		for (int t = 0; t < 4; ++t)
-			//std::async(std::launch::async, [&]() { doWork(multi, tp, i + t); });
-			th.emplace_back(std::thread{ [&]() { doWork(multi, tp, i + t); } });
-		for (auto& t : th)
-			t.join();
+			ft.emplace_back(std::async(std::launch::async, [&]() { doWork(multi, tp, i + t); }));
+			//th.emplace_back(std::thread{ [&]() { doWork(multi, tp, i + t); } });
+		//for (auto& t : th)
+		//	t.join();
+		for (auto& f : ft)
+			f.get();
 	}
 
 	alloc::SharedMutex<0> tex;

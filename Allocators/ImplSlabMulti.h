@@ -271,13 +271,13 @@ private:
 	}
 
 	template<class It, class Cont>
-	int getItIndex(const It& it, const Cont& cont) const
+	size_t getItIndex(It& it, const Cont& cont) const
 	{
 		return it - std::begin(cont);
 	}
 
 	template<class Cont>
-	decltype(auto) itFromIdx(int index, const Cont& cont) const
+	typename Cont::iterator itFromIdx(size_t index, Cont& cont) const
 	{
 		return std::begin(cont) + index;
 	}
@@ -330,21 +330,20 @@ public:
 	{
 		// Look at the active block first, then the fuller blocks after it
 		// after that start over from the beginning
-		//
-		// TODO: Try benchmarking: After looking at blocks from actBlock to end, 
-		// look in reverse order from actBlock to begin
 
 		std::shared_lock slock(mutex);
 
-		// TODO: Hot Loop:
-		// Try searching blocks of mem's at once through min-max ptr ranges
+		// TODO: Why not keep each Slab in memory sorted order AS WELL as holding
+		// on to an active block? Also, keep a vector of the idx of the next non-full Slab
+		// so search time is constant (and pop_back from vec when our active block is full)
+
 		SIt it;
 		auto mit = actMem;
 		for (auto E = std::end(ptrs);;)
 		{
 			if (Slab::containsMem(reinterpret_cast<byte*>(ptr), *mit, blockSize, count))
 			{
-				it = std::begin(slabs) + getItIndex(mit, ptrs);
+				it = itFromIdx(getItIndex(mit, ptrs), slabs);
 				it->deallocate(ptr, *mit, thisThread);
 				break;
 			}
@@ -361,9 +360,8 @@ public:
 			}
 		}
 
-		// TODO: it->size() and it->empty() both lock same variable (twice in most calls) 
-		// condense into one call with a return val std::pair<size, empty> 
-
+		// Combine the operations because we almost always need both
+		// empty and size, and they both require obtaining a spinLock in the Slab
 		auto[empty, size] = it->emptyAndSize();
 
 		// If the Slab is empty enough place it before the active block
