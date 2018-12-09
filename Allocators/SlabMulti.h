@@ -41,6 +41,18 @@ private:
 		buckets.emplace(id, std::move(Bucket{}));
 	}
 
+	int findCacheIdx(size_type bytes)
+	{
+		int i = 0;
+		for (const auto& cz : ImplSlabMulti::cacheSizes)
+		{
+			if (cz >= bytes)
+				return i;
+			++i;
+		}
+		return Bucket::NOT_FOUND;
+	}
+
 public:
 
 	template<class T>
@@ -48,11 +60,12 @@ public:
 	{
 		const auto bytes	= sizeof(T) * count;
 		const auto id		= std::this_thread::get_id();
+		const auto idx		= findCacheIdx(bytes);
 
 		auto alloc = [&](auto it, auto& vec) -> byte*
 		{
 			if(it != std::end(vec))
-				return it->second.allocate(bytes);
+				return it->second.allocate(idx, bytes);
 			return nullptr;
 		};
 
@@ -70,8 +83,10 @@ public:
 	template<class T>
 	void deallocate(T* ptr, size_type n)
 	{
-		const auto id			= std::this_thread::get_id();
-		const size_type bytes	= sizeof(T) * n;
+		const auto id		= std::this_thread::get_id();
+		const auto bytes	= sizeof(T) * n;
+		const auto idx		= findCacheIdx(bytes);
+
 
 		// Attempt to deallocate ptr in this threads Bucket first
 		bool registered	= false;
@@ -80,7 +95,7 @@ public:
 			if (it != std::end(cont))
 			{
 				registered = true;
-				return it->second.deallocate(ptr, bytes, true);
+				return it->second.deallocate(ptr, idx, bytes, true);
 			}
 			return false;
 		});
@@ -91,7 +106,7 @@ public:
 			buckets.iterate([&](BucketPair& pair) -> bool
 			{
 				if(pair.first != id)
-					found = pair.second.deallocate(ptr, bytes, false);
+					found = pair.second.deallocate(ptr, idx, bytes, false);
 				return found;
 			});
 

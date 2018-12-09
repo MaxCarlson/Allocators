@@ -394,6 +394,13 @@ struct Bucket
 {
 	using size_type = size_t;
 
+	enum { NOT_FOUND = -1, FOUND };
+
+private:
+	std::vector<Cache>	caches;
+
+public:
+
 	Bucket() :
 		caches{}
 	{
@@ -410,28 +417,23 @@ struct Bucket
 	{
 	}
 
-	byte* allocate(size_type bytes)
+	byte* allocate(int idx, size_type bytes)
 	{
-		for (auto& c : caches)
-			if (c.blockSize >= bytes) // TODO: Can this be done more effeciently than a loop since the c.blockSize is always the same?
-				return c.allocate();
+		if (idx >= FOUND)
+			return caches[idx].allocate();
 
 		return reinterpret_cast<byte*>(operator new(bytes));
 	}
 
 	template<class T>
-	bool deallocate(T* ptr, size_type bytes, bool thisThread)
+	bool deallocate(T* ptr, int idx, size_type bytes, bool thisThread)
 	{
-		for (auto& c : caches)
-			if (c.blockSize >= bytes) // TODO: Can this be done more effeciently than a loop since the c.blockSize is always the same?
-				return c.deallocate(ptr, thisThread);
+		if (idx >= FOUND)
+			return caches[idx].deallocate(ptr, thisThread);
 
 		operator delete(ptr, bytes);
 		return true;
 	}
-
-private:
-	std::vector<Cache>	caches;
 };
 
 } // End ImplSlabMulti::

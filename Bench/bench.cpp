@@ -277,8 +277,8 @@ int main()
 {
 	//constexpr size_t allocMask = ALL_ALLOCS;
 
-	//constexpr size_t allocMask = SLAB_MULTI;
-	constexpr size_t allocMask = SLAB_MULTI | DEFAULT;
+	constexpr size_t allocMask = SLAB_MULTI;
+	//constexpr size_t allocMask = SLAB_MULTI | DEFAULT;
 
 	//constexpr size_t allocMask		= DEFAULT | SLAB_OBJ | SLAB_MEM | SLAB_MULTI;	
 	//constexpr size_t allocMask		= AllocMasks::ALL_ALLOCS; // SLAB_MEM | SLAB_OBJ;	
