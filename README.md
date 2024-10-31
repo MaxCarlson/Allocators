@@ -26,7 +26,7 @@
 ### Usage Examples
 
 #### SlabMulti Allocator
-Provides thread-local caches for faster memory allocation across multiple threads, using 16KB slabs divided into blocks of varying sizes.
+Provides thread-local caches for faster memory allocation across multiple threads, using customizable slab sizes, divided into blocks of varying sizes.
 
 ```cpp
 alloc::SlabMulti<size_t> multi;
